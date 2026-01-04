@@ -16,8 +16,12 @@ logger = logging.getLogger(__name__)
 class AIService:
     def __init__(self):
         # Validar API key antes de crear el cliente
-        if not settings.OPENAI_API_KEY or settings.OPENAI_API_KEY.strip() == "":
-            logger.warning("OPENAI_API_KEY no está configurada. Las funciones de IA usarán planes de fallback.")
+        openai_key = settings.OPENAI_API_KEY.strip() if settings.OPENAI_API_KEY else ""
+        if not openai_key or openai_key == "sk-proj-TU_CLAVE_API_AQUI":
+            logger.warning(
+                f"OPENAI_API_KEY no está configurada correctamente "
+                f"(vacía o placeholder). Las funciones de IA usarán planes de fallback."
+            )
             self.client = None
         else:
             # Create AsyncOpenAI client without proxies to avoid httpx compatibility issues
@@ -26,6 +30,7 @@ class AIService:
                 timeout=30.0,  # 30 segundos timeout por defecto
                 http_client=None  # Use default httpx client without proxy configuration
             )
+            logger.debug(f"AIService inicializado con modelo {settings.OPENAI_MODEL}")
         self.model = settings.OPENAI_MODEL
         self.embedding_model = settings.OPENAI_EMBEDDING_MODEL
     
@@ -33,7 +38,10 @@ class AIService:
         """Analyze user prompt and generate analysis plan"""
         # Validar que tenemos cliente de OpenAI
         if not self.client:
-            logger.warning("OpenAI no configurado, usando plan de fallback")
+            logger.warning(
+                "OpenAI no configurado. Motivo: OPENAI_API_KEY no está configurada o es inválida. "
+                "Usando plan de fallback básico (sin análisis de IA real)."
+            )
             return self._get_fallback_plan(prompt)
         
         system_prompt = """Eres un experto en análisis OSINT e inteligencia. 
@@ -161,10 +169,12 @@ class AIService:
         - Confidence scores"""
         
         if not self.client:
+            logger.warning("Taranis analysis: OpenAI no configurado, retornando análisis de fallback")
             return {
                 "type": "taranis",
-                "analysis": "Análisis no disponible: OpenAI no configurado",
-                "confidence": 0.0
+                "analysis": "Análisis no disponible: OpenAI no configurado. Configure OPENAI_API_KEY en .env para habilitar análisis completo.",
+                "confidence": 0.0,
+                "fallback": True
             }
         
         try:
@@ -198,11 +208,13 @@ class AIService:
         ])
         
         if not self.client:
+            logger.warning("OSINTGPT analysis: OpenAI no configurado, retornando análisis de fallback")
             return {
                 "type": "osintgpt",
-                "concepts": "Análisis no disponible: OpenAI no configurado",
+                "concepts": "Análisis no disponible: OpenAI no configurado. Configure OPENAI_API_KEY en .env para habilitar análisis completo.",
                 "embeddings": [],
-                "confidence": 0.0
+                "confidence": 0.0,
+                "fallback": True
             }
         
         try:
@@ -261,10 +273,12 @@ class AIService:
         - Recomendaciones"""
         
         if not self.client:
+            logger.warning("Ominis analysis: OpenAI no configurado, retornando análisis de fallback")
             return {
                 "type": "ominis",
-                "predictions": "Análisis no disponible: OpenAI no configurado",
-                "confidence": 0.0
+                "predictions": "Análisis no disponible: OpenAI no configurado. Configure OPENAI_API_KEY en .env para habilitar análisis completo.",
+                "confidence": 0.0,
+                "fallback": True
             }
         
         try:

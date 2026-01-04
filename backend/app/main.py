@@ -59,6 +59,35 @@ async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
+async def _check_critical_apis():
+    """Check critical APIs and generate alerts if not configured"""
+    alerts = []
+    
+    # Check OpenAI (critical)
+    openai_key = settings.OPENAI_API_KEY.strip() if settings.OPENAI_API_KEY else ""
+    if not openai_key or openai_key == "sk-proj-TU_CLAVE_API_AQUI":
+        alerts.append({
+            "level": "critical",
+            "api": "openai",
+            "message": "OpenAI API key is not configured",
+            "impact": "All AI-powered features will use fallback mode"
+        })
+    
+    # Log alerts
+    if alerts:
+        logger.warning("=" * 60)
+        logger.warning("ALERTAS DE CONFIGURACIÓN - APIs CRÍTICAS")
+        logger.warning("=" * 60)
+        for alert in alerts:
+            logger.warning(f"[{alert['level'].upper()}] {alert['api']}: {alert['message']}")
+            logger.warning(f"  Impacto: {alert['impact']}")
+        logger.warning("=" * 60)
+        logger.warning(f"Total de alertas críticas: {len(alerts)}")
+        logger.warning("Consulta /api/integration/status para más detalles")
+        logger.warning("=" * 60)
+    else:
+        logger.info("✓ Todas las APIs críticas están configuradas correctamente")
+
 # FastAPI app instance
 app = FastAPI(
     title="OSINT Intelligence Platform",
@@ -124,15 +153,29 @@ async def startup_event():
     await init_db()
     logger.info("Base de datos inicializada correctamente")
     
+    # Check and alert on critical API configuration
+    await _check_critical_apis()
+    
     # Validar configuración de OpenAI
-    if not settings.OPENAI_API_KEY or settings.OPENAI_API_KEY.strip() == "":
+    openai_key = settings.OPENAI_API_KEY.strip() if settings.OPENAI_API_KEY else ""
+    if not openai_key or openai_key == "sk-proj-TU_CLAVE_API_AQUI":
         logger.warning("=" * 60)
-        logger.warning("ADVERTENCIA: OPENAI_API_KEY no está configurada")
-        logger.warning("Las funciones de IA usarán planes de fallback")
-        logger.warning("Para habilitar análisis completo con IA, configura OPENAI_API_KEY en .env")
+        logger.warning("ADVERTENCIA: OPENAI_API_KEY no está configurada correctamente")
+        logger.warning("Estado: OPENAI_API_KEY está vacía o contiene valor placeholder")
+        logger.warning("Consecuencias:")
+        logger.warning("  - Las funciones de IA usarán planes de fallback (sin análisis real)")
+        logger.warning("  - La clasificación OSINT retornará sentiment neutral y categorías vacías")
+        logger.warning("  - Los análisis Taranis/OSINTGPT/Ominis retornarán resultados de fallback")
+        logger.warning("  - La creación de casos por prompt usará plan básico en lugar de IA")
+        logger.warning("Solución:")
+        logger.warning("  - Configura OPENAI_API_KEY en el archivo .env con tu clave real")
+        logger.warning("  - Obtén una clave en https://platform.openai.com/api-keys")
+        logger.warning("  - Reinicia el servidor después de configurar la clave")
         logger.warning("=" * 60)
     else:
-        logger.info("OpenAI configurado correctamente")
+        logger.info("✓ OpenAI configurado correctamente")
+        logger.info(f"  Modelo: {settings.OPENAI_MODEL}")
+        logger.info(f"  Modelo de embeddings: {settings.OPENAI_EMBEDDING_MODEL}")
     
     logger.info("=" * 60)
     logger.info("SERVIDOR BACKEND LISTO")
@@ -151,11 +194,29 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
+    """Health check endpoint with system status"""
     from datetime import datetime
+    from app.config import settings
+    
+    openai_configured = bool(
+        settings.OPENAI_API_KEY and 
+        settings.OPENAI_API_KEY.strip() and 
+        settings.OPENAI_API_KEY != "sk-proj-TU_CLAVE_API_AQUI"
+    )
+    
     return JSONResponse({
         "status": "healthy",
-        "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now().isoformat(),
+        "services": {
+            "openai": {
+                "configured": openai_configured,
+                "status": "available" if openai_configured else "fallback_mode",
+                "model": settings.OPENAI_MODEL if openai_configured else None
+            }
+        },
+        "recommendations": [] if openai_configured else [
+            "Configure OPENAI_API_KEY in .env to enable full AI analysis capabilities"
+        ]
     })
 
 if __name__ == "__main__":

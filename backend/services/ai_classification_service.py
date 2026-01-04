@@ -134,6 +134,11 @@ class AIClassificationService:
         """Classify content using AI with active categories"""
         if not self.ai_service.client:
             # Fallback classification without AI
+            logger.warning(
+                "AI classification: OpenAI no configurado. "
+                "Retornando clasificación de fallback (sentiment neutral, categorías vacías). "
+                "Configure OPENAI_API_KEY en .env para habilitar clasificación completa."
+            )
             return {
                 "sentiment": "neutral",
                 "sentiment_score": 0.0,
@@ -141,7 +146,8 @@ class AIClassificationService:
                 "categories": [],
                 "concepts": [],
                 "topics": [],
-                "confidence": 0.5
+                "confidence": 0.5,
+                "fallback": True
             }
         
         try:
