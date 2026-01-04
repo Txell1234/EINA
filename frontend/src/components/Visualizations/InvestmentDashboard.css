@@ -1,0 +1,303 @@
+.investment-dashboard {
+  padding: 2rem;
+  background: #f8f9fa;
+  min-height: 100vh;
+}
+
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.dashboard-header h2 {
+  margin: 0;
+  color: #333;
+  font-size: 1.8rem;
+}
+
+.view-selector {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.view-selector button {
+  padding: 0.75rem 1.5rem;
+  border: 2px solid #e0e0e0;
+  background: white;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.view-selector button:hover {
+  border-color: #667eea;
+  color: #667eea;
+}
+
+.view-selector button.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-color: transparent;
+}
+
+.overview-section {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+}
+
+.metric-card {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-left: 4px solid #667eea;
+}
+
+.metric-label {
+  font-size: 0.9rem;
+  color: #666;
+  margin-bottom: 0.5rem;
+}
+
+.metric-value {
+  font-size: 2.5rem;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 0.25rem;
+}
+
+.metric-value.risk-medium {
+  color: #ffc107;
+}
+
+.metric-value.risk-low {
+  color: #28a745;
+}
+
+.metric-value.risk-high {
+  color: #dc3545;
+}
+
+.metric-change {
+  font-size: 0.85rem;
+  color: #999;
+}
+
+.risk-return-section,
+.risk-radar-section,
+.opportunities-section,
+.risks-section,
+.market-section,
+.performance-section {
+  background: white;
+  padding: 2rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.risk-return-section h3,
+.risk-radar-section h3,
+.opportunities-section h3,
+.risks-section h3,
+.market-section h3,
+.performance-section h3 {
+  margin: 0 0 1.5rem 0;
+  color: #333;
+}
+
+.risk-return-chart,
+.risk-radar-chart,
+.market-chart {
+  margin-top: 1.5rem;
+}
+
+.opportunities-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.opportunity-card {
+  padding: 1.5rem;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border-left: 4px solid #667eea;
+}
+
+.opportunity-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.opportunity-header h4 {
+  margin: 0;
+  color: #333;
+  font-size: 1.2rem;
+}
+
+.risk-badge {
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.risk-badge.risk-low {
+  background: #d4edda;
+  color: #155724;
+}
+
+.risk-badge.risk-medium {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.risk-badge.risk-high {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.opportunity-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.opportunity-metric {
+  font-size: 0.95rem;
+  color: #666;
+}
+
+.confidence-bar {
+  width: 100%;
+  height: 8px;
+  background: #e0e0e0;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: 0.5rem;
+}
+
+.confidence-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  transition: width 0.3s;
+}
+
+.risks-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.risk-card {
+  padding: 1.5rem;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border-left: 4px solid #dc3545;
+}
+
+.risk-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.risk-header h4 {
+  margin: 0;
+  color: #333;
+}
+
+.risk-score {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #dc3545;
+}
+
+.risk-factors {
+  color: #666;
+}
+
+.risk-factors ul {
+  margin: 0.5rem 0 0 0;
+  padding-left: 1.5rem;
+}
+
+.market-insights {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background: #f8f9fa;
+  border-radius: 6px;
+}
+
+.market-insights h4 {
+  margin: 0 0 1rem 0;
+  color: #333;
+}
+
+.market-insights ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.market-insights li {
+  padding: 0.5rem 0;
+  color: #666;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.market-insights li:last-child {
+  border-bottom: none;
+}
+
+.performance-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+}
+
+.performance-card {
+  padding: 2rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 8px;
+  color: white;
+  text-align: center;
+}
+
+.performance-card h4 {
+  margin: 0 0 1rem 0;
+  font-size: 1rem;
+  opacity: 0.9;
+}
+
+.performance-value {
+  font-size: 3rem;
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+}
+
+.performance-period {
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+
+

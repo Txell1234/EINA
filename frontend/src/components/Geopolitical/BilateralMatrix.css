@@ -1,0 +1,152 @@
+.bilateral-matrix {
+  padding: 1.5rem;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.matrix-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.matrix-header h3 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1e3a8a;
+  margin: 0;
+}
+
+.matrix-stats {
+  display: flex;
+  gap: 0.5rem;
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+.matrix-legend {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: #4b5563;
+}
+
+.legend-color {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  border: 1px solid #d1d5db;
+}
+
+.matrix-container {
+  overflow-x: auto;
+  margin-bottom: 1rem;
+}
+
+.matrix-table-wrapper {
+  display: inline-block;
+  min-width: 100%;
+}
+
+.matrix-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.matrix-corner {
+  background: #f9fafb;
+  font-weight: 600;
+  padding: 0.75rem;
+  border: 1px solid #e5e7eb;
+  position: sticky;
+  left: 0;
+  z-index: 2;
+}
+
+.matrix-header-cell {
+  background: #f9fafb;
+  font-weight: 600;
+  padding: 0.75rem;
+  border: 1px solid #e5e7eb;
+  text-align: center;
+  min-width: 100px;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  transform: rotate(180deg);
+}
+
+.matrix-row-header {
+  background: #f9fafb;
+  font-weight: 600;
+  padding: 0.75rem;
+  border: 1px solid #e5e7eb;
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  text-align: right;
+  min-width: 120px;
+}
+
+.matrix-cell {
+  padding: 0.75rem;
+  border: 1px solid #e5e7eb;
+  text-align: center;
+  font-weight: 600;
+  color: white;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  cursor: help;
+  transition: opacity 0.2s;
+  min-width: 60px;
+}
+
+.matrix-cell:hover {
+  opacity: 0.8;
+  transform: scale(1.1);
+  z-index: 10;
+  position: relative;
+}
+
+.matrix-footer {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.matrix-note {
+  font-size: 0.875rem;
+  color: #6b7280;
+  font-style: italic;
+  margin: 0;
+}
+
+.matrix-loading,
+.matrix-error,
+.matrix-empty {
+  text-align: center;
+  padding: 3rem;
+  color: #6b7280;
+}
+
+.matrix-error {
+  color: #dc3545;
+}
+
+.error-hint {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-top: 0.5rem;
+}
+

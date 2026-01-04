@@ -1,0 +1,183 @@
+@import '../../styles/variables.css';
+
+.investment-recommendations {
+  background: var(--color-white);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-2xl);
+  box-shadow: 
+    0 2px 8px rgba(0, 0, 0, 0.08),
+    0 1px 3px rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(30, 58, 95, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+
+.investment-recommendations::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--color-primary) 0%, var(--color-accent) 50%, var(--color-primary) 100%);
+  background-size: 200% 100%;
+  animation: gradient-shift 3s ease infinite;
+}
+
+@keyframes gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.recommendation-summary {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 20px;
+  margin-top: 30px;
+}
+
+.confidence-card,
+.recommendation-card {
+  background: var(--color-white);
+  border: 2px solid var(--color-gray-200);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-xl);
+  box-shadow: var(--shadow-md);
+  transition: all var(--transition-base);
+  position: relative;
+  overflow: hidden;
+}
+
+.confidence-card::before,
+.recommendation-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--color-primary) 0%, var(--color-accent) 100%);
+  transform: scaleX(0);
+  transition: transform var(--transition-base);
+}
+
+.confidence-card:hover,
+.recommendation-card:hover {
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-2px);
+  border-color: var(--color-primary);
+}
+
+.confidence-card:hover::before,
+.recommendation-card:hover::before {
+  transform: scaleX(1);
+}
+
+.confidence-value {
+  font-size: 3.5rem;
+  font-weight: var(--font-weight-bold);
+  color: var(--color-success);
+  text-shadow: 0 2px 4px rgba(40, 167, 69, 0.2);
+  line-height: 1;
+  margin: var(--spacing-md) 0;
+}
+
+.recommendation-type {
+  font-size: 2.5rem;
+  font-weight: var(--font-weight-bold);
+  color: var(--color-success);
+  margin-bottom: var(--spacing-md);
+  text-shadow: 0 2px 4px rgba(40, 167, 69, 0.2);
+  letter-spacing: -0.5px;
+}
+
+.risks-section {
+  margin-top: 40px;
+}
+
+.risks-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.risk-card {
+  background: var(--color-white);
+  border: 2px solid var(--color-gray-200);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-xl);
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-base);
+  position: relative;
+  overflow: hidden;
+}
+
+.risk-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--color-gray-300);
+  transform: scaleX(0);
+  transition: transform var(--transition-base);
+  transform-origin: left;
+}
+
+.risk-card:hover {
+  box-shadow: 
+    0 6px 12px rgba(0, 0, 0, 0.12),
+    0 3px 6px rgba(0, 0, 0, 0.08);
+  transform: translateY(-4px);
+  border-color: var(--color-primary);
+}
+
+.risk-card:hover::before {
+  transform: scaleX(1);
+  background: linear-gradient(90deg, var(--color-primary) 0%, var(--color-accent) 100%);
+}
+
+.risk-card h3 {
+  margin-bottom: 10px;
+  color: #1e3a5f;
+}
+
+.risk-percentage {
+  font-size: 32px;
+  font-weight: bold;
+  margin: 10px 0;
+}
+
+.risk-card p {
+  color: #666;
+  font-size: 14px;
+}
+
+.geographic-section {
+  margin-top: var(--spacing-2xl);
+  padding: var(--spacing-xl);
+  background: linear-gradient(135deg, var(--color-gray-50) 0%, var(--color-white) 100%);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--color-gray-200);
+  position: relative;
+  overflow: hidden;
+}
+
+.geographic-section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--color-primary) 0%, var(--color-accent) 100%);
+}
+
+.geographic-section h2 {
+  margin-bottom: 20px;
+  color: #1e3a5f;
+}
+

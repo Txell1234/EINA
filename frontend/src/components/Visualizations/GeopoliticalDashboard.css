@@ -1,0 +1,339 @@
+.geopolitical-dashboard {
+  padding: 2rem;
+  background: #f8f9fa;
+  min-height: 100vh;
+}
+
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.dashboard-header h2 {
+  margin: 0;
+  color: #333;
+  font-size: 1.8rem;
+}
+
+.view-selector {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.view-selector button {
+  padding: 0.75rem 1.5rem;
+  border: 2px solid #e0e0e0;
+  background: white;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.view-selector button:hover {
+  border-color: #667eea;
+  color: #667eea;
+}
+
+.view-selector button.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-color: transparent;
+}
+
+.overview-section {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+}
+
+.metric-card {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-left: 4px solid #667eea;
+}
+
+.metric-label {
+  font-size: 0.9rem;
+  color: #666;
+  margin-bottom: 0.5rem;
+}
+
+.metric-value {
+  font-size: 2.5rem;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 0.25rem;
+}
+
+.metric-change {
+  font-size: 0.85rem;
+  color: #999;
+}
+
+.relations-map-section,
+.insights-section {
+  background: white;
+  padding: 2rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.relations-map-section h3,
+.insights-section h3 {
+  margin: 0 0 1.5rem 0;
+  color: #333;
+}
+
+.relations-map {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.relation-item {
+  padding: 1.5rem;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border: 1px solid #e0e0e0;
+}
+
+.relation-countries {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.country {
+  font-weight: 600;
+  color: #333;
+  font-size: 1.1rem;
+}
+
+.relation-strength {
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  transition: all 0.3s;
+}
+
+.relation-details {
+  display: flex;
+  gap: 1.5rem;
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.treaties-section,
+.events-section,
+.trade-section,
+.relations-section {
+  background: white;
+  padding: 2rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.treaties-section h3,
+.events-section h3,
+.trade-section h3,
+.relations-section h3 {
+  margin: 0 0 1.5rem 0;
+  color: #333;
+}
+
+.treaties-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.treaty-item {
+  display: flex;
+  gap: 2rem;
+  padding: 1.5rem;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border-left: 4px solid #667eea;
+}
+
+.treaty-date {
+  font-weight: 600;
+  color: #667eea;
+  min-width: 120px;
+}
+
+.treaty-content {
+  flex: 1;
+}
+
+.treaty-name {
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 0.5rem;
+  font-size: 1.1rem;
+}
+
+.treaty-details {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.9rem;
+}
+
+.treaty-status {
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-weight: 500;
+}
+
+.status-active {
+  background: #d4edda;
+  color: #155724;
+}
+
+.treaty-countries {
+  color: #666;
+}
+
+.events-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.event-item {
+  display: flex;
+  gap: 2rem;
+  padding: 1.5rem;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border-left: 4px solid #48bb78;
+}
+
+.event-date {
+  font-weight: 600;
+  color: #48bb78;
+  min-width: 120px;
+}
+
+.event-content {
+  flex: 1;
+}
+
+.event-name {
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 0.5rem;
+  font-size: 1.1rem;
+}
+
+.event-details {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.9rem;
+}
+
+.event-significance {
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-weight: 500;
+}
+
+.significance-high {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.event-sentiment {
+  color: #666;
+}
+
+.trade-chart {
+  margin-bottom: 2rem;
+}
+
+.trade-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.5rem;
+  background: #f8f9fa;
+  border-radius: 6px;
+}
+
+.trade-metric {
+  font-size: 1rem;
+  color: #333;
+}
+
+.heatmap-section {
+  background: white;
+  padding: 2rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.heatmap-section h3 {
+  margin: 0 0 1.5rem 0;
+  color: #333;
+}
+
+.heatmap-controls {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 6px;
+}
+
+.heatmap-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.heatmap-controls select {
+  padding: 0.5rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+}
+
+.insights-section ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.insights-section li {
+  padding: 1rem;
+  margin-bottom: 0.5rem;
+  background: #e7f3ff;
+  border-left: 4px solid #667eea;
+  border-radius: 4px;
+  color: #333;
+}
+
+.relations-chart {
+  margin-top: 2rem;
+}
+
