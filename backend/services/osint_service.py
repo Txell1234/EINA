@@ -248,27 +248,35 @@ class OSINTService:
             else:
                 result_data = {"error": f"Unknown query type: {query_type}"}
             
+            # Determine result status
+            has_error = (
+                isinstance(result_data, dict)
+                and (
+                    result_data.get("status") == "error"
+                    or result_data.get("error") is not None
+                )
+            )
+            result_status = "error" if has_error else "completed"
+
             # Create result record
             result = OSINTResult(
                 query_id=query.id,
                 data=result_data,
-                status="completed"
+                status=result_status,
+                error_message=result_data.get("error") if has_error else None
             )
             self.db.add(result)
             await self.db.flush()  # Flush to get result.id
             
             # Update query status
             # Si hay un error en result_data, marcar como completed pero con error
-            if isinstance(result_data, dict) and result_data.get("status") == "error":
-                query.status = "completed"  # Completado pero con error
-            else:
-                query.status = "completed"
+            query.status = "completed"
             
             await self.db.commit()
             
             # IMPORTANT: Classify OSINT result through AI automatically
             # This ensures all data is classified before visualization
-            if case_id and not (isinstance(result_data, dict) and result_data.get("status") == "error"):
+            if case_id and not has_error:
                 try:
                     from services.ai_classification_service import AIClassificationService
                     classification_service = AIClassificationService(self.db)
@@ -284,8 +292,8 @@ class OSINTService:
                 "query_id": query.id,
                 "result_id": result.id,
                 "data": result_data,
-                "status": "completed",
-                "error": result_data.get("error") if isinstance(result_data, dict) and result_data.get("status") == "error" else None
+                "status": result_status,
+                "error": result_data.get("error") if has_error else None
             }
             
         except Exception as e:
@@ -301,4 +309,3 @@ class OSINTService:
                     "message": "Error ejecutando consulta OSINT"
                 }
             }
-

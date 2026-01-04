@@ -3,7 +3,7 @@ AI Classification Service - Classify all OSINT content through AI before visuali
 """
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Union
 from models.ai_classification import AIClassification, ClassificationCategory, ClassificationFeedback, AIModelTraining
 from models.osint import OSINTResult
 from models.case import Case
@@ -25,20 +25,36 @@ class AIClassificationService:
         self,
         osint_result: OSINTResult,
         case_id: int
-    ) -> AIClassification:
+    ) -> Optional[Union[AIClassification, Dict[str, Any]]]:
         """Classify a single OSINT result through AI"""
         try:
+            if osint_result.status == "error":
+                logger.warning(f"Skipping OSINT result {osint_result.id}: marked as error")
+                return {
+                    "status": "error",
+                    "osint_result_id": osint_result.id,
+                    "message": "Resultado OSINT marcado como error"
+                }
+
             # Extract content from OSINT result
             content_data = osint_result.data
             if not content_data:
                 logger.warning(f"OSINT result {osint_result.id} has no data")
-                return None
+                return {
+                    "status": "no_data",
+                    "osint_result_id": osint_result.id,
+                    "message": "Resultado OSINT sin datos"
+                }
             
             # Extract text content based on data structure
             content_text = self._extract_text_from_data(content_data)
             if not content_text:
                 logger.warning(f"No text content found in OSINT result {osint_result.id}")
-                return None
+                return {
+                    "status": "no_text",
+                    "osint_result_id": osint_result.id,
+                    "message": "No hay texto extraíble para clasificar"
+                }
             
             # Get active categories for classification
             categories_result = await self.db.execute(
@@ -113,7 +129,7 @@ class AIClassificationService:
                         continue  # Skip if already classified
                     
                     classification = await self.classify_osint_result(result, case_id)
-                    if classification:
+                    if isinstance(classification, AIClassification):
                         all_classifications.append(classification)
             
             await self.db.commit()
@@ -377,4 +393,3 @@ Responde en formato JSON con esta estructura:
         except Exception as e:
             logger.error(f"Error getting classification stats: {e}", exc_info=True)
             return {}
-
