@@ -9,8 +9,24 @@ from app.database import get_db
 from schemas.osint import OSINTQueryRequest, OSINTQueryResponse, OSINTResultResponse
 from models.osint import OSINTQuery, OSINTResult
 from services.osint_service import OSINTService
+from integrations.ensembledata_api import EnsembleDataAPIService
+import logging
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+
+def _ensure_ensembledata_available() -> None:
+    service = EnsembleDataAPIService()
+    if not service.is_available:
+        logger.warning("EnsembleData API request rejected: ENSEMBLEDATA_API_KEY not configured")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "EnsembleData API no está configurada. "
+                "Define ENSEMBLEDATA_API_KEY en el archivo .env para habilitar esta integración."
+            ),
+        )
 
 @router.post("/sherlock", response_model=OSINTResultResponse)
 async def search_sherlock(
@@ -418,6 +434,7 @@ async def ensembledata_tiktok_user_info(
     db: AsyncSession = Depends(get_db)
 ):
     """Get TikTok user information via EnsembleData"""
+    _ensure_ensembledata_available()
     osint_service = OSINTService(db)
     result = await osint_service.execute_query(
         query_type="ensembledata_tiktok_user_info",
@@ -434,6 +451,7 @@ async def ensembledata_tiktok_user_posts(
     db: AsyncSession = Depends(get_db)
 ):
     """Get TikTok user posts via EnsembleData"""
+    _ensure_ensembledata_available()
     osint_service = OSINTService(db)
     result = await osint_service.execute_query(
         query_type="ensembledata_tiktok_user_posts",
@@ -450,6 +468,7 @@ async def ensembledata_tiktok_hashtag_posts(
     db: AsyncSession = Depends(get_db)
 ):
     """Get TikTok posts by hashtag via EnsembleData"""
+    _ensure_ensembledata_available()
     osint_service = OSINTService(db)
     result = await osint_service.execute_query(
         query_type="ensembledata_tiktok_hashtag_posts",
@@ -466,6 +485,7 @@ async def ensembledata_tiktok_keyword_posts(
     db: AsyncSession = Depends(get_db)
 ):
     """Get TikTok posts by keyword via EnsembleData"""
+    _ensure_ensembledata_available()
     osint_service = OSINTService(db)
     result = await osint_service.execute_query(
         query_type="ensembledata_tiktok_keyword_posts",
@@ -482,6 +502,7 @@ async def ensembledata_instagram_user_info(
     db: AsyncSession = Depends(get_db)
 ):
     """Get Instagram user information via EnsembleData"""
+    _ensure_ensembledata_available()
     osint_service = OSINTService(db)
     result = await osint_service.execute_query(
         query_type="ensembledata_instagram_user_info",
@@ -498,6 +519,7 @@ async def ensembledata_instagram_user_posts(
     db: AsyncSession = Depends(get_db)
 ):
     """Get Instagram user posts via EnsembleData"""
+    _ensure_ensembledata_available()
     osint_service = OSINTService(db)
     result = await osint_service.execute_query(
         query_type="ensembledata_instagram_user_posts",
@@ -514,6 +536,7 @@ async def ensembledata_instagram_hashtag_posts(
     db: AsyncSession = Depends(get_db)
 ):
     """Get Instagram posts by hashtag via EnsembleData"""
+    _ensure_ensembledata_available()
     osint_service = OSINTService(db)
     result = await osint_service.execute_query(
         query_type="ensembledata_instagram_hashtag_posts",
@@ -530,6 +553,7 @@ async def ensembledata_youtube_channel_info(
     db: AsyncSession = Depends(get_db)
 ):
     """Get YouTube channel information via EnsembleData"""
+    _ensure_ensembledata_available()
     osint_service = OSINTService(db)
     result = await osint_service.execute_query(
         query_type="ensembledata_youtube_channel_info",
@@ -546,6 +570,7 @@ async def ensembledata_youtube_channel_videos(
     db: AsyncSession = Depends(get_db)
 ):
     """Get YouTube channel videos via EnsembleData"""
+    _ensure_ensembledata_available()
     osint_service = OSINTService(db)
     result = await osint_service.execute_query(
         query_type="ensembledata_youtube_channel_videos",
@@ -562,6 +587,7 @@ async def ensembledata_youtube_keyword_posts(
     db: AsyncSession = Depends(get_db)
 ):
     """Get YouTube videos by keyword via EnsembleData"""
+    _ensure_ensembledata_available()
     osint_service = OSINTService(db)
     result = await osint_service.execute_query(
         query_type="ensembledata_youtube_keyword_posts",
@@ -578,6 +604,7 @@ async def ensembledata_threads_user_info(
     db: AsyncSession = Depends(get_db)
 ):
     """Get Threads user information via EnsembleData"""
+    _ensure_ensembledata_available()
     osint_service = OSINTService(db)
     result = await osint_service.execute_query(
         query_type="ensembledata_threads_user_info",
@@ -594,6 +621,7 @@ async def ensembledata_threads_user_posts(
     db: AsyncSession = Depends(get_db)
 ):
     """Get Threads user posts via EnsembleData"""
+    _ensure_ensembledata_available()
     osint_service = OSINTService(db)
     result = await osint_service.execute_query(
         query_type="ensembledata_threads_user_posts",
@@ -610,6 +638,7 @@ async def ensembledata_threads_keyword_posts(
     db: AsyncSession = Depends(get_db)
 ):
     """Get Threads posts by keyword via EnsembleData"""
+    _ensure_ensembledata_available()
     osint_service = OSINTService(db)
     result = await osint_service.execute_query(
         query_type="ensembledata_threads_keyword_posts",
@@ -627,6 +656,7 @@ async def ensembledata_reddit_subreddit_posts(
     db: AsyncSession = Depends(get_db)
 ):
     """Get Reddit subreddit posts via EnsembleData (adicional a Reddit API existente)"""
+    _ensure_ensembledata_available()
     osint_service = OSINTService(db)
     result = await osint_service.execute_query(
         query_type="ensembledata_reddit_subreddit_posts",
@@ -643,6 +673,7 @@ async def ensembledata_twitter_user_info(
     db: AsyncSession = Depends(get_db)
 ):
     """Get Twitter/X user information via EnsembleData"""
+    _ensure_ensembledata_available()
     osint_service = OSINTService(db)
     result = await osint_service.execute_query(
         query_type="ensembledata_twitter_user_info",
@@ -659,6 +690,7 @@ async def ensembledata_twitter_user_tweets(
     db: AsyncSession = Depends(get_db)
 ):
     """Get Twitter/X user tweets via EnsembleData"""
+    _ensure_ensembledata_available()
     osint_service = OSINTService(db)
     result = await osint_service.execute_query(
         query_type="ensembledata_twitter_user_tweets",
@@ -676,6 +708,7 @@ async def ensembledata_twitch_keyword_posts(
     db: AsyncSession = Depends(get_db)
 ):
     """Get Twitch posts by keyword via EnsembleData"""
+    _ensure_ensembledata_available()
     osint_service = OSINTService(db)
     result = await osint_service.execute_query(
         query_type="ensembledata_twitch_keyword_posts",
@@ -692,6 +725,7 @@ async def ensembledata_snapchat_user_info(
     db: AsyncSession = Depends(get_db)
 ):
     """Get Snapchat user information via EnsembleData"""
+    _ensure_ensembledata_available()
     osint_service = OSINTService(db)
     result = await osint_service.execute_query(
         query_type="ensembledata_snapchat_user_info",
@@ -715,4 +749,3 @@ async def get_recent_searches(
     queries = result.scalars().all()
     
     return [OSINTQueryResponse.model_validate(q) for q in queries]
-
