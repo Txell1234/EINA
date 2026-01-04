@@ -190,6 +190,13 @@ export const heatmapService = {
   },
 }
 
+export const integrationService = {
+  getStatus: async () => {
+    const response = await api.get('/api/integration/status')
+    return response.data
+  },
+}
+
 export const osintService = {
   sherlock: async (username: string, caseId?: number) => {
     const response = await api.post('/api/osint/sherlock', null, {
@@ -635,4 +642,3 @@ export const adminService = {
 }
 
 export default api
-

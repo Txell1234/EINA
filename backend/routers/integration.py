@@ -5,12 +5,37 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Dict, Any, Optional
 from app.database import get_db
+from app.config import settings, INTEGRATION_REQUIREMENTS
 from services.integration_service import IntegrationService
 import logging
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/integration", tags=["Integration"])
+
+def _is_configured(value: Optional[str]) -> bool:
+    return bool(value and str(value).strip())
+
+@router.get("/status")
+async def get_integration_status():
+    """Devuelve el estado de configuración de las integraciones"""
+    services = []
+    for service_key, metadata in INTEGRATION_REQUIREMENTS.items():
+        required_keys = metadata.get("required_keys", [])
+        missing_keys = [
+            key for key in required_keys
+            if not _is_configured(getattr(settings, key, ""))
+        ]
+        services.append({
+            "service": metadata.get("label", service_key),
+            "key": service_key,
+            "configured": len(missing_keys) == 0,
+            "required_keys": required_keys,
+            "missing_keys": missing_keys,
+            "features": metadata.get("features", []),
+        })
+
+    return {"services": services}
 
 @router.post("/comprehensive-analysis")
 async def comprehensive_analysis(

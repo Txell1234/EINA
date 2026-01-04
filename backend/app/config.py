@@ -2,7 +2,7 @@
 Application configuration
 """
 from pydantic_settings import BaseSettings
-from typing import List
+from typing import List, Dict, Any
 
 class Settings(BaseSettings):
     """Application settings"""
@@ -77,3 +77,74 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
+# Integration requirements for diagnostics and documentation
+INTEGRATION_REQUIREMENTS: Dict[str, Dict[str, Any]] = {
+    "openai": {
+        "label": "OpenAI",
+        "required_keys": ["OPENAI_API_KEY"],
+        "features": [
+            "AI analysis & summaries",
+            "Embeddings for similarity/search",
+        ],
+    },
+    "news_api": {
+        "label": "News API",
+        "required_keys": ["NEWS_API_KEY"],
+        "features": ["News monitoring & enrichment"],
+    },
+    "github": {
+        "label": "GitHub",
+        "required_keys": ["GITHUB_TOKEN"],
+        "features": ["GitHub data enrichment"],
+    },
+    "shodan": {
+        "label": "Shodan",
+        "required_keys": ["SHODAN_API_KEY"],
+        "features": ["Infrastructure intelligence"],
+    },
+    "alphavantage": {
+        "label": "Alpha Vantage",
+        "required_keys": ["ALPHAVANTAGE_API_KEY"],
+        "features": ["Market data & indicators"],
+    },
+    "finnhub": {
+        "label": "Finnhub",
+        "required_keys": ["FINNHUB_API_KEY"],
+        "features": ["Market data & fundamentals"],
+    },
+    "financial_modeling_prep": {
+        "label": "Financial Modeling Prep",
+        "required_keys": ["FINANCIAL_MODELING_PREP_API_KEY"],
+        "features": ["Financial statements & ratios"],
+    },
+    "permutable": {
+        "label": "Permutable",
+        "required_keys": ["PERMUTABLE_API_KEY"],
+        "features": ["Geopolitical datasets"],
+    },
+    "exchangerate": {
+        "label": "ExchangeRate API",
+        "required_keys": ["EXCHANGERATE_API_KEY"],
+        "features": ["Currency exchange rates"],
+    },
+    "fixer": {
+        "label": "Fixer",
+        "required_keys": ["FIXER_API_KEY"],
+        "features": ["Currency exchange rates"],
+    },
+    "coingecko": {
+        "label": "CoinGecko",
+        "required_keys": ["COINGECKO_API_KEY"],
+        "features": ["Cryptocurrency data"],
+    },
+    "ipstack": {
+        "label": "ipstack",
+        "required_keys": ["IPSTACK_API_KEY"],
+        "features": ["IP geolocation"],
+    },
+    "ensembledata": {
+        "label": "EnsembleData",
+        "required_keys": ["ENSEMBLEDATA_API_KEY"],
+        "features": ["Social media scraping"],
+    },
+}
