@@ -201,6 +201,49 @@ async def search_wayback(
     
     return OSINTResultResponse.model_validate(result)
 
+@router.post("/rss", response_model=OSINTResultResponse)
+async def fetch_rss_feed(
+    feed_url: str,
+    limit: int = 20,
+    keywords: Optional[str] = None,
+    case_id: Optional[int] = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """Fetch RSS/Atom feed entries"""
+    osint_service = OSINTService(db)
+    keyword_list = keywords.split(",") if keywords else None
+    result = await osint_service.execute_query(
+        query_type="rss",
+        query_params={"feed_url": feed_url, "limit": limit, "keywords": keyword_list},
+        case_id=case_id
+    )
+    return OSINTResultResponse.model_validate(result)
+
+@router.post("/gdelt", response_model=OSINTResultResponse)
+async def search_gdelt(
+    query: str,
+    max_records: int = 50,
+    mode: str = "artlist",
+    start_datetime: Optional[str] = None,
+    end_datetime: Optional[str] = None,
+    case_id: Optional[int] = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """Search GDELT global events/news"""
+    osint_service = OSINTService(db)
+    result = await osint_service.execute_query(
+        query_type="gdelt",
+        query_params={
+            "query": query,
+            "max_records": max_records,
+            "mode": mode,
+            "start_datetime": start_datetime,
+            "end_datetime": end_datetime
+        },
+        case_id=case_id
+    )
+    return OSINTResultResponse.model_validate(result)
+
 @router.post("/dns", response_model=OSINTResultResponse)
 async def dns_lookup(
     domain: str,
@@ -302,6 +345,7 @@ async def ip_geolocation(
     ip_address: str,
     hostname: bool = True,
     security: bool = True,
+    case_id: Optional[int] = None,
     db: AsyncSession = Depends(get_db)
 ):
     """Get geolocation information for an IP address using ipstack"""
@@ -387,6 +431,8 @@ async def get_osint_tools(
         {"id": "theharvester", "name": "theHarvester", "description": "Email, subdomain, and employee collection"},
         {"id": "shodan", "name": "Shodan", "description": "Search devices connected to internet (Requiere cuenta de pago - No disponible actualmente)"},
         {"id": "wayback", "name": "Wayback Machine", "description": "Historical website snapshots"},
+        {"id": "rss", "name": "RSS/Atom", "description": "Monitor RSS/Atom feeds"},
+        {"id": "gdelt", "name": "GDELT", "description": "Global event/news monitoring (GDELT)"},
         {"id": "dns", "name": "DNS Lookup", "description": "DNS record queries"},
         {"id": "whois", "name": "WHOIS Lookup", "description": "Domain registration information"},
         {"id": "ip_geolocation", "name": "IP Geolocation", "description": "Geolocate IP addresses (country, city, coordinates, ISP)"},
@@ -715,4 +761,3 @@ async def get_recent_searches(
     queries = result.scalars().all()
     
     return [OSINTQueryResponse.model_validate(q) for q in queries]
-

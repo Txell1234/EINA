@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { MapContainer, TileLayer, useMap } from 'react-leaflet'
 import { LatLngExpression } from 'leaflet'
@@ -187,6 +187,22 @@ function HeatmapLayer({ points, relationships }: { points: HeatmapPoint[]; relat
   return null
 }
 
+function MapSizeHandler() {
+  const map = useMap()
+
+  useEffect(() => {
+    const resize = () => map.invalidateSize()
+    const timeout = window.setTimeout(resize, 0)
+    window.addEventListener('resize', resize)
+    return () => {
+      window.clearTimeout(timeout)
+      window.removeEventListener('resize', resize)
+    }
+  }, [map])
+
+  return null
+}
+
 function getColorForTheme(theme?: string, sentiment?: number): string {
   // Theme-based colors
   const themeColors: Record<string, string> = {
@@ -350,6 +366,7 @@ export default function Heatmap({
           style={{ height: '500px', width: '100%' }}
           scrollWheelZoom={true}
         >
+          <MapSizeHandler />
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -416,4 +433,3 @@ export default function Heatmap({
     </div>
   )
 }
-

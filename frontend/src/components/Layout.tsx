@@ -1,5 +1,6 @@
 import { Outlet, Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { useI18n } from '../contexts/I18nContext'
 import './Layout.css'
 
 export default function Layout() {
@@ -14,14 +15,16 @@ export default function Layout() {
     console.warn('AuthContext no disponible, usando logout vacío')
   }
 
+  const { t, locale, setLocale } = useI18n()
+
   const navItems = [
-    { path: '/', label: 'Dashboard', icon: '📊' },
-    { path: '/osint-collection', label: 'Recopilació OSINT', icon: '🔍' },
-    { path: '/ai-analysis', label: 'Anàlisi amb IA', icon: '🤖' },
-    { path: '/qualitative-analysis', label: 'Anàlisi Qualitatiu', icon: '📈' },
-    { path: '/investment-recommendations', label: 'Recomanacions Inversió', icon: '💰' },
-    { path: '/data-synchronization', label: 'Sincronització de Dades', icon: '🔄' },
-    { path: '/admin', label: 'Administració', icon: '⚙️' },
+    { path: '/', label: t('nav.dashboard'), icon: '📊' },
+    { path: '/osint-collection', label: t('nav.osintCollection'), icon: '🔍' },
+    { path: '/ai-analysis', label: t('nav.aiAnalysis'), icon: '🤖' },
+    { path: '/qualitative-analysis', label: t('nav.qualitativeAnalysis'), icon: '📈' },
+    { path: '/investment-recommendations', label: t('nav.investmentRecommendations'), icon: '💰' },
+    { path: '/data-synchronization', label: t('nav.dataSynchronization'), icon: '🔄' },
+    { path: '/admin', label: t('nav.admin'), icon: '⚙️' },
   ]
 
   return (
@@ -29,7 +32,20 @@ export default function Layout() {
       <aside className="sidebar">
         <div className="sidebar-header">
           <h1>Amb Tu</h1>
-          <p>OSINT Intelligence Platform</p>
+          <p>{t('app.name')}</p>
+          <div style={{ marginTop: '0.75rem' }}>
+            <select
+              aria-label="Language"
+              value={locale}
+              onChange={(event) => setLocale(event.target.value as any)}
+              style={{ padding: '0.25rem 0.5rem', borderRadius: '6px' }}
+            >
+              <option value="en">English</option>
+              <option value="es">Español</option>
+              <option value="ca">Català</option>
+              <option value="fr">Français</option>
+            </select>
+          </div>
         </div>
         <nav className="sidebar-nav">
           {navItems.map((item) => (
@@ -45,7 +61,7 @@ export default function Layout() {
         </nav>
         <div className="sidebar-footer">
           <button onClick={logout} className="logout-btn">
-            Tancar Sessió
+            {t('nav.logout')}
           </button>
         </div>
       </aside>
@@ -55,4 +71,3 @@ export default function Layout() {
     </div>
   )
 }
-

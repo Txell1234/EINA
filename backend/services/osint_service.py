@@ -14,6 +14,8 @@ from integrations.shodan_api import ShodanAPIService
 from integrations.wayback_api import WaybackAPIService
 from integrations.dns_whois import DNSWhoisService
 from integrations.ensembledata_api import EnsembleDataAPIService
+from integrations.rss_api import RSSFeedService
+from integrations.gdelt_api import GDELTAPIService
 
 class OSINTService:
     def __init__(self, db: AsyncSession):
@@ -28,6 +30,8 @@ class OSINTService:
         self.wayback = WaybackAPIService()
         self.dns_whois = DNSWhoisService()
         self.ensembledata = EnsembleDataAPIService()
+        self.rss = RSSFeedService()
+        self.gdelt = GDELTAPIService()
     
     async def execute_query(
         self,
@@ -116,6 +120,20 @@ class OSINTService:
                     ip_address=query_params.get("ip", ""),
                     hostname=query_params.get("hostname", True),
                     security=query_params.get("security", True)
+                )
+            elif query_type == "rss":
+                result_data = await self.rss.fetch_feed(
+                    feed_url=query_params.get("feed_url", ""),
+                    limit=query_params.get("limit", 20),
+                    keywords=query_params.get("keywords")
+                )
+            elif query_type == "gdelt":
+                result_data = await self.gdelt.search(
+                    query=query_params.get("query", ""),
+                    max_records=query_params.get("max_records", 50),
+                    mode=query_params.get("mode", "artlist"),
+                    start_datetime=query_params.get("start_datetime"),
+                    end_datetime=query_params.get("end_datetime")
                 )
             # EnsembleData - TikTok
             elif query_type == "ensembledata_tiktok_user_info":
@@ -301,4 +319,3 @@ class OSINTService:
                     "message": "Error ejecutando consulta OSINT"
                 }
             }
-

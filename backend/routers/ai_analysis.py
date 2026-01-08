@@ -21,10 +21,11 @@ async def analyze_taranis(
     """Taranis AI analysis - Situational analysis and predictions"""
     ai_service = AIService()
     
+    osint_results = request.osint_results if request.osint_results else None
     result = await ai_service.analyze_data(
         analysis_type="taranis",
         case_id=request.case_id,
-        osint_results=request.osint_results or [],
+        osint_results=osint_results,
         db=db  # Pass db to fetch all linked OSINT data
     )
     
@@ -51,10 +52,11 @@ async def analyze_osintgpt(
     ai_service = AIService()
     
     # Pass db so analyze_data can fetch ALL OSINT data if osint_results is empty
+    osint_results = request.osint_results if request.osint_results else None
     result = await ai_service.analyze_data(
         analysis_type="osintgpt",
         case_id=request.case_id,
-        osint_results=request.osint_results or [],
+        osint_results=osint_results,
         db=db  # Pass db to fetch all linked OSINT data
     )
     
@@ -80,10 +82,11 @@ async def analyze_ominis(
     """Ominis-OSINT analysis - Predictive risk analysis"""
     ai_service = AIService()
     
+    osint_results = request.osint_results if request.osint_results else None
     result = await ai_service.analyze_data(
         analysis_type="ominis",
         case_id=request.case_id,
-        osint_results=request.osint_results or [],
+        osint_results=osint_results,
         db=db  # Pass db to fetch all linked OSINT data
     )
     
@@ -427,4 +430,3 @@ async def analyze_sentiment_endpoint(
     await db.refresh(sentiment)
     
     return [SentimentResponse.model_validate(sentiment)]
-

@@ -1,7 +1,7 @@
 import React from 'react'
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import Layout from './components/Layout'
-import Dashboard from './components/Dashboard/Dashboard'
+import OSINTIntelligenceDashboard from './components/Dashboard/OSINTIntelligenceDashboard'
 import OSINTCollection from './components/OSINTCollection/OSINTCollection'
 import AIAnalysis from './components/AIAnalysis/AIAnalysis'
 import QualitativeAnalysis from './components/QualitativeAnalysis/QualitativeAnalysis'
@@ -14,7 +14,8 @@ import PublicAffairsDashboard from './components/PublicAffairs/PublicAffairsDash
 import IntegrationDashboard from './components/Integration/IntegrationDashboard'
 import AdvancedVisualizations from './components/Geopolitical/AdvancedVisualizations'
 import InvestmentAdvancedDashboard from './components/InvestmentAdvanced/InvestmentAdvancedDashboard'
-import { AuthProvider, useAuth } from './contexts/AuthContext'
+import { AuthProvider } from './contexts/AuthContext'
+import { I18nProvider } from './contexts/I18nContext'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   // Temporalmente deshabilitado - permite acceso sin autenticación
@@ -35,7 +36,7 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Dashboard />} />
+        <Route index element={<OSINTIntelligenceDashboard />} />
         <Route path="osint-collection" element={<OSINTCollection />} />
         <Route path="ai-analysis" element={<AIAnalysis />} />
         <Route path="qualitative-analysis" element={<QualitativeAnalysis />} />
@@ -60,12 +61,13 @@ function App() {
         v7_relativeSplatPath: true,
       }}
     >
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
+      <I18nProvider>
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
+      </I18nProvider>
     </Router>
   )
 }
 
 export default App
-
