@@ -1,0 +1,2268 @@
+{
+  "source": "https://raw.githubusercontent.com/OldBonhart/Osint-Resources/master/README.md",
+  "generated_at": "2026-01-09T10:26:18.962708Z",
+  "count": 119,
+  "sources": [
+    {
+      "font": "searchface.ru",
+      "url": "http://searchface.ru/",
+      "tipus": "cerca",
+      "categoria": "imatges",
+      "cobertura": "regional (ru)",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "mitjana",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "pimeyes.com",
+      "url": "https://pimeyes.com/en/",
+      "tipus": "cerca",
+      "categoria": "imatges",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "mitjana",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "betaface.com",
+      "url": "http://betaface.com/demo_old.html",
+      "tipus": "cerca",
+      "categoria": "imatges",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "mitjana",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "vk.watch",
+      "url": "https://vk.watch/",
+      "tipus": "cerca",
+      "categoria": "socials",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "alta",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 4,
+        "latencia": 5,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 4.4
+      }
+    },
+    {
+      "font": "findmevk.com",
+      "url": "https://findmevk.com/",
+      "tipus": "cerca",
+      "categoria": "socials",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "alta",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 4,
+        "latencia": 5,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 4.4
+      }
+    },
+    {
+      "font": "www.facesaerch.com",
+      "url": "http://www.facesaerch.com/",
+      "tipus": "cerca",
+      "categoria": "imatges",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "mitjana",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "www.tineye.com",
+      "url": "https://www.tineye.com/",
+      "tipus": "cerca",
+      "categoria": "imatges",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "mitjana",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "berify.com",
+      "url": "https://berify.com/",
+      "tipus": "cerca",
+      "categoria": "imatges",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "mitjana",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "searchbyimages.com",
+      "url": "https://searchbyimages.com/",
+      "tipus": "cerca",
+      "categoria": "imatges",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "mitjana",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "www.prepostseo.com",
+      "url": "https://www.prepostseo.com/reverse-image-search",
+      "tipus": "cerca",
+      "categoria": "imatges",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "mitjana",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "smallseotools.com",
+      "url": "https://smallseotools.com/reverse-image-search/",
+      "tipus": "eina",
+      "categoria": "imatges",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "mitjana",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "karmadecay.com",
+      "url": "http://karmadecay.com/r/maledom",
+      "tipus": "cerca",
+      "categoria": "imatges",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "mitjana",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "Поиск фото по геометкам в соц. сетях",
+      "url": "http://sanstv.ru/photomap/",
+      "tipus": "cerca",
+      "categoria": "socials",
+      "cobertura": "regional (ru)",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "alta",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 4,
+        "latencia": 5,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 4.4
+      }
+    },
+    {
+      "font": "Поисковик фотографий с привязкой к геолокации",
+      "url": "http://worldc.am/",
+      "tipus": "cerca",
+      "categoria": "imatges",
+      "cobertura": "regional (am)",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "mitjana",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "Поиск по фото мошенников и фейков",
+      "url": "http://scamdigger.com/picsearch.php",
+      "tipus": "cerca",
+      "categoria": "imatges",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "mitjana",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "www.peekyou.com",
+      "url": "https://www.peekyou.com/",
+      "tipus": "cerca",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "pipl.com",
+      "url": "https://pipl.com/",
+      "tipus": "cerca",
+      "categoria": "dominis_i_infra",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "alta",
+      "scoring": {
+        "fiabilitat": 4,
+        "cobertura": 3,
+        "latencia": 5,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 4.4
+      }
+    },
+    {
+      "font": "www.nameslocator.com",
+      "url": "http://www.nameslocator.com/",
+      "tipus": "cerca",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "thatsthem.com",
+      "url": "https://thatsthem.com/",
+      "tipus": "cerca",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "www.marketvisual.com",
+      "url": "http://www.marketvisual.com/",
+      "tipus": "cerca",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "hunter.io",
+      "url": "https://hunter.io/",
+      "tipus": "cerca",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "www.beenverified.com",
+      "url": "https://www.beenverified.com/",
+      "tipus": "cerca",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "www.melissa.com",
+      "url": "https://www.melissa.com/lookups/",
+      "tipus": "cerca",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "publicrecords.searchsystems.net",
+      "url": "http://publicrecords.searchsystems.net/",
+      "tipus": "cerca",
+      "categoria": "registres_publics",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "baixa",
+      "scoring": {
+        "fiabilitat": 5,
+        "cobertura": 3,
+        "latencia": 1,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "www.yasni.co.uk",
+      "url": "http://www.yasni.co.uk/",
+      "tipus": "cerca",
+      "categoria": "altres",
+      "cobertura": "regional (uk)",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "www.canada411.ca",
+      "url": "http://www.canada411.ca/",
+      "tipus": "cerca",
+      "categoria": "altres",
+      "cobertura": "regional (ca)",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "snitch.name",
+      "url": "http://snitch.name/",
+      "tipus": "cerca",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "www.spokeo.com",
+      "url": "https://www.spokeo.com/",
+      "tipus": "cerca",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "www.zabasearch.com",
+      "url": "https://www.zabasearch.com/search_menu/",
+      "tipus": "cerca",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "whois.domaintools.com",
+      "url": "http://whois.domaintools.com/",
+      "tipus": "eina",
+      "categoria": "dominis_i_infra",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "alta",
+      "scoring": {
+        "fiabilitat": 4,
+        "cobertura": 3,
+        "latencia": 5,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 4.4
+      }
+    },
+    {
+      "font": "whois.icann.org",
+      "url": "https://whois.icann.org/en",
+      "tipus": "cerca",
+      "categoria": "dominis_i_infra",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "alta",
+      "scoring": {
+        "fiabilitat": 4,
+        "cobertura": 3,
+        "latencia": 5,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 4.4
+      }
+    },
+    {
+      "font": "censys.io",
+      "url": "https://censys.io/",
+      "tipus": "cerca",
+      "categoria": "dominis_i_infra",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "alta",
+      "scoring": {
+        "fiabilitat": 4,
+        "cobertura": 3,
+        "latencia": 5,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 4.4
+      }
+    },
+    {
+      "font": "www.netcraft.com",
+      "url": "https://www.netcraft.com/",
+      "tipus": "cerca",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "w3dt.net",
+      "url": "https://w3dt.net/tools/httprecon",
+      "tipus": "cerca",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "www.shodan.io",
+      "url": "https://www.shodan.io/",
+      "tipus": "cerca",
+      "categoria": "dominis_i_infra",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "alta",
+      "scoring": {
+        "fiabilitat": 4,
+        "cobertura": 3,
+        "latencia": 5,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 4.4
+      }
+    },
+    {
+      "font": "Более 2500 стран мира",
+      "url": "http://www.searchenginecolossus.com/",
+      "tipus": "cerca",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "USA",
+      "url": "https://www.100searchengines.com/",
+      "tipus": "cerca",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "Поиск публичных камер мира",
+      "url": "https://www.earthcam.com/",
+      "tipus": "cerca",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "Геолокационная поисковая система",
+      "url": "https://aprs.fi",
+      "tipus": "cerca",
+      "categoria": "altres",
+      "cobertura": "regional (fi)",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "Сканер домена",
+      "url": "http://webboar.com.w3snoop.com/",
+      "tipus": "cerca",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "Архив запросов,поиск цифровых отпечатков пользователей сервиса whois",
+      "url": "https://whoisology.com/",
+      "tipus": "cerca",
+      "categoria": "dominis_i_infra",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "alta",
+      "scoring": {
+        "fiabilitat": 4,
+        "cobertura": 3,
+        "latencia": 5,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 4.4
+      }
+    },
+    {
+      "font": "www.bindb.com",
+      "url": "https://www.bindb.com/structure.html",
+      "tipus": "cerca",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "www.binbase.com",
+      "url": "https://www.binbase.com/search.html",
+      "tipus": "cerca",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "checkusernames.com",
+      "url": "https://checkusernames.com",
+      "tipus": "cerca",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "namechk.com",
+      "url": "https://namechk.com/",
+      "tipus": "cerca",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "knowem.com",
+      "url": "https://knowem.com/checktrademarkavailability.php",
+      "tipus": "cerca",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "usersherlock.com",
+      "url": "http://usersherlock.com/",
+      "tipus": "cerca",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "DOB(дата рождения",
+      "url": "http://birthdatabase.com/",
+      "tipus": "cerca",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "Анализ лайков соц. сети VK",
+      "url": "http://searchlikes.ru/login",
+      "tipus": "cerca",
+      "categoria": "socials",
+      "cobertura": "regional (ru)",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "alta",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 4,
+        "latencia": 5,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 4.4
+      }
+    },
+    {
+      "font": "SSN(номер соц. страхования граждан USA",
+      "url": "https://www.docusearch.com/find-a-social-security-number.html",
+      "tipus": "cerca",
+      "categoria": "socials",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "alta",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 4,
+        "latencia": 5,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 4.4
+      }
+    },
+    {
+      "font": "ИНН граждан RU",
+      "url": "https://service.nalog.ru/inn.do",
+      "tipus": "cerca",
+      "categoria": "altres",
+      "cobertura": "regional (ru)",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "Справочник судебных записей USA",
+      "url": "https://www.courtreference.com/",
+      "tipus": "cerca",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "Федеральная служба судебных приставов RU",
+      "url": "http://fssprus.ru/",
+      "tipus": "cerca",
+      "categoria": "altres",
+      "cobertura": "regional (ru)",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "Справочник судебных записей UA",
+      "url": "http://www.urzona.com/",
+      "tipus": "cerca",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "Телефонный справочник городов СНГ",
+      "url": "http://nomer-org.me/",
+      "tipus": "cerca",
+      "categoria": "emails_i_telefon",
+      "cobertura": "regional (me)",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "mitjana",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "fotoforensics.com",
+      "url": "http://fotoforensics.com/",
+      "tipus": "font",
+      "categoria": "imatges",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "mitjana",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "29a.ch",
+      "url": "https://29a.ch/photo-forensics/#level-sweep",
+      "tipus": "font",
+      "categoria": "altres",
+      "cobertura": "regional (ch)",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "www.findexif.com",
+      "url": "http://www.findexif.com/",
+      "tipus": "font",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "exif.regex.info",
+      "url": "http://exif.regex.info/exif.cgi",
+      "tipus": "font",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "metapicz.com",
+      "url": "http://metapicz.com/#landing",
+      "tipus": "font",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "www.toolsley.com",
+      "url": "https://www.toolsley.com/",
+      "tipus": "eina",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "Поиск источника кода",
+      "url": "https://searchcode.com",
+      "tipus": "cerca",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "Поиск синтаксически и семантически похожего кода",
+      "url": "http://code-search.uni.lu/facoy",
+      "tipus": "cerca",
+      "categoria": "altres",
+      "cobertura": "regional (lu)",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "Поиск семантически похожих сайтов",
+      "url": "https://www.similarsites.com/",
+      "tipus": "cerca",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "whatismyipaddress.com",
+      "url": "https://whatismyipaddress.com",
+      "tipus": "font",
+      "categoria": "dominis_i_infra",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "alta",
+      "scoring": {
+        "fiabilitat": 4,
+        "cobertura": 3,
+        "latencia": 5,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 4.4
+      }
+    },
+    {
+      "font": "www.ipaddresslocation.org",
+      "url": "http://www.ipaddresslocation.org/",
+      "tipus": "font",
+      "categoria": "dominis_i_infra",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "alta",
+      "scoring": {
+        "fiabilitat": 4,
+        "cobertura": 3,
+        "latencia": 5,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 4.4
+      }
+    },
+    {
+      "font": "f.vision",
+      "url": "http://f.vision/",
+      "tipus": "font",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "www.hashemian.com",
+      "url": "https://www.hashemian.com/whoami/",
+      "tipus": "font",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "Проверка cookies",
+      "url": "http://check2ip.com/",
+      "tipus": "font",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "World",
+      "url": "https://imei24.com/",
+      "tipus": "font",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "RU",
+      "url": "https://sndeep.info/ru",
+      "tipus": "font",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "UA",
+      "url": "http://www.ucrf.gov.ua/",
+      "tipus": "font",
+      "categoria": "altres",
+      "cobertura": "regional (ua)",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "danwin1210.me",
+      "url": "https://danwin1210.me/uploads/",
+      "tipus": "font",
+      "categoria": "altres",
+      "cobertura": "regional (me)",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "siph0n.in",
+      "url": "http://siph0n.in/leaks.php",
+      "tipus": "font",
+      "categoria": "dominis_i_infra",
+      "cobertura": "regional (in)",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "alta",
+      "scoring": {
+        "fiabilitat": 4,
+        "cobertura": 3,
+        "latencia": 5,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 4.4
+      }
+    },
+    {
+      "font": "nuclearleaks.com",
+      "url": "https://nuclearleaks.com/random/",
+      "tipus": "font",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "nuclearleaks.com",
+      "url": "https://nuclearleaks.com/search/",
+      "tipus": "font",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "vigilante.pw",
+      "url": "https://vigilante.pw/",
+      "tipus": "font",
+      "categoria": "altres",
+      "cobertura": "regional (pw)",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "databases.today",
+      "url": "http://databases.today/",
+      "tipus": "font",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "publicdbhost.dmca.gripe",
+      "url": "http://publicdbhost.dmca.gripe/",
+      "tipus": "font",
+      "categoria": "registres_publics",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "baixa",
+      "scoring": {
+        "fiabilitat": 5,
+        "cobertura": 3,
+        "latencia": 1,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "offshoreleaks.icij.org",
+      "url": "https://offshoreleaks.icij.org/",
+      "tipus": "font",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "Открытая база точек доступа wifi",
+      "url": "https://3wifi.stascorp.com/",
+      "tipus": "font",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "haveibeenpwned.com",
+      "url": "https://haveibeenpwned.com",
+      "tipus": "font",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "hacked-emails.com",
+      "url": "https://hacked-emails.com/",
+      "tipus": "font",
+      "categoria": "emails_i_telefon",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "mitjana",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "ghostproject.fr",
+      "url": "https://ghostproject.fr/",
+      "tipus": "font",
+      "categoria": "altres",
+      "cobertura": "regional (fr)",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "weleakinfo.com",
+      "url": "https://weleakinfo.com/",
+      "tipus": "font",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "leakedsource.ru",
+      "url": "https://leakedsource.ru/",
+      "tipus": "font",
+      "categoria": "altres",
+      "cobertura": "regional (ru)",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "Бот генератор временных почтовых ящиков",
+      "url": "https://telegramim.ru/@temp_mail_botTempMail",
+      "tipus": "font",
+      "categoria": "altres",
+      "cobertura": "regional (ru)",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "Бот для работы с открытыми данными",
+      "url": "https://telegram.me/OpenDataUABot?start=source_webcom",
+      "tipus": "font",
+      "categoria": "altres",
+      "cobertura": "regional (me)",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "Бот для поиска по картинкам Яндекса",
+      "url": "https://telegram.me/pic",
+      "tipus": "cerca",
+      "categoria": "altres",
+      "cobertura": "regional (me)",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "Работает по принципу предыдущего,только с gif",
+      "url": "https://telegram.me/gif",
+      "tipus": "font",
+      "categoria": "altres",
+      "cobertura": "regional (me)",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "Бот предоставляющий платное бесплатно",
+      "url": "https://t.me/slivgrabberbot",
+      "tipus": "font",
+      "categoria": "altres",
+      "cobertura": "regional (me)",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "Бот для поиска других ботов",
+      "url": "https://telegram.me/storebo",
+      "tipus": "cerca",
+      "categoria": "altres",
+      "cobertura": "regional (me)",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "telegram.me",
+      "url": "https://telegram.me/mnp_bot",
+      "tipus": "font",
+      "categoria": "altres",
+      "cobertura": "regional (me)",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "t.me",
+      "url": "https://t.me/xinitbot",
+      "tipus": "font",
+      "categoria": "altres",
+      "cobertura": "regional (me)",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "t.me",
+      "url": "https://t.me/cesspoolNum_bot",
+      "tipus": "font",
+      "categoria": "altres",
+      "cobertura": "regional (me)",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "Поиск Первоисточника текста на английском язык]( ",
+      "url": "http://isce-library.net/epiView.aspx",
+      "tipus": "cerca",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "Операторы продвинутого поиска",
+      "url": "http://www.googleguide.com/advanced_operators_reference.html",
+      "tipus": "cerca",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "Поиск и извлечение данных из файлов pdf,таблиц excel,на страницах html.",
+      "url": "http://www.zanran.com/",
+      "tipus": "cerca",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "Поиск в мировом архиве pdf документов",
+      "url": "https://www.pdfsearch.io/",
+      "tipus": "cerca",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "www.marinetraffic.com",
+      "url": "https://www.marinetraffic.com",
+      "tipus": "font",
+      "categoria": "geolocalitzacio",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "mitjana",
+      "scoring": {
+        "fiabilitat": 4,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 4.0
+      }
+    },
+    {
+      "font": "seatracker.ru",
+      "url": "https://seatracker.ru/ais.php",
+      "tipus": "font",
+      "categoria": "geolocalitzacio",
+      "cobertura": "regional (ru)",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "mitjana",
+      "scoring": {
+        "fiabilitat": 4,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 4.0
+      }
+    },
+    {
+      "font": "planefinder.net",
+      "url": "https://planefinder.net/",
+      "tipus": "font",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "www.radarbox24.com",
+      "url": "https://www.radarbox24.com/",
+      "tipus": "font",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "de.flightaware.com",
+      "url": "https://de.flightaware.com/",
+      "tipus": "font",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "www.flightradar24.com",
+      "url": "https://www.flightradar24.com",
+      "tipus": "font",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "Архив всего интернета",
+      "url": "https://archive.org/",
+      "tipus": "font",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "Кеш Поисковой системы Google",
+      "url": "http://cachedview.com/",
+      "tipus": "cerca",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "Отсортированная подборка баз данных с различных ресурсов (~400",
+      "url": "https://cloud.mail.ru/public/DoJB/7jVCevA3Y/",
+      "tipus": "font",
+      "categoria": "altres",
+      "cobertura": "regional (ru)",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "Портал открытых данных России",
+      "url": "https://data.gov.ru/",
+      "tipus": "font",
+      "categoria": "altres",
+      "cobertura": "regional (ru)",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "Портал открытых данных Украины",
+      "url": "https://data.gov.ua/",
+      "tipus": "font",
+      "categoria": "altres",
+      "cobertura": "regional (ua)",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "Еще одна подборка среди прочего",
+      "url": "https://lacicloud.net/custom/open/leaks/",
+      "tipus": "font",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "ciberpatrulla.com",
+      "url": "https://ciberpatrulla.com/links/",
+      "tipus": "eina",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "inteltechniques.com",
+      "url": "https://inteltechniques.com/links.HTML",
+      "tipus": "eina",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "osintframework.com",
+      "url": "https://osintframework.com/",
+      "tipus": "eina",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "docs.google.com",
+      "url": "https://docs.google.com/document/d/1BfLPJpRtyq4RFtHJoNpvWQjmGnyVkfE2HYoICKOGguA/edit#",
+      "tipus": "eina",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "github.com",
+      "url": "https://github.com/Ph055a/OSINT-Collection",
+      "tipus": "eina",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "Архив национальной безопасности usa,неинтересные рассекреченные бумаги и тому подобное.",
+      "url": "https://nsarchive2.gwu.edu//search.html",
+      "tipus": "font",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "Подробное описания части слитого следящего арсенала АНБ.",
+      "url": "http://www.spy-soft.net/dokumenty-anb/",
+      "tipus": "font",
+      "categoria": "altres",
+      "cobertura": "global",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    },
+    {
+      "font": "Коллекция инструментов и методик для osint разведки середины 2018г.",
+      "url": "https://www.i-intelligence.eu/wp-content/uploads/2018/06/OSINT_Handbook_June-2018_Final.pdf",
+      "tipus": "eina",
+      "categoria": "altres",
+      "cobertura": "regional (eu)",
+      "acces": "public",
+      "cost": "gratis",
+      "quota": "desconeguda",
+      "frequencia": "desconeguda",
+      "scoring": {
+        "fiabilitat": 3,
+        "cobertura": 3,
+        "latencia": 3,
+        "cost": 5,
+        "accessibilitat": 5,
+        "total": 3.8
+      }
+    }
+  ]
+}
