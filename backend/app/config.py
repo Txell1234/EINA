@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     # OSINT Tools
     SHERLOCK_PATH: str = "sherlock"
     RECONNG_PATH: str = "recon-ng"
+    THEHARVESTER_PATH: str = "theHarvester"
     
     # Rate Limiting
     RATE_LIMIT_PER_MINUTE: int = 60
@@ -76,4 +77,3 @@ class Settings(BaseSettings):
         extra = "ignore"  # Ignore extra fields in .env
 
 settings = Settings()
-

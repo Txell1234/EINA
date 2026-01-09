@@ -2,14 +2,13 @@
 theHarvester wrapper - Email, subdomain, and employee name collection
 """
 import asyncio
-import subprocess
 import json
 from typing import Dict, Any, List
-from pathlib import Path
+from app.config import settings
 
 class TheHarvesterWrapper:
     def __init__(self):
-        self.harvester_path = "theHarvester"  # Assumes theHarvester is in PATH
+        self.harvester_path = settings.THEHARVESTER_PATH
     
     async def search(
         self,
@@ -74,7 +73,6 @@ class TheHarvesterWrapper:
                 "status": "error",
                 "error": str(e)
             }
-
 
 
 

@@ -2,13 +2,12 @@
 Recon-ng wrapper - Framework modular de reconocimiento web
 """
 import asyncio
-import subprocess
-import json
 from typing import Dict, Any
+from app.config import settings
 
 class ReconNGWrapper:
     def __init__(self):
-        self.reconng_path = "recon-ng"  # Assumes recon-ng is in PATH
+        self.reconng_path = settings.RECONNG_PATH
     
     async def execute_module(
         self,
@@ -51,7 +50,6 @@ class ReconNGWrapper:
                 "status": "error",
                 "error": str(e)
             }
-
 
 
 

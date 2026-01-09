@@ -2,14 +2,13 @@
 Sherlock wrapper - Search for usernames across social media platforms
 """
 import asyncio
-import subprocess
 import json
-from typing import Dict, Any, List
-from pathlib import Path
+from typing import Dict, Any
+from app.config import settings
 
 class SherlockWrapper:
     def __init__(self):
-        self.sherlock_path = "sherlock"  # Assumes sherlock is in PATH
+        self.sherlock_path = settings.SHERLOCK_PATH
     
     async def search(self, username: str) -> Dict[str, Any]:
         """Search for username across platforms"""
@@ -54,7 +53,6 @@ class SherlockWrapper:
                 "status": "error",
                 "error": str(e)
             }
-
 
 
 
