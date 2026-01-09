@@ -6,6 +6,63 @@ Aquest document analitza totes les APIs integrades a la plataforma OSINT i com c
 
 ---
 
+## ✅ Classificació de fonts i costos aproximats
+
+> Criteri: **gratuït** = accés obert sense pagament obligatori; **mixt** = freemium/quotes amb opció de pagament; **pagament** = ús premium obligatori o pagament per ús.
+
+| # | Font | Categoria | Cost aproximat (si es coneix) | Notes |
+|---|------|-----------|-------------------------------|-------|
+| 1 | EnsembleData API | Mixta | No disponible (depèn del pla) | Pla gratuït limitat + plans de pagament |
+| 2 | Reddit API | Gratuïta | 0 € | OAuth opcional, amb límits |
+| 3 | News API | Mixta | No disponible (depèn del pla) | Gratuït limitat + plans de pagament |
+| 4 | IPStack API | Mixta | No disponible (depèn del pla) | Gratuït limitat + plans de pagament |
+| 5 | Nominatim API | Gratuïta | 0 € | OpenStreetMap, límit de peticions |
+| 6 | Alpha Vantage API | Mixta | No disponible (depèn del pla) | Gratuït limitat + plans de pagament |
+| 7 | Finnhub API | Mixta | No disponible (depèn del pla) | Gratuït limitat + plans de pagament |
+| 8 | Financial Modeling Prep API | Mixta | No disponible (depèn del pla) | Gratuït limitat + plans de pagament |
+| 9 | Permutable AI API | Pagament | No disponible (trial/premium) | Requereix trial o pla premium |
+| 10 | ExchangeRate API | Mixta | No disponible (depèn del pla) | Gratuït limitat + plans de pagament |
+| 11 | Fixer.io API | Mixta | No disponible (depèn del pla) | Gratuït limitat + plans de pagament |
+| 12 | CoinGecko API | Mixta | No disponible (depèn del pla) | Gratuït amb límits + plans de pagament |
+| 13 | REST Countries API | Gratuïta | 0 € | Accés obert |
+| 14 | Shodan API | Pagament | No disponible (pla de pagament) | Pagament obligatori |
+| 15 | GitHub API | Gratuïta | 0 € | Token gratuït amb límits |
+| 16 | Wayback Machine API | Gratuïta | 0 € | Accés obert |
+| 17 | DNS/WHOIS Service | Gratuïta | 0 € | Accés obert |
+| 18 | OpenAI API | Pagament | No disponible (pagament per ús) | Pagament per consum |
+
+---
+
+## 🎯 MVP només amb fonts gratuïtes prioritzades
+
+Objectiu: mantenir les funcionalitats bàsiques del dashboard **sense costos**, prioritzant fonts amb accés obert i sense pagament obligatori.
+
+### Fonts gratuïtes seleccionades (prioritat)
+1. **Reddit API** → Mencions, sentiment i trending topics en fòrums.
+2. **GitHub API** → Trending topics tècnics i repositoris.
+3. **Wayback Machine API** → Historial i intel·ligència web bàsica.
+4. **DNS/WHOIS Service** → Alertes tècniques i canvis de domini.
+5. **Nominatim API** → Geocodificació per distribució geogràfica.
+6. **REST Countries API** → Enriquiment geogràfic (banderes, dades país).
+7. **CoinGecko API** → Dades bàsiques de cripto (amb límits).
+
+### Què cobreix aquest MVP
+- **Fuentes de Datos**: Reddit + GitHub.
+- **Trending Topics**: Reddit + GitHub.
+- **Distribució Geogràfica**: Nominatim + REST Countries.
+- **Alertes tècniques**: DNS/WHOIS.
+- **Informes bàsics**: Wayback Machine.
+- **Mòdul cripto bàsic**: CoinGecko.
+
+### Què queda fora (per manca de pagament)
+- Xarxes socials massives (EnsembleData).
+- Notícies generalistes (News API).
+- IA avançada per sentiment/prediccions (OpenAI).
+- OSINT tècnic premium (Shodan).
+- Geopolítica premium (Permutable).
+
+---
+
 ## 🔴 APIs de Xarxes Socials (Social Media)
 
 ### 1. **EnsembleData API** ⭐ PRINCIPAL
@@ -677,6 +734,5 @@ Aquest document analitza totes les APIs integrades a la plataforma OSINT i com c
 - **EnsembleData API** és crítica per alimentar la majoria de mètriques del dashboard
 - **OpenAI API** és necessària per anàlisi de sentiment i generació d'alertes
 - Totes les APIs estan integrades al codi, només cal configurar les API keys al `.env`
-
 
 
