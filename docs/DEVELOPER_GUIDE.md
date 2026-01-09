@@ -10,6 +10,48 @@
 - **IA**: OpenAI (GPT-4, embeddings)
 - **Testing**: pytest, pytest-asyncio
 
+### Cicle d'Intel·ligència OSINT
+
+El sistema segueix un cicle d'intel·ligència estructurat en quatre etapes:
+
+1. **Recollida**: ingestió de dades crues des de fonts OSINT.
+2. **Processament**: neteja, normalització, deduplicació i enriquiment.
+3. **Anàlisi**: correlació, detecció de patrons, IA i scoring.
+4. **Disseminació**: lliurament d'insights a dashboards, alertes i informes.
+
+#### Mapatge de fonts per etapa del cicle
+
+| Font | Punt del cicle | Notes |
+| --- | --- | --- |
+| Xarxes socials (X, Reddit, etc.) | Recollida → Processament | Fluxos d'alta freqüència amb filtratge per paraules clau. |
+| Notícies (Google News, RSS) | Recollida → Anàlisi | Indexació per temes i posterior anàlisi d'impacte. |
+| Web oberta (blogs, portals sectorials) | Recollida → Processament | Normalització de text i metadades. |
+| Fonts oficials (governs, reguladors) | Recollida → Anàlisi | Validació de fiabilitat i etiquetatge temporal. |
+| Repositoris OSINT (TheHarvester, etc.) | Recollida → Processament | Enriquiment amb entitats i relacionament. |
+
+#### Cues i fluxos per a dades quasi en temps real
+
+- **Ingestió**: col·locar cada font en una cua pròpia (p. ex. `queue_socials`, `queue_news`).
+- **Processament**: workers asíncrons consumeixen cues, apliquen neteja i normalització.
+- **Anàlisi**: pipeline d'IA per detecció de tendències i scoring incremental.
+- **Disseminació**: publicació d'events a websockets o polling curt per actualitzar dashboards.
+
+#### Feedback de qualitat de fonts
+
+- **Score de qualitat** per font (precisió, novetat, coherència).
+- **Reavaluació periòdica** segons:
+  - percentatge de senyals útils vs soroll
+  - latència mitjana de disponibilitat
+  - overlap amb altres fonts (duplicats)
+- **Accions automàtiques**: reduir freqüència o prioritzar fonts amb millor rendiment.
+
+#### Mètriques d'impacte recomanades
+
+- **Cobertura per cas**: percentatge de fonts actives vs planificades.
+- **Temps de resposta**: temps mitjà des d'event detectat fins a alerta.
+- **Profunditat d'anàlisi**: nombre d'entitats i relacions generades per cas.
+- **Rendiment de fonts**: ratio d'insights utilitzables per font.
+
 ### Estructura del Código
 
 ```
