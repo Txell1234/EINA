@@ -390,6 +390,25 @@ async def get_osint_tools(
         {"id": "dns", "name": "DNS Lookup", "description": "DNS record queries"},
         {"id": "whois", "name": "WHOIS Lookup", "description": "Domain registration information"},
         {"id": "ip_geolocation", "name": "IP Geolocation", "description": "Geolocate IP addresses (country, city, coordinates, ISP)"},
+        {"id": "nominatim_geocode", "name": "Nominatim Geocode", "description": "Geocode location names to coordinates"},
+        {"id": "nominatim_reverse", "name": "Nominatim Reverse Geocode", "description": "Reverse geocode coordinates to location names"},
+        {"id": "country_info", "name": "REST Countries", "description": "Country information by name"},
+        {"id": "country_by_code", "name": "REST Countries (Code)", "description": "Country information by ISO code"},
+        {"id": "country_search", "name": "REST Countries Search", "description": "Search countries by name"},
+        {"id": "currency_rates", "name": "Currency Rates", "description": "Exchange rates (ExchangeRate-API/Fixer)"},
+        {"id": "currency_convert", "name": "Currency Convert", "description": "Convert currency amounts"},
+        {"id": "coingecko_price", "name": "CoinGecko Price", "description": "Crypto prices and market data"},
+        {"id": "coingecko_search", "name": "CoinGecko Search", "description": "Search cryptocurrencies"},
+        {"id": "coingecko_trending", "name": "CoinGecko Trending", "description": "Trending cryptocurrencies"},
+        {"id": "alphavantage_quote", "name": "Alpha Vantage Quote", "description": "Stock quotes and market data"},
+        {"id": "alphavantage_search", "name": "Alpha Vantage Search", "description": "Search stock symbols"},
+        {"id": "finnhub_quote", "name": "Finnhub Quote", "description": "Real-time stock quotes"},
+        {"id": "finnhub_profile", "name": "Finnhub Company Profile", "description": "Company profile and fundamentals"},
+        {"id": "finnhub_institutional_profile", "name": "Finnhub Institutional Profile", "description": "Ownership and holdings data"},
+        {"id": "fmp_profile", "name": "Financial Modeling Prep Profile", "description": "Company profile from FMP"},
+        {"id": "fmp_ratios", "name": "Financial Modeling Prep Ratios", "description": "Financial ratios from FMP"},
+        {"id": "fmp_search", "name": "Financial Modeling Prep Search", "description": "Search symbols via FMP"},
+        {"id": "maltego_transform", "name": "Maltego Transform", "description": "Execute Maltego transforms via transform server"},
     ]
 
 @router.post("/collect", response_model=OSINTResultResponse)
@@ -715,4 +734,3 @@ async def get_recent_searches(
     queries = result.scalars().all()
     
     return [OSINTQueryResponse.model_validate(q) for q in queries]
-

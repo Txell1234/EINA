@@ -7,6 +7,8 @@ from .currency_api import CurrencyAPIService
 from .country_api import CountryAPIService
 from .crypto_api import CoinGeckoAPIService
 from .ipstack_api import IPStackAPIService
+from .financial_modeling_prep_api import FinancialModelingPrepAPIService
+from .maltego_api import MaltegoAPIService
 
 __all__ = [
     "AlphaVantageAPIService",
@@ -17,4 +19,6 @@ __all__ = [
     "CountryAPIService",
     "CoinGeckoAPIService",
     "IPStackAPIService",
+    "FinancialModelingPrepAPIService",
+    "MaltegoAPIService",
 ]

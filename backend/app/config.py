@@ -69,6 +69,10 @@ class Settings(BaseSettings):
     # EnsembleData API (Social Media Scraping - optional)
     # Documentation: https://ensembledata.com/apis/docs
     ENSEMBLEDATA_API_KEY: str = ""
+
+    # Maltego Transform Server (optional)
+    MALTEGO_API_URL: str = ""
+    MALTEGO_API_KEY: str = ""
     
     class Config:
         env_file = ".env"
@@ -76,4 +80,3 @@ class Settings(BaseSettings):
         extra = "ignore"  # Ignore extra fields in .env
 
 settings = Settings()
-
