@@ -10,6 +10,7 @@ from models.ai_analysis import AIAnalysis
 from models.qualitative import QualitativeAnalysis
 from models.predictions import Prediction
 from models.investments import InvestmentRecommendation
+from models.qualitative import Premise
 import json
 from pathlib import Path
 
@@ -47,7 +48,10 @@ class ReportService:
                 "qualitative_analyses": await self._get_qualitative_analyses(report.case_id),
                 "predictions": await self._get_predictions(report.case_id),
                 "investment_recommendations": await self._get_investment_recommendations(report.case_id),
+                "premises": await self._get_case_premises(report.case_id),
             }
+            
+            report_data["bias_guidance"] = self._build_bias_guidance(report_data["premises"])
             
             # Generate file based on format
             if report.format == "pdf":
@@ -118,6 +122,35 @@ class ReportService:
         recommendations = result.scalars().all()
         
         return [{"id": r.id, "type": r.recommendation_type, "confidence": r.confidence_percentage} for r in recommendations]
+
+    async def _get_case_premises(self, case_id: int):
+        """Get premises configured for a case"""
+        result = await self.db.execute(
+            select(Premise).where(Premise.case_id == case_id)
+        )
+        premises = result.scalars().all()
+        
+        return [
+            {
+                "id": premise.id,
+                "premise_text": premise.premise_text,
+                "framework_id": premise.framework_id,
+                "created_at": premise.created_at.isoformat() if premise.created_at else None
+            }
+            for premise in premises
+        ]
+
+    def _build_bias_guidance(self, premises: list) -> dict:
+        """Build report guidance to bias summaries according to premises."""
+        if not premises:
+            return {"enabled": False, "premise_count": 0, "notes": []}
+        
+        notes = [premise.get("premise_text") for premise in premises if premise.get("premise_text")]
+        return {
+            "enabled": True,
+            "premise_count": len(premises),
+            "notes": notes
+        }
     
     async def _generate_pdf(self, report_id: int, data: dict) -> str:
         """Generate PDF report"""
@@ -142,7 +175,6 @@ class ReportService:
             json.dump(data, f, indent=2, ensure_ascii=False)
         
         return file_path
-
 
 
 

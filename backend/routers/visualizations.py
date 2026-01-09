@@ -75,6 +75,36 @@ class TrendAnalysisResponse(BaseModel):
     comments_by_social_network: Optional[Dict[str, Dict[str, int]]] = None
     concepts: Optional[List[Dict[str, Any]]] = None
 
+class OpinionTrendPoint(BaseModel):
+    date: str
+    count: int
+    average_sentiment: float
+
+class OpinionTrendResponse(BaseModel):
+    case_id: int
+    concept: Optional[str] = None
+    total_events: int
+    sentiment_breakdown: Dict[str, int]
+    trend: List[OpinionTrendPoint]
+    top_concepts: Optional[List[Dict[str, Any]]] = None
+
+class OpinionEventItem(BaseModel):
+    classification_id: int
+    osint_result_id: Optional[int]
+    created_at: str
+    sentiment: str
+    sentiment_score: float
+    concepts: List[str]
+    topics: List[str]
+    content_text: str
+    source: Optional[str] = None
+
+class OpinionEventResponse(BaseModel):
+    case_id: int
+    concept: Optional[str] = None
+    total: int
+    events: List[OpinionEventItem]
+
 class Relationship(BaseModel):
     from_entity: str
     to_entity: str
@@ -212,6 +242,123 @@ async def configure_trend_analysis(
         "tracked_kpi_ids": kpi_ids,
         "message": "KPIs configured successfully"
     }
+
+@router.get("/opinion-trends", response_model=OpinionTrendResponse)
+async def get_public_opinion_trends(
+    case_id: int,
+    concept: Optional[str] = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get public opinion trends by case and optional concept."""
+    from collections import defaultdict
+
+    result = await db.execute(
+        select(AIClassification).where(AIClassification.case_id == case_id)
+    )
+    classifications = result.scalars().all()
+
+    if concept:
+        concept_lower = concept.lower()
+        classifications = [
+            c for c in classifications
+            if any(concept_lower == str(item).lower() for item in (c.concepts or []))
+        ]
+
+    sentiment_breakdown = defaultdict(int)
+    daily_counts: Dict[str, List[float]] = defaultdict(list)
+
+    for classification in classifications:
+        sentiment = classification.sentiment or "neutral"
+        sentiment_breakdown[sentiment] += 1
+        created_at = classification.created_at.date().isoformat() if classification.created_at else None
+        if created_at:
+            daily_counts[created_at].append(classification.sentiment_score or 0.0)
+
+    trend = [
+        OpinionTrendPoint(
+            date=day,
+            count=len(scores),
+            average_sentiment=sum(scores) / len(scores) if scores else 0.0
+        )
+        for day, scores in sorted(daily_counts.items())
+    ]
+
+    top_concepts = None
+    if not concept:
+        concept_counts = defaultdict(int)
+        for classification in classifications:
+            for item in classification.concepts or []:
+                concept_counts[str(item)] += 1
+        top_concepts = [
+            {"concept": name, "count": count}
+            for name, count in sorted(concept_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+        ]
+
+    return OpinionTrendResponse(
+        case_id=case_id,
+        concept=concept,
+        total_events=len(classifications),
+        sentiment_breakdown=dict(sentiment_breakdown),
+        trend=trend,
+        top_concepts=top_concepts
+    )
+
+@router.get("/opinion-events", response_model=OpinionEventResponse)
+async def list_public_opinion_events(
+    case_id: int,
+    concept: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+    db: AsyncSession = Depends(get_db)
+):
+    """List classified OSINT events for a case, optionally filtered by concept."""
+    result = await db.execute(
+        select(AIClassification)
+        .where(AIClassification.case_id == case_id)
+        .order_by(AIClassification.created_at.desc())
+    )
+    classifications = result.scalars().all()
+
+    if concept:
+        concept_lower = concept.lower()
+        classifications = [
+            c for c in classifications
+            if any(concept_lower == str(item).lower() for item in (c.concepts or []))
+        ]
+
+    paged = classifications[offset:offset + limit]
+    events: List[OpinionEventItem] = []
+    osint_result_ids = [c.osint_result_id for c in paged if c.osint_result_id]
+    osint_results = {}
+    if osint_result_ids:
+        result = await db.execute(
+            select(OSINTResult).where(OSINTResult.id.in_(osint_result_ids))
+        )
+        osint_results = {r.id: r for r in result.scalars().all()}
+
+    for classification in paged:
+        osint_result = osint_results.get(classification.osint_result_id)
+        source = None
+        if osint_result and isinstance(osint_result.data, dict):
+            source = osint_result.data.get("source") or osint_result.data.get("source_name")
+        events.append(OpinionEventItem(
+            classification_id=classification.id,
+            osint_result_id=classification.osint_result_id,
+            created_at=classification.created_at.isoformat() if classification.created_at else "",
+            sentiment=classification.sentiment,
+            sentiment_score=classification.sentiment_score or 0.0,
+            concepts=classification.concepts or [],
+            topics=classification.topics or [],
+            content_text=classification.content_text,
+            source=source
+        ))
+
+    return OpinionEventResponse(
+        case_id=case_id,
+        concept=concept,
+        total=len(classifications),
+        events=events
+    )
 
 @router.get("/trends/{case_id}", response_model=TrendAnalysisResponse)
 async def get_trend_analysis(
@@ -1041,4 +1188,3 @@ async def get_relationship_map(
                         ))
     
     return RelationshipMapResponse(relationships=relationships)
-
