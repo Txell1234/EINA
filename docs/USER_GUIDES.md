@@ -132,6 +132,28 @@
 - Actualiza datos regularmente
 - Verifica la calidad de los datos OSINT
 
+### 2.1 Evaluación de Fuentes OSINT (Checklist y Scoring)
+
+**Checklist por fuente (puntúa cada criterio del 1 al 5):**
+- **Credibilitat**: Historial de precisión y autoridad.
+- **Actualització**: Frecuencia y puntualidad de publicación.
+- **Cobertura geogràfica**: Alcance regional o global relevante.
+- **Grau de soroll**: Proporción de señal vs. ruido (menos ruido = mejor score).
+- **Verificabilitat**: Facilidad para contrastar con fuentes independientes.
+
+**Score total y umbral:**
+1. Suma los cinco criterios (máximo 25).
+2. **Elimina** o desprioriza fuentes con **score total < 12**.
+
+**Marcado por objetivo (fuentes óptimas):**
+- **Reputación corporativa**: prioriza alta credibilitat y verificabilitat.
+- **Opinión pública**: prioriza actualització y cobertura geogràfica.
+- **Riesgo**: prioriza credibilitat y bajo grau de soroll.
+
+**Revisión trimestral:**
+- Reevalúa el scoring cada trimestre.
+- Ajusta el catálogo según cambios de calidad, cobertura o señales de ruido.
+
 ### 3. Análisis
 
 - Revisa métricas avanzadas regularmente
