@@ -161,7 +161,7 @@ class OSINTService:
                 )
             elif query_type == "ensembledata_tiktok_comments":
                 result_data = await self.ensembledata.tiktok_comments(
-                    post_url=query_params.get("post_url", ""),
+                    post_url=query_params.get("post_url") or query_params.get("aweme_id", ""),
                     count=query_params.get("count", 30)
                 )
             # EnsembleData - Instagram
@@ -235,8 +235,7 @@ class OSINTService:
                 )
             elif query_type == "ensembledata_reddit_comments":
                 result_data = await self.ensembledata.reddit_comments(
-                    post_url=query_params.get("post_url", ""),
-                    count=query_params.get("count", 25)
+                    permalink=query_params.get("permalink") or query_params.get("post_url", "")
                 )
             # EnsembleData - Twitter/X
             elif query_type == "ensembledata_twitter_user_info":
@@ -250,7 +249,7 @@ class OSINTService:
                 )
             elif query_type == "ensembledata_twitter_post_info":
                 result_data = await self.ensembledata.twitter_post_info(
-                    tweet_url=query_params.get("tweet_url", "")
+                    tweet_id=query_params.get("tweet_id") or query_params.get("tweet_url", "")
                 )
             # EnsembleData - Twitch
             elif query_type == "ensembledata_twitch_keyword_posts":
