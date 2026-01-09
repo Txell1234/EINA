@@ -144,6 +144,65 @@
 - Revisa correlaciones entre módulos
 - Considera impacto de eventos en múltiples áreas
 
+### 5. Definició d’objectius i governança de fonts (OSINT)
+
+#### 5.1 Objectius principals
+
+- **Opinió pública**: percepcions, sentiment i conversa pública sobre l’entitat.
+- **Reputació corporativa**: credibilitat, confiança i imatge de marca.
+- **Risc reputacional**: senyals de crisi, controvèrsies i dany potencial a la reputació.
+- **Tendències socials**: temes emergents, narratives i canvis de context.
+
+#### 5.2 Mapatge font ➜ objectiu
+
+| Font | Opinió pública | Reputació corporativa | Risc reputacional | Tendències socials | Notes |
+| --- | --- | --- | --- | --- | --- |
+| Xarxes socials (Twitter/X, Instagram, TikTok, YouTube, Threads) | ✅ | ✅ | ✅ | ✅ | Alta velocitat, alta volatilitat |
+| Mitjans de comunicació (news) | ✅ | ✅ | ✅ | ✅ | Context editorial, millor verificació |
+| Fòrums i comunitats (Reddit, StackExchange) | ✅ | ➖ | ✅ | ✅ | Opinió qualitativa i early signals |
+| Blogs i newsletters | ➖ | ✅ | ✅ | ✅ | Anàlisi de nínxol, menor volum |
+| Registres públics i reguladors | ➖ | ✅ | ✅ | ➖ | Base per reputació i compliance |
+| Informes corporatius (ESG, anuals) | ➖ | ✅ | ➖ | ➖ | Font pròpia, risc de biaix |
+| ONG / think tanks | ➖ | ✅ | ✅ | ✅ | Autoritat temàtica, menys volum |
+| Reviews i portals d’ocupació | ✅ | ✅ | ✅ | ✅ | Senyals interns i d’experiència |
+
+#### 5.3 Score d’adequació per objectiu (1–5)
+
+| Font | Opinió pública | Reputació corporativa | Risc reputacional | Tendències socials |
+| --- | --- | --- | --- | --- |
+| Xarxes socials | 5 | 4 | 4 | 5 |
+| Mitjans de comunicació | 4 | 5 | 5 | 4 |
+| Fòrums i comunitats | 4 | 2 | 4 | 4 |
+| Blogs / newsletters | 2 | 4 | 3 | 4 |
+| Registres públics / reguladors | 1 | 5 | 5 | 2 |
+| Informes corporatius | 1 | 4 | 2 | 1 |
+| ONG / think tanks | 2 | 4 | 4 | 3 |
+| Reviews / portals d’ocupació | 4 | 4 | 4 | 3 |
+
+#### 5.4 Fonts òptimes i fonts “sorolloses” per objectiu
+
+- **Opinió pública**
+  - Òptimes: xarxes socials, mitjans, fòrums.
+  - Sorolloses: informes corporatius, registres públics (massa lents per sentiment).
+- **Reputació corporativa**
+  - Òptimes: mitjans, registres/reguladors, ONG/think tanks, informes ESG.
+  - Sorolloses: xarxes socials no segmentades (molt volum i “noise”).
+- **Risc reputacional**
+  - Òptimes: mitjans, registres/reguladors, fòrums, xarxes socials segmentades.
+  - Sorolloses: blogs no especialitzats, portals d’opinió generalista.
+- **Tendències socials**
+  - Òptimes: xarxes socials, fòrums, newsletters temàtiques.
+  - Sorolloses: registres públics i informes anuals (retard temporal).
+
+#### 5.5 Exclusions per alineació amb el context del projecte
+
+Exclou fonts quan:
+
+- No aporten senyal accionable per cap objectiu (score ≤ 2 en tots).
+- Estan fora del sector/territori de l’entitat analitzada.
+- Presenten biaix estructural o falta de verificació repetida.
+- Generen volum desproporcionat respecte al valor analític (soroll > senyal).
+
 ## Troubleshooting Común
 
 ### Problema: No se cargan los datos
