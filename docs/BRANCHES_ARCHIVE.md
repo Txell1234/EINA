@@ -1,40 +1,58 @@
-# Arxiu de branques unificades
+# Historial unificat de branques
 
-El 2026-05-19 es van consolidar totes les branques a `master`. **Cap commit s'ha perdut** — tot el contingut està preservat aquí o via tags `archive/*`.
+Totes les branques s'han **fusionat a `master`** amb merge commits (`--no-ff`), de manera que l'historial complet es conserva a GitHub. Res s'ha esborrat del repositori.
 
-## Branca principal (codi actiu)
+## Branca única de treball
 
-| Tag / ref | Commit | Contingut |
-|-----------|--------|-----------|
-| `master` | `e497973`+ | Backend complet, prospectiva, extracció, LLM multi-proveïdor, build frontend |
+**`master`** — conté tot el codi actiu + tot el contingut de les antigues branques.
 
-## Contingut recuperat de branques `codex/*`
+## Merge commits (preserven l'historial de cada branca)
 
-| Tag | Commit | Recuperat a master |
-|-----|--------|-------------------|
-| `archive/codex/api-cost-mvp` | `9d80e06` | `docs/USER_GUIDES.md` (classificació APIs) |
-| `archive/codex/catalog-quality` | `633b855` | `docs/CATALEG_FONTS_QUALITAT.md` |
-| `archive/codex/source-checklist` | `cd35e46` | `docs/USER_GUIDES.md` (checklist avaluació fonts) |
-| `archive/codex/intelligence-cycle` | `9ff899d` | `docs/DEVELOPER_GUIDE.md` (cicle intel·ligència) |
-| `archive/codex/ingestion-plan` | `0039c71` | `docs/INGESTION_PLAN.md` |
-| `archive/codex/objectives-governance` | `e6e7b84` | `docs/USER_GUIDES.md` (objectius i governança) |
-| `archive/codex/osint-catalog` | `e67277c` | `data/osint_*.json`, `docs/OSINT_CATALOG.md`, `scripts/import_osint_resources.py` |
-| `archive/codex/maltego-freemium` | `7a51f06` | `maltego_api.py`, `event_bus_service.py`, `financial_modeling_prep_api.py` |
-| `archive/codex/ensembledata` | `1af0a37` | Millores parcials (ja cobertes parcialment a master) |
-| `archive/codex/ensembledata-normalize` | `2184c0a` | `rss_api.py`, `I18nContext.tsx` |
-| `archive/codex/osint-errors` | `6a6d3e1` | Lògica fusionada manualment on calia |
-| `archive/codex/integration-diagnostics` | `ccdba86` | Referència al tag (canvis de codi superposats amb master) |
-| `archive/codex/requirements-pins` | `93babe2` | Referència al tag (requirements ja actualitzats a master) |
+| Merge commit | Branca original | Contingut |
+|--------------|-----------------|-----------|
+| `21a3d0b` | `codex/maltego-freemium` | Maltego, event bus, FMP |
+| `28cdfc1` | `codex/ensembledata` | EnsembleData guardrails |
+| `6aef400` | `codex/ensembledata-normalize` | Normalització paràmetres, I18n, dashboard |
+| `ce0a72d` | `codex/integration-diagnostics` | Diagnòstic integracions |
+| `efb4bde` | `codex/integration-diagnostics` (variant) | Integració status |
+| `f5be464` | `codex/requirements-pins` | Pins de dependències |
+| `9d61baf` | `codex/osint-errors` | Errors OSINT i mètriques qualitat |
+| `0bd8e1f` | `feature/prospective-ui-redesign` | Prototip monorepo (vegeu `legacy/` i `OSINT/`) |
 
-## Prototip anterior
+Cherry-picks directes (abans dels merges):
 
-| Tag | Commit | Ubicació |
-|-----|--------|----------|
-| `archive/feature/prospective-ui-redesign` | `51be167` | `legacy/prospective-prototype/` (prototype React+Flask anterior) |
+| Commit | Branca | Contingut |
+|--------|--------|-----------|
+| `85dfd33` | `codex/api-cost-mvp` | Classificació APIs |
+| `c512ca2` | `codex/catalog-quality` | Catàleg fonts qualitat |
+| `12aa35c` | `codex/source-checklist` | Checklist avaluació |
+| `abdf88b` | `codex/intelligence-cycle` | Cicle intel·ligència |
+| `bd15338` | `codex/ingestion-plan` | Pla ingestió |
+| `338f616` | `codex/objectives-governance` | Objectius i governança |
+| `10060f7` | `codex/osint-catalog` | Catàleg OSINT + dades JSON |
 
-## Com recuperar un commit complet
+## Tags de reserva
+
+Cada branca antiga té un tag `archive/*` que apunta al commit original:
 
 ```bash
-git show archive/codex/osint-catalog
-git checkout archive/codex/osint-catalog -- ruta/fitxer
+git tag -l "archive/*"
+git log archive/codex/osint-catalog
+git show archive/feature/prospective-ui-redesign
+```
+
+## On trobar contingut específic
+
+| Contingut | Ubicació |
+|-----------|----------|
+| App principal (backend + frontend) | `/backend`, `/frontend` |
+| Prototip antic prospectiu | `/legacy/prospective-prototype/` |
+| Còpia del prototip (merge historial) | `/OSINT/` |
+| Documentació OSINT | `/docs/`, `/data/`, `/APIS_ANALYSIS.md` |
+| Catàleg fonts | `/data/osint_sources.json`, `/docs/OSINT_CATALOG.md` |
+
+## Recuperar un fitxer d'una branca antiga
+
+```bash
+git checkout archive/codex/osint-catalog -- ruta/del/fitxer
 ```

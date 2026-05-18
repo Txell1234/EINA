@@ -98,6 +98,10 @@ class Settings(BaseSettings):
     # EnsembleData API (Social Media Scraping - optional)
     ENSEMBLEDATA_API_KEY: str = ""
 
+    # Maltego Transform Server (optional)
+    MALTEGO_API_URL: str = ""
+    MALTEGO_API_KEY: str = ""
+
 
 def _validate_settings(s: Settings) -> None:
     """Fail fast if critical settings are missing."""
