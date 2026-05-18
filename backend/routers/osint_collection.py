@@ -254,6 +254,69 @@ async def reverse_dns_lookup(
     
     return OSINTResultResponse.model_validate(result)
 
+@router.post("/gdelt", response_model=OSINTResultResponse)
+async def search_gdelt(
+    query: str,
+    days: int = 7,
+    max_results: int = 50,
+    case_id: Optional[int] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Search GDELT global events and news (no API key required)"""
+    osint_service = OSINTService(db)
+    result = await osint_service.execute_query(
+        query_type="gdelt",
+        query_params={"query": query, "days": days, "max_results": max_results},
+        case_id=case_id,
+    )
+    return OSINTResultResponse.model_validate(result)
+
+@router.post("/rss", response_model=OSINTResultResponse)
+async def fetch_rss_feed(
+    source: str = "cfr",
+    max_items: int = 20,
+    case_id: Optional[int] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Fetch a single RSS feed (iiss, cfr, csis, brookings, elcano, etc.)"""
+    osint_service = OSINTService(db)
+    result = await osint_service.execute_query(
+        query_type="rss_feed",
+        query_params={"source": source, "max_items": max_items},
+        case_id=case_id,
+    )
+    return OSINTResultResponse.model_validate(result)
+
+@router.post("/rss/all", response_model=OSINTResultResponse)
+async def fetch_all_rss_feeds(
+    max_items: int = 10,
+    case_id: Optional[int] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Fetch all configured think-tank and policy RSS feeds"""
+    osint_service = OSINTService(db)
+    result = await osint_service.execute_query(
+        query_type="rss_all",
+        query_params={"max_items": max_items},
+        case_id=case_id,
+    )
+    return OSINTResultResponse.model_validate(result)
+
+@router.post("/opensanctions", response_model=OSINTResultResponse)
+async def search_opensanctions(
+    query: str,
+    case_id: Optional[int] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Check entity against OpenSanctions database"""
+    osint_service = OSINTService(db)
+    result = await osint_service.execute_query(
+        query_type="opensanctions",
+        query_params={"query": query},
+        case_id=case_id,
+    )
+    return OSINTResultResponse.model_validate(result)
+
 @router.get("/queries", response_model=List[OSINTQueryResponse])
 async def list_queries(
     skip: int = 0,

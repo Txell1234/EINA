@@ -121,6 +121,37 @@ class OSINTService:
                     hostname=query_params.get("hostname", True),
                     security=query_params.get("security", True),
                 )
+            elif query_type == "gdelt":
+                from integrations.gdelt_api import GDELTAPIService
+
+                gdelt = GDELTAPIService()
+                result_data = await gdelt.search_events(
+                    query=query_params.get("query", query_params.get("q", "")),
+                    days=int(query_params.get("days", 7)),
+                    max_results=int(query_params.get("max_results", 50)),
+                )
+            elif query_type == "rss_feed":
+                from integrations.rss_feeds import RSSFeedsService
+
+                rss = RSSFeedsService()
+                result_data = await rss.fetch_feed(
+                    source_key=query_params.get("source", "cfr"),
+                    max_items=int(query_params.get("max_items", 20)),
+                )
+            elif query_type == "rss_all":
+                from integrations.rss_feeds import RSSFeedsService
+
+                rss = RSSFeedsService()
+                result_data = await rss.fetch_all(
+                    max_items_per_feed=int(query_params.get("max_items", 10)),
+                )
+            elif query_type == "opensanctions":
+                from integrations.opensanctions_api import OpenSanctionsService
+
+                os_svc = OpenSanctionsService()
+                result_data = await os_svc.check_entity(
+                    query_params.get("query", query_params.get("name", "")),
+                )
             elif query_type.startswith("ensembledata_"):
                 result_data = _unavailable(
                     query_type,

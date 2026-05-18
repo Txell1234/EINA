@@ -30,9 +30,9 @@ const NAV_GROUPS: {
   {
     label: 'Anàlisi',
     items: [
-      { path: '/qualitative-analysis', label: 'Variables · MIC-MAC', icon: ChartScatter },
-      { path: '/ai-analysis', label: 'Actors · MACTOR', icon: Users },
-      { path: '/geopolitical-advanced', label: 'Morfològic', icon: LayoutGrid },
+      { path: '/prospective/variables', label: 'Variables · MIC-MAC', icon: ChartScatter },
+      { path: '/prospective/mactor', label: 'Actors · MACTOR', icon: Users },
+      { path: '/prospective/morph', label: 'Morfològic', icon: LayoutGrid },
     ],
   },
   {
