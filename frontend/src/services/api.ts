@@ -399,7 +399,10 @@ export const osintService = {
     return response.data
   },
   search: async (endpoint: string, params: Record<string, unknown>) => {
-    const response = await api.post(`/api/osint/${endpoint}`, null, { params })
+    const clean = Object.fromEntries(
+      Object.entries(params).filter(([, v]) => v !== null && v !== undefined && v !== '')
+    )
+    const response = await api.post(`/api/osint/${endpoint}`, null, { params: clean })
     return response.data
   },
 }
@@ -864,5 +867,85 @@ export const prospectiveService = {
     `/api/prospective/projects/${projectId}/scenarios/stream`,
   getScenariosStreamUrl: (projectId: number): string =>
     `/api/prospective/projects/${projectId}/scenarios/stream`,
+
+  exportPdf: async (projectId: number): Promise<void> => {
+    const response = await api.get(
+      `/api/prospective/projects/${projectId}/export/pdf`,
+      { responseType: 'blob' },
+    )
+    const url = URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `informe_prospectiu_${projectId}.pdf`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  },
+
+  exportDocx: async (projectId: number): Promise<void> => {
+    const response = await api.get(
+      `/api/prospective/projects/${projectId}/export/docx`,
+      { responseType: 'blob' },
+    )
+    const url = URL.createObjectURL(
+      new Blob([response.data], {
+        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      }),
+    )
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `informe_prospectiu_${projectId}.docx`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  },
+
+  submitExpertVote: async (
+    projectId: number,
+    data: {
+      expert_id: string
+      expert_name: string
+      votes: Array<{ row: number; col: number; value: number }>
+    },
+  ) => {
+    const response = await api.post(
+      `/api/prospective/projects/${projectId}/panel/vote`,
+      data,
+    )
+    return response.data
+  },
+
+  getPanelConsensus: async (projectId: number) => {
+    const response = await api.get(
+      `/api/prospective/projects/${projectId}/panel/consensus`,
+    )
+    return response.data
+  },
+
+  applyConsensus: async (projectId: number) => {
+    const response = await api.post(
+      `/api/prospective/projects/${projectId}/panel/apply`,
+    )
+    return response.data
+  },
+
+  createMonitors: async (projectId: number, scenarioId: number) => {
+    const response = await api.post(
+      `/api/prospective/projects/${projectId}/scenarios/${scenarioId}/monitors`,
+    )
+    return response.data
+  },
+
+  listMonitors: async (projectId: number) => {
+    const response = await api.get(`/api/prospective/projects/${projectId}/monitors`)
+    return response.data
+  },
+
+  checkMonitor: async (monitorId: number) => {
+    const response = await api.post(`/api/prospective/monitors/${monitorId}/check`)
+    return response.data
+  },
 }
 

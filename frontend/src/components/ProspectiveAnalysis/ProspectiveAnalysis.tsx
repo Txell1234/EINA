@@ -136,6 +136,9 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
   } | null>(null)
   const [applyTargetProjectId, setApplyTargetProjectId] = useState<number | null>(null)
 
+  const [expertName, setExpertName] = useState('')
+  const [panelConsensus, setPanelConsensus] = useState<Record<string, unknown> | null>(null)
+
   const { data: casesList = [], isLoading: loadingCases } = useQuery({
     queryKey: ['cases-list'],
     queryFn: () => casesService.list(),
@@ -211,6 +214,32 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
       setStep(4)
     },
     onError: () => setErrorMsg('Error calculant MIC-MAC.'),
+  })
+
+  const submitVoteMutation = useMutation({
+    mutationFn: () => {
+      if (!projectId) return Promise.reject(new Error('Crea el projecte primer'))
+      return prospectiveService.submitExpertVote(projectId, {
+        expert_id: `${expertName.replace(/\s+/g, '_')}_${Date.now()}`,
+        expert_name: expertName,
+        votes: micmacMatrix.flatMap((row, i) =>
+          row.map((val, j) => ({ row: i, col: j, value: val })),
+        ),
+      })
+    },
+    onSuccess: async () => {
+      if (!projectId) return
+      const c = await prospectiveService.getPanelConsensus(projectId)
+      setPanelConsensus(c)
+    },
+  })
+
+  const applyConsensusMutation = useMutation({
+    mutationFn: () => prospectiveService.applyConsensus(projectId!),
+    onSuccess: (data: Record<string, unknown>) => {
+      setMicmacResult(data)
+      setErrorMsg(null)
+    },
   })
 
   const saveActorsMutation = useMutation({
@@ -924,6 +953,144 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
               Calcular i continuar
             </button>
           </div>
+
+          <details style={{ marginTop: 'var(--spacing-lg)' }}>
+            <summary
+              style={{
+                cursor: 'pointer',
+                fontWeight: 600,
+                color: 'var(--color-primary)',
+                fontSize: 'var(--font-size-sm)',
+                padding: 'var(--spacing-sm) 0',
+              }}
+            >
+              Mode panel d&apos;experts (Delphi)
+            </summary>
+            <div
+              style={{
+                padding: 'var(--spacing-md)',
+                background: 'var(--color-gray-50)',
+                border: '1px solid var(--color-gray-200)',
+                borderRadius: 'var(--radius-md)',
+                marginTop: 'var(--spacing-sm)',
+              }}
+            >
+              <p
+                style={{
+                  fontSize: 'var(--font-size-sm)',
+                  color: 'var(--color-gray-600)',
+                  marginBottom: 'var(--spacing-md)',
+                  lineHeight: 1.6,
+                }}
+              >
+                Cada expert omple la matriu i l&apos;envia. El sistema calcula la mitjana i marca
+                les cel·les amb alta discrepància (σ &gt; 1.0) per a debat.
+              </p>
+              <div className="prospective-field">
+                <label>El teu nom</label>
+                <input
+                  value={expertName}
+                  onChange={(e) => setExpertName(e.target.value)}
+                  placeholder="Ex.: Dra. García"
+                  style={{ maxWidth: 280 }}
+                />
+              </div>
+              <div className="prospective-actions" style={{ marginTop: 'var(--spacing-md)' }}>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={!expertName.trim() || submitVoteMutation.isPending || !projectId}
+                  onClick={() => submitVoteMutation.mutate()}
+                >
+                  {submitVoteMutation.isPending ? 'Enviant...' : 'Enviar la meva matriu al panel'}
+                </button>
+              </div>
+
+              {panelConsensus && !('error' in panelConsensus) && (
+                <div style={{ marginTop: 'var(--spacing-lg)' }}>
+                  <p style={{ fontSize: 'var(--font-size-sm)', fontWeight: 600 }}>
+                    {panelConsensus.n_experts as number} expert
+                    {(panelConsensus.n_experts as number) !== 1 ? 's' : ''} han votat ·{' '}
+                    {panelConsensus.n_votes as number} vots registrats
+                  </p>
+
+                  {Array.isArray(panelConsensus.high_disagreement) &&
+                    (panelConsensus.high_disagreement as unknown[]).length > 0 && (
+                      <div
+                        style={{
+                          marginTop: 'var(--spacing-sm)',
+                          padding: 'var(--spacing-sm)',
+                          background: 'rgba(220,53,69,.06)',
+                          borderRadius: 'var(--radius-sm)',
+                          border: '1px solid rgba(220,53,69,.2)',
+                        }}
+                      >
+                        <p
+                          style={{
+                            fontSize: 'var(--font-size-xs)',
+                            fontWeight: 600,
+                            color: 'var(--color-danger)',
+                            marginBottom: 4,
+                          }}
+                        >
+                          {(panelConsensus.high_disagreement as unknown[]).length} cel·les amb alta
+                          discrepància (σ &gt; 1.0) — cal debat:
+                        </p>
+                        <ul
+                          style={{
+                            paddingLeft: 'var(--spacing-lg)',
+                            fontSize: 'var(--font-size-xs)',
+                            color: 'var(--color-gray-700)',
+                            lineHeight: 1.8,
+                          }}
+                        >
+                          {(
+                            panelConsensus.high_disagreement as Array<{
+                              row: number
+                              col: number
+                              avg: number
+                              stdev: number
+                              votes: number[]
+                            }>
+                          )
+                            .slice(0, 6)
+                            .map((d) => (
+                              <li key={`${d.row}-${d.col}`}>
+                                Cel·la ({d.row},{d.col}): mitjana <strong>{d.avg}</strong>, σ=
+                                <strong>{d.stdev}</strong>, vots: [{d.votes.join(', ')}]
+                              </li>
+                            ))}
+                        </ul>
+                      </div>
+                    )}
+
+                  <button
+                    type="button"
+                    className="btn btn-success"
+                    style={{ marginTop: 'var(--spacing-md)' }}
+                    disabled={applyConsensusMutation.isPending}
+                    onClick={() => applyConsensusMutation.mutate()}
+                  >
+                    {applyConsensusMutation.isPending
+                      ? 'Aplicant...'
+                      : 'Aplicar consens com a resultat oficial'}
+                  </button>
+                </div>
+              )}
+
+              {panelConsensus && 'error' in panelConsensus && (
+                <p
+                  style={{
+                    color: 'var(--color-danger)',
+                    fontSize: 'var(--font-size-sm)',
+                    marginTop: 'var(--spacing-md)',
+                  }}
+                >
+                  {panelConsensus.error as string}
+                </p>
+              )}
+            </div>
+          </details>
         </>
       )}
 
@@ -1201,9 +1368,62 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
               <li key={s.id} style={{ cursor: 'default' }}>
                 <strong>{s.name}</strong>
                 <span className="badge">{s.narrative.length} caràcters</span>
+                <button
+                  type="button"
+                  className="btn"
+                  style={{ fontSize: 'var(--font-size-xs)', marginTop: 'var(--spacing-sm)' }}
+                  onClick={async () => {
+                    if (!projectId || !s.id) return
+                    try {
+                      const res = await prospectiveService.createMonitors(projectId, s.id)
+                      alert(
+                        `${res.created} indicador${res.created !== 1 ? 's' : ''} d'alerta activat${res.created !== 1 ? 's' : ''} per "${s.name}"`,
+                      )
+                    } catch {
+                      alert("Error activant el monitoratge. Comprova la consola.")
+                    }
+                  }}
+                >
+                  Activar monitoratge d&apos;alertes
+                </button>
               </li>
             ))}
           </ul>
+
+          {projectId !== null && savedScenarios.length > 0 && (
+            <div
+              className="prospective-actions"
+              style={{
+                marginTop: 'var(--spacing-xl)',
+                paddingTop: 'var(--spacing-lg)',
+                borderTop: '1px solid var(--color-gray-200)',
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 'var(--font-size-sm)',
+                  color: 'var(--color-gray-600)',
+                  alignSelf: 'center',
+                }}
+              >
+                Descarregar informe complet:
+              </span>
+              <button
+                type="button"
+                className="btn btn-accent"
+                onClick={() => prospectiveService.exportPdf(projectId)}
+              >
+                PDF
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => prospectiveService.exportDocx(projectId)}
+              >
+                DOCX (Word)
+              </button>
+            </div>
+          )}
         </>
       )}
     </div>

@@ -110,3 +110,34 @@ class ProspectiveScenario(Base):
     probability = Column(String, default="MITJA")
     narrative = Column(Text, default="")
     generated_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class MICMACExpertVote(Base):
+    """Individual expert vote for one MIC-MAC matrix cell (Delphi panel mode)."""
+    __tablename__ = "micmac_expert_votes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("prospective_projects.id"), index=True)
+    expert_id = Column(String(64), nullable=False, index=True)
+    expert_name = Column(String(128), default="Anònim")
+    row_index = Column(Integer, nullable=False)
+    col_index = Column(Integer, nullable=False)
+    vote_value = Column(Integer, nullable=False)
+    submitted_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class AlertMonitor(Base):
+    """OSINT monitor created from a scenario early warning indicator."""
+    __tablename__ = "alert_monitors"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("prospective_projects.id"), index=True)
+    scenario_id = Column(Integer, ForeignKey("prospective_scenarios.id"), nullable=True)
+    indicator = Column(Text, nullable=False)
+    keywords = Column(JSON, default=list)
+    osint_sources = Column(JSON, default=list)
+    is_active = Column(Integer, default=1)
+    last_checked = Column(DateTime(timezone=True), nullable=True)
+    last_match = Column(DateTime(timezone=True), nullable=True)
+    match_count = Column(Integer, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

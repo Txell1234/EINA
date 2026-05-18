@@ -454,3 +454,96 @@ Inclou 4-5 indicadors d'alerta primerenca observables."""
         await self.save_variables(project_id, mapped_vars)
         await self.save_actors(project_id, mapped_actors)
         return {"variables": mapped_vars, "actors": mapped_actors}
+
+    async def submit_expert_vote(
+        self,
+        project_id: int,
+        expert_id: str,
+        expert_name: str,
+        votes: list[dict],
+    ) -> dict:
+        from models.prospective import MICMACExpertVote
+        from sqlalchemy import delete
+
+        await self.db.execute(
+            delete(MICMACExpertVote).where(
+                MICMACExpertVote.project_id == project_id,
+                MICMACExpertVote.expert_id == expert_id,
+            )
+        )
+        await self.db.flush()
+
+        for v in votes:
+            self.db.add(
+                MICMACExpertVote(
+                    project_id=project_id,
+                    expert_id=expert_id,
+                    expert_name=expert_name,
+                    row_index=int(v["row"]),
+                    col_index=int(v["col"]),
+                    vote_value=max(0, min(3, int(v["value"]))),
+                )
+            )
+        await self.db.commit()
+        return {"submitted": len(votes), "expert_id": expert_id}
+
+    async def get_panel_consensus(self, project_id: int) -> dict:
+        from collections import defaultdict
+        import statistics
+
+        from models.prospective import MICMACExpertVote
+
+        rows = (
+            await self.db.execute(
+                select(MICMACExpertVote).where(MICMACExpertVote.project_id == project_id)
+            )
+        ).scalars().all()
+
+        if not rows:
+            return {"error": "Cap vot registrat. Convida experts al panel."}
+
+        cell_votes: dict[tuple, list] = defaultdict(list)
+        experts: set = set()
+        for v in rows:
+            cell_votes[(v.row_index, v.col_index)].append(v.vote_value)
+            experts.add(v.expert_id)
+
+        n = max(max(k) for k in cell_votes) + 1
+        consensus = [[0.0] * n for _ in range(n)]
+        stdev_m = [[0.0] * n for _ in range(n)]
+        disagree = []
+
+        for (r, c), vals in cell_votes.items():
+            if r == c:
+                continue
+            avg = sum(vals) / len(vals)
+            std = statistics.stdev(vals) if len(vals) > 1 else 0.0
+            consensus[r][c] = round(avg, 2)
+            stdev_m[r][c] = round(std, 2)
+            if std > 1.0:
+                disagree.append(
+                    {
+                        "row": r,
+                        "col": c,
+                        "avg": round(avg, 2),
+                        "stdev": round(std, 2),
+                        "votes": vals,
+                        "n_experts": len(vals),
+                    }
+                )
+
+        return {
+            "consensus_matrix": consensus,
+            "stdev_matrix": stdev_m,
+            "n_experts": len(experts),
+            "n_votes": len(rows),
+            "high_disagreement": sorted(disagree, key=lambda x: -x["stdev"]),
+            "coverage": len(cell_votes),
+        }
+
+    async def apply_consensus(self, project_id: int) -> dict:
+        result = await self.get_panel_consensus(project_id)
+        if "error" in result:
+            return result
+        matrix_int = [[round(v) for v in row] for row in result["consensus_matrix"]]
+        return await self.compute_micmac(project_id, matrix_int)

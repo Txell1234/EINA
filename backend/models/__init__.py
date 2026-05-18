@@ -25,6 +25,8 @@ from .prospective import (
     MACTORResult,
     MorphComponent,
     ProspectiveScenario,
+    MICMACExpertVote,
+    AlertMonitor,
 )
 
 __all__ = [
@@ -46,5 +48,6 @@ __all__ = [
     "ProspectiveProject", "ProspectiveVariable", "MICMACResult",
     "ProspectiveActor", "MACTORObjective", "MACTORPosture", "MACTORResult",
     "MorphComponent", "ProspectiveScenario",
+    "MICMACExpertVote", "AlertMonitor",
 ]
 

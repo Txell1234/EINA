@@ -247,3 +247,126 @@ async def stream_scenarios(project_id: int, db: AsyncSession = Depends(get_db)):
             yield f"data: {json.dumps({'event': 'error', 'message': str(e)}, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+class ExpertVoteRequest(BaseModel):
+    expert_id: str
+    expert_name: str = "Anònim"
+    votes: List[dict]
+
+
+@router.post("/projects/{project_id}/panel/vote")
+async def submit_expert_vote(
+    project_id: int,
+    data: ExpertVoteRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Submit expert votes for MIC-MAC matrix (Delphi panel mode)."""
+    svc = ProspectiveService(db)
+    return await svc.submit_expert_vote(
+        project_id, data.expert_id, data.expert_name, data.votes
+    )
+
+
+@router.get("/projects/{project_id}/panel/consensus")
+async def get_panel_consensus(project_id: int, db: AsyncSession = Depends(get_db)):
+    """Get consensus matrix and disagreement analysis from all expert votes."""
+    svc = ProspectiveService(db)
+    return await svc.get_panel_consensus(project_id)
+
+
+@router.post("/projects/{project_id}/panel/apply")
+async def apply_consensus(project_id: int, db: AsyncSession = Depends(get_db)):
+    """Apply consensus matrix as the official MIC-MAC result."""
+    svc = ProspectiveService(db)
+    return await svc.apply_consensus(project_id)
+
+
+@router.get("/projects/{project_id}/export/pdf")
+async def export_project_pdf(project_id: int, db: AsyncSession = Depends(get_db)):
+    """Export prospective project as PDF. Requires weasyprint + libpango."""
+    from pathlib import Path
+
+    from fastapi.responses import Response as BinaryResponse
+    from services.report_export_service import export_pdf as _pdf
+
+    try:
+        meta = await _pdf(db, project_id)
+        data = Path(meta["file_path"]).read_bytes()
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    return BinaryResponse(
+        content=data,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename=informe_prospectiu_{project_id}.pdf"
+        },
+    )
+
+
+@router.get("/projects/{project_id}/export/docx")
+async def export_project_docx(project_id: int, db: AsyncSession = Depends(get_db)):
+    """Export prospective project as DOCX."""
+    from pathlib import Path
+
+    from fastapi.responses import Response as BinaryResponse
+    from services.report_export_service import export_docx as _docx
+
+    try:
+        meta = await _docx(db, project_id)
+        data = Path(meta["file_path"]).read_bytes()
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    return BinaryResponse(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={
+            "Content-Disposition": f"attachment; filename=informe_prospectiu_{project_id}.docx"
+        },
+    )
+
+
+@router.post("/projects/{project_id}/scenarios/{scenario_id}/monitors")
+async def create_scenario_monitors(
+    project_id: int,
+    scenario_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Extract early warning indicators from scenario and create OSINT monitors."""
+    from models.prospective import ProspectiveScenario
+    from services.alert_monitor_service import create_monitors_from_scenario
+
+    r = await db.execute(
+        select(ProspectiveScenario).where(
+            ProspectiveScenario.id == scenario_id,
+            ProspectiveScenario.project_id == project_id,
+        )
+    )
+    sc = r.scalar_one_or_none()
+    if not sc:
+        raise HTTPException(status_code=404, detail="Escenari no trobat")
+
+    monitors = await create_monitors_from_scenario(
+        db, project_id, scenario_id, sc.narrative or ""
+    )
+    return {"created": len(monitors), "monitors": monitors}
+
+
+@router.get("/projects/{project_id}/monitors")
+async def list_project_monitors(project_id: int, db: AsyncSession = Depends(get_db)):
+    """List all alert monitors for a project."""
+    from services.alert_monitor_service import list_monitors
+
+    return await list_monitors(db, project_id)
+
+
+@router.post("/monitors/{monitor_id}/check")
+async def check_monitor(monitor_id: int, db: AsyncSession = Depends(get_db)):
+    """Manually run an OSINT check for a monitor."""
+    from services.alert_monitor_service import run_monitor_check
+
+    return await run_monitor_check(db, monitor_id)
