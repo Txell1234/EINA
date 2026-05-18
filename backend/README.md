@@ -15,6 +15,18 @@ source venv/bin/activate  # En Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
+### Dependencias principales
+
+- fastapi (API)
+- uvicorn[standard] (servidor ASGI)
+- sqlalchemy + aiosqlite (ORM + SQLite async)
+- httpx (clientes HTTP async para integraciones)
+- pydantic-settings (configuración)
+- openai (cliente IA)
+- python-jose[cryptography] + passlib[bcrypt] (auth/JWT y hashing)
+- python-multipart (formularios OAuth2)
+- dnspython (resolución DNS/WHOIS, opcional para integraciones DNS)
+
 3. Configurar variables de entorno:
 ```bash
 cp .env.example .env
@@ -122,7 +134,6 @@ GET /health
 Una vez ejecutando el servidor, la documentación está disponible en:
 - Swagger UI: http://localhost:8000/docs
 - ReDoc: http://localhost:8000/redoc
-
 
 
 
