@@ -203,7 +203,8 @@ class OSINTService:
             }
 
         except Exception as e:
-            query.status = "failed"
+            query.status = QueryStatus.FAILED
+            query.completed_at = datetime.utcnow()
             await self.db.commit()
             return {
                 "query_id": query.id,
