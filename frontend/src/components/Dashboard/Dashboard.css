@@ -1,0 +1,45 @@
+.dashboard-case-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-lg);
+}
+
+.dashboard-case-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-md);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-md);
+  background: var(--color-white);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.dashboard-case-card:hover {
+  border-color: var(--color-accent);
+  box-shadow: var(--shadow-md);
+}
+
+.dashboard-case-card--active {
+  border-color: var(--color-accent);
+  box-shadow: var(--shadow-md);
+  background: rgba(255, 107, 53, 0.06);
+}
+
+.dashboard-case-id {
+  font-size: var(--font-size-xs);
+  color: var(--color-gray-500);
+  font-weight: var(--font-weight-semibold);
+}
+
+.dashboard-case-name {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-primary);
+}

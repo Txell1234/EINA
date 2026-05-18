@@ -1,0 +1,766 @@
+# EINA — Regles de Cursor
+# Aquest fitxer dona a Cursor tot el context permanent del projecte.
+# Cursor el llegeix automàticament en cada operació sobre aquest repo.
+# Col·loca'l a l'arrel del repo: /EINA/.cursorrules
+
+---
+
+## 1. IDENTITAT DEL PROJECTE
+
+EINA és una plataforma d'intel·ligència estratègica en dues capes:
+
+**Capa 1 — Recollida i conceptualització (EINA core)**
+Recull dades de fonts obertes (NewsAPI, Reddit, EnsembleData, GitHub, Shodan, IPStack), les processa amb OpenAI (extracció de conceptes, sentiment, embeddings, relacions bilaterals) i les guarda per cas a SQLite/PostgreSQL.
+
+**Capa 2 — Anàlisi prospectiva (mòdul nou)**
+Pren les dades conceptualitzades del cas i les converteix en un sistema estructurat d'anàlisi estratègica seguint la metodologia de prospectiva francesa (escola Michel Godet / LIPSOR). Genera escenaris futurs narratius via Anthropic Claude.
+
+El flux complet és:
+```
+OSINT brut → Conceptualització (OpenAI) → Variables del sistema → MIC-MAC →
+Retrospectiva d'actors → MACTOR → Anàlisi Morfològic → Escenaris (Claude)
+```
+
+---
+
+## 2. STACK TÈCNIC EXACTE
+
+### Backend
+- **Framework**: FastAPI (async) amb `asyncio`
+- **ORM**: SQLAlchemy 2.0 async (`AsyncSession`, `select()`, no `.query()`)
+- **DB**: SQLite en dev (`aiosqlite`), PostgreSQL en prod
+- **Autenticació**: JWT via python-jose (temporalment desactivada en alguns routers)
+- **IA principal**: OpenAI AsyncClient (`services/ai_service.py`) per a classificació/embeddings
+- **IA prospectiva**: Anthropic Claude (`claude-sonnet-4-20250514`) per a narratives d'escenaris via httpx streaming
+- **Streaming**: SSE (Server-Sent Events) via `StreamingResponse` de FastAPI
+
+### Frontend
+- **Framework**: React 18 + TypeScript (strict mode)
+- **Build**: Vite 5
+- **Routing**: React Router v6
+- **Data fetching**: `@tanstack/react-query` v5 (useQuery, useMutation)
+- **HTTP**: axios via `frontend/src/services/api.ts` (instància `api` configurada)
+- **Charts**: recharts
+- **TypeScript**: `strict: true`, `noUnusedLocals: true`, `noUnusedParameters: true`
+
+### Patrons obligatoris del frontend
+```tsx
+// SEMPRE usar useQuery per fetch de dades
+const { data, isLoading, error } = useQuery({
+  queryKey: ['clau-unica', parametre],
+  queryFn: () => servei.metode(parametre),
+})
+
+// SEMPRE usar el servei de api.ts, mai fetch directe
+import { prospectiveService } from '../../services/api'
+
+// CSS en fitxer separat NomComponent.css, mai inline styles complexos
+import './ProspectiveAnalysis.css'
+```
+
+---
+
+## 3. SISTEMA DE DISSENY — VARIABLES CSS OBLIGATÒRIES
+
+Tot el CSS nou ha d'usar EXCLUSIVAMENT les variables de `frontend/src/styles/variables.css`.
+Mai hardcodejar colors ni mides. Variables principals:
+
+```css
+/* Colors principals */
+--color-primary: #1e3a5f;        /* Blau fosc — capçaleres, nav actiu */
+--color-primary-light: #2d5a87;  /* Blau mig — hover states */
+--color-accent: #ff6b35;         /* Taronja — accions principals, CTA */
+--color-accent-dark: #e55a2b;    /* Taronja fosc — hover del CTA */
+
+/* Status */
+--color-success: #28a745;   /* Verd — confirmat, calculat, fet */
+--color-warning: #ffc107;   /* Groc — atenció, probabilitat mitja */
+--color-danger: #dc3545;    /* Vermell — error, probabilitat alta risc */
+--color-info: #17a2b8;      /* Blau clar — info neutral */
+
+/* Grisos */
+--color-gray-50: #f8f9fa;   /* Fons de pàgina */
+--color-gray-100: #f5f5f5;  /* Fons de targeta */
+--color-gray-200: #e9ecef;  /* Separadors suaus */
+--color-gray-600: #6c757d;  /* Text secundari */
+--color-gray-800: #343a40;  /* Text principal fosc */
+
+/* Tipografia */
+--font-size-sm: 0.875rem;   /* 14px — text de formulari */
+--font-size-base: 1rem;     /* 16px — text normal */
+--font-size-lg: 1.125rem;   /* 18px — subtítols */
+--font-size-xl: 1.25rem;    /* 20px — títols de secció */
+
+/* Espaiat */
+--spacing-xs: 0.25rem;  /* 4px */
+--spacing-sm: 0.5rem;   /* 8px */
+--spacing-md: 1rem;     /* 16px */
+--spacing-lg: 1.5rem;   /* 24px */
+--spacing-xl: 2rem;     /* 32px */
+
+/* Bordes i ombres */
+--radius-sm: 4px;
+--radius-md: 8px;
+--radius-lg: 12px;
+--shadow-md: 0 2px 4px rgba(0,0,0,0.1);
+--shadow-lg: 0 4px 6px rgba(0,0,0,0.1);
+
+/* Classes CSS globals disponibles (definides a variables.css) */
+/* .card, .btn, .btn-primary, .btn-accent, .btn-success, .btn-danger, .badge, .spinner */
+```
+
+---
+
+## 4. METODOLOGIA DE PROSPECTIVA — CONTEXT COMPLET
+
+### 4.1 Per què existeix aquest mòdul
+
+La metodologia de prospectiva estratègica (escola Godet) és un sistema formal per analitzar sistemes complexos (geopolítics, econòmics, socials) i construir escenaris futurs plausibles. No és una predicció — és una estructuració de la incertesa per prendre decisions robustes.
+
+El pipeline complet té 7 passos, cadascun alimenta el següent:
+
+```
+[1] OSINT → [2] Variables → [3] MIC-MAC → [4] Actors → [5] MACTOR → [6] Morfològic → [7] Escenaris
+```
+
+### 4.2 PAS 1 — Variables del sistema
+
+**Concepte**: Identificar els elements del sistema que poden evolucionar i que expliquen diferències entre estats presents i futurs.
+
+**Regla crítica de formulació**: Una variable NO és un tema ("Economia de l'Índia"). És una **mesura de variació**: "Grau en què el creixement econòmic de l'Índia pot atraure inversió estrangera alternativa a la BRI". Ha de ser puntuable de 0 a 3.
+
+**Classificació**:
+- **Interna (I)**: Factor sobre el qual els actors principals tenen capacitat d'acció directa
+- **Externa (E)**: Factor de l'entorn que influeix però no es controla directament
+
+**Nombre recomanat**: 10–20 variables. Menys de 10 = sistema incomplet. Més de 20 = matriu inmanejable.
+
+**Estructura de dades**:
+```typescript
+interface Variable {
+  id: string        // "A", "B", "C"... o "1", "2", "3"...
+  name: string      // Nom complet operatiu
+  type: "I" | "E"  // Interna o Externa
+  desc: string      // Definició "Grau en què..."
+}
+```
+
+**Exemple real (informe Indo-Pacífic)**:
+- A (I): Belt and Road Initiative — "Grau d'expansió de la influència xinesa a través de la BRI"
+- B (E): Influència de l'Índia — "Grau d'influència de l'Índia sobre els països de l'Indo-Pacífic"
+- C (E): QUAD Cohesió — "Grau de cohesió i capacitat d'acció del QUAD"
+- D (I): Corredors Alternatius — "Grau en què els corredors indis representen alternativa a la BRI"
+- E (E): Postura UE — "Grau d'implicació activa de la UE a la regió"
+
+### 4.3 PAS 2 — Matriu MIC-MAC
+
+**Concepte**: Revela quines variables mouen el sistema (alta motricitat) i quines estan condicionades per les altres (alta dependència).
+
+**La matriu**: Quadrada N×N. Cel·la (i, j) = fins a quin punt la variable i influeix sobre la variable j.
+- 0 = cap influència
+- 1 = influència feble
+- 2 = influència moderada
+- 3 = influència forta
+- Diagonal sempre = 0 (una variable no s'influeix a si mateixa)
+
+**Càlculs**:
+```python
+# Motricitat directa de la variable i = suma de la fila i
+motricitat[i] = sum(matrix[i])
+
+# Dependència directa de la variable j = suma de la columna j
+dependencia[j] = sum(matrix[i][j] for i in range(n))
+
+# Classificació indirecta = matriu al quadrat (M × M)
+# Captura influències de segon ordre (A influeix sobre B que influeix sobre C)
+indirect = matrix_multiply(matrix, matrix)
+```
+
+**Els 4 sectors del gràfic motricitat/dependència**:
+- **Sector 1 — Motrius**: Alta motricitat, baixa dependència. Variables que mouen el sistema però no depenen d'ell. Actuar sobre elles per canviar el futur.
+- **Sector 2 — Clau/Conflicte**: Alta motricitat I alta dependència. Variables d'enllaç inestables. Les més estratègiques. Aquí viuen la Variable Blanc (VB) i la Variable de Risc (VR).
+- **Sector 3 — Resultants**: Baixa motricitat, alta dependència. Variables de sortida — mostren el futur del sistema.
+- **Sector 4 — Excluyents**: Baixa motricitat, baixa dependència. Perifèriques però útils per a negociació.
+
+**Variable Blanc (VB)**: Variable del Sector 2 amb major dependència. És la "palanca estratègica" — actuant sobre ella es canvia el futur del sistema.
+
+**Variable de Risc (VR)**: Variable on motricitat ≈ dependència (diferència mínima). Punt de tensió estructural — un canvi pot tenir efectes impredictibles en dues direccions.
+
+**Classificació de la variable i**:
+```python
+avg_mot = sum(motricitats) / n
+avg_dep = sum(dependencies) / n
+
+if mot >= avg_mot and dep >= avg_dep:  → Sector 2 "Clau/Conflicte"
+if mot >= avg_mot and dep < avg_dep:   → Sector 1 "Motriu"
+if mot < avg_mot and dep >= avg_dep:   → Sector 3 "Resultant"
+else:                                   → Sector 4 "Excluyent"
+```
+
+**Resultat clau de l'exemple Indo-Pacífic**: La Variable B (Influència de l'Índia) tenia motricitat=18 i dependència=18 → simultàniament VB i VR. El sistema es classificà com a mixt.
+
+### 4.4 PAS 3 — Retrospectiva d'Actors
+
+**Concepte**: Identificar els actors del sistema, els seus fins estratègics, els seus mitjans, i les relacions de poder entre ells. Fonament qualitatiu del MACTOR.
+
+**Per cada actor cal definir**:
+- **Nom i codi** (ex: CH=Xina, IN=Índia, QD=QUAD, UE=Unió Europea)
+- **Fins estratègics** (objectius a 10–20 anys): "Consolidar la BRI", "Lideratge Indo-Pacífic"...
+- **Força relativa** (escala 1–5): quantificació del pes global de l'actor
+
+**Els 3 sociogrames** (representació gràfica de relacions):
+1. **Sociograma d'Identificació**: Convergència de fins entre actors (Competència / Cooperació / Mixt)
+2. **Sociograma de Poder**: Qui necessita els recursos de qui (dependència de recursos)
+3. **Sociograma de Força**: Pes numèric de cada actor (suma ponderada de capacitats)
+
+**Estructura de dades**:
+```typescript
+interface Actor {
+  id: string       // Codi curt: "CH", "IN", "QD"
+  name: string     // Nom complet
+  force: number    // Força 1–5
+  fins: string     // Fins separats per coma
+}
+```
+
+### 4.5 PAS 4 — MACTOR
+
+**Concepte**: Quantifica convergències i divergències d'objectius entre actors, ponderant per força relativa. Identifica aliances potencials i conflictes.
+
+**Passos**:
+1. Definir **reptes estratègics** (5–8 objectius operatius clau)
+2. Construir la **Matriu Actors × Objectius (MAO)**: postura de cada actor per cada objectiu
+3. Calcular **mobilització per actor** (quant s'implica cada actor) i **per objectiu** (quant mobilitza)
+4. Calcular **matriu de convergències**: quants objectius comparteix cada parell d'actors
+
+**Escala de postures MAO**:
+- +2 = molt favorable (objectiu prioritari)
+- +1 = favorable (ho suporta però no és prioritari)
+-  0 = neutral
+- -1 = contrari (s'hi oposa però no prioritàriament)
+- -2 = molt contrari (oposició activa i prioritària)
+
+**Càlculs**:
+```python
+# Mobilització de l'actor i = suma absoluta de totes les seves postures
+mob_actor[i] = sum(abs(postures[i][j]) for j in range(n_objectives))
+
+# Mobilització de l'objectiu j = suma absoluta de totes les postures sobre ell
+mob_obj[j] = sum(abs(postures[i][j]) for i in range(n_actors))
+
+# Convergència entre actors i i j = quants objectius comparteixen el mateix signe
+convergences[i][j] = count(j where sign(postures[i][k]) == sign(postures[j][k]) and postures[i][k] != 0)
+```
+
+**Resultat clau de l'exemple Indo-Pacífic**: L'Índia i la Xina tenien la major mobilització. La UE era la més passiva però amb gran potencial. El QUAD tenia major potencial de creixement.
+
+**Estructura de dades**:
+```typescript
+interface Objective {
+  id: string   // "O1", "O2"...
+  name: string // "Expansió BRI sense obstacles"
+}
+
+// postures[actor_index][objective_index] = -2 a +2
+type PostureMatrix = number[][]
+```
+
+### 4.6 PAS 5 — Anàlisi Morfològic
+
+**Concepte** (mètode Zwicky, 1969): Explorar sistemàticament tots els estats futurs possibles del sistema garantint que cap escenari rellevant queda exclòs.
+
+**Elements**:
+- **Components** (5–8): Dimensions sobre les quals el sistema pot evolucionar. Equivalents als reptes del MACTOR.
+- **Configuracions** (2–4 per component): Els estats alternatius possibles de cada component.
+
+**L'espai morfològic** = producte cartesià de totes les configuracions:
+```
+3 components × 2 configs cada un = 2³ = 8 escenaris teòrics
+5 components amb 3-3-2-2-2 configs = 3×3×2×2×2 = 72 escenaris teòrics
+```
+
+**Exemple de l'informe Indo-Pacífic** (72 combinacions):
+- C1 Estat BRI: [Expansió plena / Estancament / Col·lapse parcial]
+- C2 Corredors Indis: [Consolidació / Progrés parcial / Paralització]
+- C3 Cohesió QUAD: [Alta cohesió / Divisió interna]
+- C4 Postura UE: [Activa / Passiva]
+
+**Estructura de dades**:
+```typescript
+interface Component {
+  id: string    // "C1", "C2"...
+  name: string  // "Estat de la BRI"
+  configs: Array<{
+    label: string  // "Expansió plena"
+    desc: string   // "La BRI avança sense obstacles significatius"
+  }>
+}
+```
+
+### 4.7 PAS 6 — Escenaris Futurs (generats per Claude)
+
+**Concepte**: Síntesi de tot l'anàlisi anterior en 4 relats coherents sobre estats futurs plausibles.
+
+**Els 4 escenaris fixes**:
+1. **Escenari Infern** (pitjor): Màxima expansió adversari + Resposta fragmentada. Probabilitat: BAIXA-MITJA
+2. **Escenari Tensió Crònica** (intermedi-dolent): Estancament parcial + Divisió interna. Probabilitat: ALTA
+3. **Escenari Equilibri Dinàmic** (intermedi-bo): Alternativa en construcció + Cohesió moderada. Probabilitat: MITJA
+4. **Escenari Cel** (millor): Retrocés expansió + Alternativa consolidada. Probabilitat: BAIXA
+
+**Cada narrativa OBLIGATÒRIAMENT inclou** (en 380–440 paraules):
+1. **Condicions inicials**: Estat actual del sistema i indicadors presents
+2. **Seqüència d'events**: Cronologia any 1, anys 2–3, anys 4–5
+3. **Actors impulsors**: Qui fa què, qui guanya, qui perd posicions
+4. **Indicadors d'alerta primerenca**: 4–5 senyals observables (format: → indicador)
+5. **Probabilitat i lògica de transició**: Justificació de la probabilitat + condició de ruptura
+
+**Generació via Anthropic Claude** (streaming SSE):
+```python
+# Model: claude-sonnet-4-20250514
+# Endpoint: https://api.anthropic.com/v1/messages
+# Stream: True
+# Sistema: analista d'intel·ligència estratègica expert en prospectiva (escola Godet)
+# Clau: os.getenv("ANTHROPIC_API_KEY")
+```
+
+**Nota sobre qualitat**: Claude és significativament superior a GPT-4 per a narratives d'escenaris estratègics llargs (380–440 paraules) perquè manté millor la coherència causal i el to analític al llarg de tot el text.
+
+---
+
+## 5. FITXERS NOUS DEL MÒDUL PROSPECTIVA
+
+```
+backend/
+  models/prospective.py              ← Taules SQLAlchemy (9 models)
+  services/prospective_service.py    ← Càlculs MIC-MAC + MACTOR + streaming Claude
+  routers/prospective.py             ← Endpoints FastAPI (/api/prospective/*)
+
+frontend/src/
+  components/ProspectiveAnalysis/
+    ProspectiveAnalysis.tsx           ← Wizard 7 passos (component principal)
+    ProspectiveAnalysis.css           ← Estils (usar variables.css)
+  services/api.ts                    ← Afegir prospectiveService al final
+```
+
+**Fitxers existents a modificar**:
+- `backend/models/__init__.py` → importar els 9 models nous
+- `backend/app/main.py` → registrar `prospective_router` amb prefix `/api/prospective`
+- `frontend/src/App.tsx` → afegir ruta `/prospective-analysis`
+- `frontend/src/components/Layout.tsx` → afegir ítem de nav "Anàlisi Prospectiva" amb icon ◎
+
+---
+
+## 6. ENDPOINTS DE L'API PROSPECTIVA
+
+```
+GET    /api/prospective/projects                           → Llista de projectes
+POST   /api/prospective/projects                          → Crear projecte
+GET    /api/prospective/projects/{id}                     → Obtenir projecte
+PUT    /api/prospective/projects/{id}/variables           → Guardar variables
+POST   /api/prospective/projects/{id}/micmac              → Calcular MIC-MAC
+PUT    /api/prospective/projects/{id}/actors              → Guardar actors
+PUT    /api/prospective/projects/{id}/objectives          → Guardar objectius MACTOR
+POST   /api/prospective/projects/{id}/mactor              → Calcular MACTOR
+PUT    /api/prospective/projects/{id}/components          → Guardar components morfològics
+GET    /api/prospective/projects/{id}/scenarios/stream    → SSE streaming escenaris
+GET    /api/prospective/projects/{id}/scenarios           → Escenaris guardats
+```
+
+---
+
+## 7. PATRONS DE CODI — EXEMPLES REALS DEL REPO
+
+### Router FastAPI (veure backend/routers/geopolitical.py per referència)
+```python
+from fastapi import APIRouter, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.database import get_db
+
+router = APIRouter()
+
+@router.post("/endpoint")
+async def endpoint(data: SchemaModel, db: AsyncSession = Depends(get_db)):
+    svc = MyService(db)
+    result = await svc.do_something(data)
+    return result
+```
+
+### Component React (veure frontend/src/components/Geopolitical/RiskDashboard.tsx per referència)
+```tsx
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { prospectiveService } from '../../services/api'
+import './ProspectiveAnalysis.css'
+
+interface Props {
+  caseId?: number
+}
+
+export default function ProspectiveAnalysis({ caseId }: Props) {
+  const [step, setStep] = useState(0)
+
+  const { data: projects, isLoading } = useQuery({
+    queryKey: ['prospective-projects', caseId],
+    queryFn: () => prospectiveService.listProjects(caseId),
+  })
+
+  if (isLoading) return <div className="spinner" />
+
+  return (
+    <div className="prospective-container">
+      {/* wizard */}
+    </div>
+  )
+}
+```
+
+### Servei API (veure frontend/src/services/api.ts per referència)
+```typescript
+export const prospectiveService = {
+  createProject: async (data: ProjectCreateData) => {
+    const response = await api.post('/api/prospective/projects', data)
+    return response.data
+  },
+  // ... altres mètodes
+}
+```
+
+### SSE Streaming al frontend
+```typescript
+// Per al pas de generació d'escenaris, usar EventSource natiu:
+const url = prospectiveService.getStreamUrl(projectId)
+const es = new EventSource(url)
+es.onmessage = (event) => {
+  const data = JSON.parse(event.data)
+  if (data.event === 'chunk') {
+    // afegir text en streaming
+  } else if (data.event === 'all_done') {
+    es.close()
+  }
+}
+```
+
+---
+
+## 8. LÒGICA DE NEGOCI CRÍTICA — MAI CANVIAR
+
+### Fórmula MIC-MAC — multiplicació matricial
+```python
+def matrix_multiply(A, B):
+    n = len(A)
+    return [[sum(A[i][k] * B[k][j] for k in range(n)) for j in range(n)] for i in range(n)]
+
+# Classificació indirecta = M × M (influències de 2n ordre)
+indirect = matrix_multiply(matrix, matrix)
+```
+
+### Detecció de VB i VR
+```python
+# VB = variable del Sector 2 (Clau/Conflicte) amb major dependència
+key_sector = [i for i in range(n) if sectors[i]["sector"] == "Clau/Conflicte"]
+vb_idx = max(key_sector, key=lambda i: dep_d[i]) if key_sector else 0
+
+# VR = variable amb menor diferència entre motricitat i dependència
+vr_idx = min(range(n), key=lambda i: abs(mot_d[i] - dep_d[i]))
+```
+
+### Càlcul MACTOR
+```python
+# Mobilització actor = suma absoluta de les seves postures
+mob_actor[i] = sum(abs(postures[i][j]) for j in range(n_obj))
+
+# Convergència = objectius compartits (mateix signe, ambdós != 0)
+convergences[i][j] = sum(
+    1 for k in range(n_obj)
+    if postures[i][k] != 0 and postures[j][k] != 0
+    and (postures[i][k] > 0) == (postures[j][k] > 0)
+)
+```
+
+### Espai morfològic
+```python
+# Producte cartesià del nombre de configuracions de cada component
+morph_total = reduce(lambda a, b: a * b, [len(c.configs) for c in components], 1)
+```
+
+---
+
+## 9. VARIABLES D'ENTORN NECESSÀRIES
+
+```bash
+# backend/.env
+OPENAI_API_KEY=sk-proj-...        # Existent — per a classificació/embeddings
+ANTHROPIC_API_KEY=sk-ant-api03-.. # Nou — per a narratives d'escenaris
+NEWS_API_KEY=...                  # Existent
+ENSEMBLEDATA_API_KEY=...          # Existent
+```
+
+---
+
+## 10. REGLES GENERALS PER A TOT EL CODI
+
+1. **SQLAlchemy async**: Sempre `await db.execute(select(Model).where(...))` — mai `.query()` síncron
+2. **TypeScript strict**: Tots els tipus explícits. Cap `any` a menys que sigui inevitable. Si cal `any`, comentar per què.
+3. **Error handling**: Tot await envoltant en try/catch. Els routers FastAPI retornen HTTPException amb missatge clar.
+4. **CSS**: Mai hardcodejar colors ni mides. Sempre `var(--color-primary)` etc. Classes globals `.card`, `.btn`, `.btn-primary` ja estan definides.
+5. **Imports**: Organitzats per grups — stdlib, third-party, locals. Al frontend: React, third-party, locals, CSS.
+6. **Noms en català**: Els labels de la UI, els missatges d'error, els textos de l'app — tot en català. El codi (variables, funcions, comentaris tècnics) en anglès.
+7. **Patró de component**: Cada component té el seu fitxer `.css` separat. El component principal exporta per defecte.
+8. **useQuery**: Sempre especificar `queryKey` com a array. El primer element és el nom de l'entitat, els següents són els paràmetres.
+
+---
+
+## 11. PIPELINE D'EXTRACCIÓ — REFERÈNCIA: china-us-rhetoric
+
+### 11.1 Què és i per què importa
+
+El projecte china-us-rhetoric (https://github.com/pranaykotas/china-us-rhetoric) demostra el pattern exacte que EINA ha d'implementar per a la capa d'extracció:
+
+```
+Articles/fonts → Claude extreu JSON estructurat → neteja → validació → alimenta les matrius
+```
+
+La diferència respecte a EINA actual: ara EINA recull dades OSINT però les passa directament a OpenAI per a "anàlisi general". El que cal és un pas intermedi de **parametrització estructurada**: extreure entitats, declaracions, postures i relacions en format JSON definit, de manera que aquests camps alimentin automàticament les variables MIC-MAC i les postures MACTOR.
+
+### 11.2 Arquitectura del pipeline d'extracció
+
+```
+[OSINT brut] → [extract_service.py - Claude Haiku] → [JSON estructurat] → [cleanup_service.py] → [variables + postures]
+```
+
+**3 scripts nous** inspirats directament en china-us-rhetoric:
+
+1. `backend/services/extract_service.py` — extracció d'actors, declaracions i postures
+2. `backend/services/extract_cleanup_service.py` — eliminació de falsos positius
+3. `backend/services/extract_validator_service.py` — validació de qualitat (word-overlap)
+
+### 11.3 Prompt d'extracció — estructura JSON obligatòria
+
+El prompt que Claude Haiku rep per a cada article OSINT ha de retornar aquest JSON:
+
+```json
+[
+  {
+    "actor": "Nom de l'actor",
+    "actor_type": "state | institution | company | individual | alliance",
+    "actor_importance": 5,
+    "context": "On/quan s'ha produït",
+    "statement": "Declaració o paràfrasi precisa",
+    "topic": "Tema principal (lliure)",
+    "framing": "Com emmarca el tema: ofensiu | defensiu | constructiu | amenaçador | conciliador",
+    "posture_toward": "Nom de l'actor objectiu de la declaració (a qui va dirigida)",
+    "posture_value": 2,
+    "tone": "confrontational | assertive | cautious | neutral | cooperative | conciliatory",
+    "tone_intensity": 3,
+    "relevance_signals": ["BRI", "QUAD", "Indo-Pacific"]
+  }
+]
+```
+
+**Camp `posture_value`** (–2 a +2, escala MACTOR directa):
+- +2 = molt favorable / cooperació activa
+- +1 = favorable / obertura
+-  0 = neutral / sense postura clara
+- -1 = contrari / crítica
+- -2 = molt contrari / hostilitat activa o amenaça
+
+**Camp `actor_importance`** (1–5, equivalent al speaker_importance de china-us-rhetoric):
+- 5 = Caps d'estat, òrgans suprems (Xi, Biden, Consell de Seguretat de l'ONU)
+- 4 = Ministres, ambaixadors, grans institucions (MFA, OTAN, Banc Mundial)
+- 3 = Alts funcionaris, generals, caps d'agència
+- 2 = Portaveus, funcionaris provincials, departaments secundaris
+- 1 = Funcionaris locals, fonts no oficials, actors menors
+
+### 11.4 Lògica de neteja (cleanup) — inspirada en china-us-rhetoric cleanup.py
+
+Segon pas de Claude per a declaracions que no tenen senyals explícites d'actors externs:
+
+**Exclou**:
+- Declaracions purament domèstiques (política interna, anticorrupció, objectius del pla)
+- Campanyes ideològiques sense referència a actors estrangers
+- Política industrial sense framing de competència estrangera
+
+**Inclou sempre**:
+- Declaracions sobre "Occident", "potències occidentals", "hegemonia" — coded language
+- Declaracions sobre tecnologia o militars on la competència estrangera és implícita
+- Qualsevol referència a sancions, aranzels, desacoblament
+
+**Format de cleanup** (inspirat en cleanup_log.json del repo):
+```json
+{
+  "statement_id": "uuid",
+  "decision": "KEEP | REMOVE",
+  "reason": "Explicació breu"
+}
+```
+
+### 11.5 Connexió extracció → matrius prospectives
+
+Aquí és on la fusió és única respecte al china-us-rhetoric. En aquell projecte l'extracció alimenta un dashboard de visualització. A EINA, l'extracció ha d'alimentar directament les matrius:
+
+**De les declaracions extretes → Variables MIC-MAC**:
+```python
+# Clustering semàntic dels temes extrets → propostes de variables
+# "BRI expansion", "QUAD security", "Indo-Pacific corridors" →
+# Variable A: "Grau d'expansió de la BRI"
+# Variable C: "Grau de cohesió i força del QUAD"
+# Variable D: "Grau d'operativitat dels corredors alternatius"
+```
+
+**De les postures extretes → Matriu MACTOR**:
+```python
+# posture_value de cada actor respecte a cada objectiu → postures[actor_idx][obj_idx]
+# Actor "Xina" → posture_toward "BRI expansion" amb posture_value=+2
+# Actor "QUAD" → posture_toward "BRI expansion" amb posture_value=-2
+```
+
+**Mapeig actor_type → sector del sistema**:
+- `state` → actor principal del MACTOR
+- `institution` → pot ser variable externa (E) del MIC-MAC
+- `alliance` → actor secundari del MACTOR
+
+### 11.6 Nou endpoint i nou model de BD
+
+**Nou model** `backend/models/extract.py`:
+```python
+class ExtractedStatement(Base):
+    __tablename__ = "extracted_statements"
+    id = Column(Integer, primary_key=True)
+    case_id = Column(Integer, ForeignKey("cases.id"))
+    project_id = Column(Integer, ForeignKey("prospective_projects.id"), nullable=True)
+    osint_result_id = Column(Integer, ForeignKey("osint_results.id"), nullable=True)
+    actor = Column(String)
+    actor_type = Column(String)
+    actor_importance = Column(Integer)
+    context = Column(Text)
+    statement = Column(Text)
+    topic = Column(String)
+    framing = Column(String)
+    posture_toward = Column(String)
+    posture_value = Column(Integer)       # –2 a +2
+    tone = Column(String)
+    tone_intensity = Column(Integer)
+    relevance_signals = Column(JSON)
+    cleanup_decision = Column(String)     # KEEP | REMOVE | PENDING
+    cleanup_reason = Column(Text)
+    extracted_at = Column(DateTime, server_default=func.now())
+    source_url = Column(String)
+    source_date = Column(String)
+```
+
+**Nous endpoints**:
+```
+POST /api/extract/run/{case_id}          → Executa extracció sobre tots els OSINT del cas
+GET  /api/extract/statements/{case_id}  → Llista declaracions extretes
+POST /api/extract/cleanup/{case_id}     → Pas de neteja (segon Claude)
+GET  /api/extract/preview/{case_id}     → Previsualitza variables i postures suggerides
+POST /api/extract/apply/{project_id}    → Aplica les extraccions a un projecte prospectiu
+```
+
+### 11.7 Model de costos (com china-us-rhetoric)
+
+china-us-rhetoric usa Claude Haiku per a extracció (barat, ràpid) i Claude Sonnet per a narratives finals (millor raonament llarg). EINA ha de fer el mateix:
+
+| Pas | Model | Justificació |
+|-----|-------|-------------|
+| Extracció d'actors/postures | `claude-haiku-4-5-20251001` | Tasca classificació estructurada, alta velocitat, baix cost |
+| Neteja falsos positius | `claude-haiku-4-5-20251001` | Classificació binària KEEP/REMOVE |
+| Narratives d'escenaris | `claude-sonnet-4-20250514` | Raonament llarg, coherència causal, 380–440 paraules |
+
+**Cost aproximat per cas (30 articles OSINT)**:
+- Extracció: ~30 × 0.001$ = 0.03$
+- Neteja: ~0.01$
+- 4 escenaris Sonnet: ~4 × 0.01$ = 0.04$
+- **Total per cas: ~0.08$**
+
+### 11.8 Patró de recovery per JSON truncat
+
+Copiar exactament la funció `_recover_partial_json` de china-us-rhetoric/extract.py:
+
+```python
+def _recover_partial_json(text: str) -> list[dict]:
+    """
+    Salva objectes JSON complets d'una resposta truncada.
+    Troba l'últim '}' de nivell superior i tanca l'array allà.
+    Inspirat en china-us-rhetoric/extract.py
+    """
+    text = text.strip()
+    if not text.startswith("["):
+        return []
+    depth = 0
+    last_complete = -1
+    in_string = False
+    escape_next = False
+    for i, ch in enumerate(text):
+        if escape_next:
+            escape_next = False
+            continue
+        if ch == "\\" and in_string:
+            escape_next = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                last_complete = i
+    if last_complete == -1:
+        return []
+    candidate = text[: last_complete + 1] + "]"
+    candidate = re.sub(r",\s*\]", "]", candidate)
+    try:
+        result = json.loads(candidate)
+        return result if isinstance(result, list) else []
+    except json.JSONDecodeError:
+        return []
+```
+
+### 11.9 Validació de qualitat (inspirada en validate.py)
+
+Dues comprovacions bàsiques per a cada declaració extreta:
+
+**Word-overlap grounding** (detecta al·lucinacions):
+```python
+def grounding_score(statement: str, source_text: str) -> float:
+    """
+    Mesura el solapament de paraules entre la declaració extreta
+    i el text font. Baix overlap (< 0.1) = possible al·lucinació.
+    Inspirat en china-us-rhetoric/validate.py
+    """
+    stmt_words = set(statement.lower().split())
+    src_words = set(source_text.lower().split())
+    if not stmt_words:
+        return 0.0
+    overlap = stmt_words & src_words
+    return len(overlap) / len(stmt_words)
+```
+
+**Threshold**: `grounding_score < 0.08` → marcar com a `needs_review`
+
+### 11.10 Flux complet del pas d'extracció al frontend
+
+El nou pas "Extracció" s'afegeix al wizard de ProspectiveAnalysis com a **pas 0** (abans de variables):
+
+```
+[0] Extracció ← NOU
+[1] Variables (ara pre-populades per l'extracció)
+[2] MIC-MAC
+[3] Actors (ara pre-populats per l'extracció)
+[4] MACTOR (postures pre-populades per l'extracció)
+[5] Morfològic
+[6] Escenaris
+```
+
+**UX del pas d'extracció**:
+1. Botó "Extreure actors i postures dels OSINT del cas"
+2. Barra de progrés (N articles processats de M)
+3. Taula de declaracions extretes (actor, declaració, postura, to)
+4. Botó "Netejar falsos positius" (segon pas Claude)
+5. Taula de variables proposades (clustering per tema)
+6. Taula de postures proposades (actor × objectiu × valor)
+7. Botó "Aplicar al projecte prospectiu" → pre-pobla passos 1–4

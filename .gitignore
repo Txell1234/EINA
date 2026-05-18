@@ -1,0 +1,25 @@
+# Dependencies & builds
+node_modules/
+dist/
+*.egg-info/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# SQLite local dev DBs (no commit)
+*.db
+
+# Env & secrets (no commit)
+.env
+.env.local
+*.pem
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
