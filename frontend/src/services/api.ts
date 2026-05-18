@@ -515,36 +515,64 @@ export const syncService = {
 }
 
 export const dashboardService = {
-  getMetrics: async (days: number = 7) => {
-    const response = await api.get(`/api/dashboard/metrics?days=${days}`)
+  getMetrics: async (days: number = 7, caseId?: number | null) => {
+    const params = new URLSearchParams({ days: String(days) })
+    if (caseId) params.set('case_id', String(caseId))
+    const response = await api.get(`/api/dashboard/metrics?${params.toString()}`)
     return response.data
   },
-  getMentions: async (days: number = 7) => {
-    const response = await api.get(`/api/dashboard/mentions?days=${days}`)
+  getMentions: async (days: number = 7, caseId?: number | null) => {
+    const params = new URLSearchParams({ days: String(days) })
+    if (caseId) params.set('case_id', String(caseId))
+    const response = await api.get(`/api/dashboard/mentions?${params.toString()}`)
     return response.data
   },
-  getSentiment: async (days: number = 7) => {
-    const response = await api.get(`/api/dashboard/sentiment?days=${days}`)
+  getSentiment: async (days: number = 7, caseId?: number | null) => {
+    const params = new URLSearchParams({ days: String(days) })
+    if (caseId) params.set('case_id', String(caseId))
+    const response = await api.get(`/api/dashboard/sentiment?${params.toString()}`)
     return response.data
   },
-  getReach: async (days: number = 7) => {
-    const response = await api.get(`/api/dashboard/reach?days=${days}`)
+  getReach: async (days: number = 7, caseId?: number | null) => {
+    const params = new URLSearchParams({ days: String(days) })
+    if (caseId) params.set('case_id', String(caseId))
+    const response = await api.get(`/api/dashboard/reach?${params.toString()}`)
     return response.data
   },
-  getEngagement: async (days: number = 7) => {
-    const response = await api.get(`/api/dashboard/engagement?days=${days}`)
+  getEngagement: async (days: number = 7, caseId?: number | null) => {
+    const params = new URLSearchParams({ days: String(days) })
+    if (caseId) params.set('case_id', String(caseId))
+    const response = await api.get(`/api/dashboard/engagement?${params.toString()}`)
     return response.data
   },
-  getAlerts: async (days: number = 7) => {
-    const response = await api.get(`/api/dashboard/alerts?days=${days}`)
+  getAlerts: async (days: number = 7, caseId?: number | null) => {
+    const params = new URLSearchParams({ days: String(days) })
+    if (caseId) params.set('case_id', String(caseId))
+    const response = await api.get(`/api/dashboard/alerts?${params.toString()}`)
     return response.data
   },
-  getTrendingTopics: async (days: number = 7) => {
-    const response = await api.get(`/api/dashboard/trending-topics?days=${days}`)
+  getAlertsFeed: async (days: number = 7, caseId?: number | null, limit: number = 5) => {
+    const params = new URLSearchParams({ days: String(days), limit: String(limit) })
+    if (caseId) params.set('case_id', String(caseId))
+    const response = await api.get(`/api/dashboard/alerts/feed?${params.toString()}`)
     return response.data
   },
-  getSources: async () => {
-    const response = await api.get('/api/dashboard/sources')
+  getTrendingTopics: async (days: number = 7, caseId?: number | null) => {
+    const params = new URLSearchParams({ days: String(days) })
+    if (caseId) params.set('case_id', String(caseId))
+    const response = await api.get(`/api/dashboard/trending-topics?${params.toString()}`)
+    return response.data
+  },
+  getTrendingTopicsList: async (days: number = 7, caseId?: number | null, limit: number = 5) => {
+    const params = new URLSearchParams({ days: String(days), limit: String(limit) })
+    if (caseId) params.set('case_id', String(caseId))
+    const response = await api.get(`/api/dashboard/trending-topics/list?${params.toString()}`)
+    return response.data
+  },
+  getSources: async (caseId?: number | null) => {
+    const params = new URLSearchParams()
+    if (caseId) params.set('case_id', String(caseId))
+    const response = await api.get(`/api/dashboard/sources?${params.toString()}`)
     return response.data
   },
 }

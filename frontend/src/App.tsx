@@ -1,7 +1,7 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import Layout from './components/Layout'
-import Dashboard from './components/Dashboard/Dashboard'
+import OSINTIntelligenceDashboard from './components/Dashboard/OSINTIntelligenceDashboard'
 import OSINTCollection from './components/OSINTCollection/OSINTCollection'
 import AIAnalysis from './components/AIAnalysis/AIAnalysis'
 import QualitativeAnalysis from './components/QualitativeAnalysis/QualitativeAnalysis'
@@ -33,7 +33,7 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Dashboard />} />
+        <Route index element={<OSINTIntelligenceDashboard />} />
         <Route path="osint-collection" element={<OSINTCollection />} />
         <Route path="ai-analysis" element={<AIAnalysis />} />
         <Route path="qualitative-analysis" element={<QualitativeAnalysis />} />

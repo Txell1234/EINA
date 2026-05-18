@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from 'react-leaflet'
 import { LatLngExpression } from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -35,9 +35,19 @@ interface GeographicMapProps {
   heatmapGranularity?: 'country' | 'region' | 'city' | 'municipality'
 }
 
-function MapController({ center, zoom }: { center: LatLngExpression; zoom: number }) {
+function MapSizeHandler() {
   const map = useMap()
-  map.setView(center, zoom)
+
+  useEffect(() => {
+    const resize = () => map.invalidateSize()
+    const timeout = window.setTimeout(resize, 0)
+    window.addEventListener('resize', resize)
+    return () => {
+      window.clearTimeout(timeout)
+      window.removeEventListener('resize', resize)
+    }
+  }, [map])
+
   return null
 }
 
@@ -241,6 +251,7 @@ export default function GeographicMap({
           style={{ height: '500px', width: '100%' }}
           scrollWheelZoom={true}
         >
+          <MapSizeHandler />
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -306,5 +317,4 @@ export default function GeographicMap({
     </div>
   )
 }
-
 

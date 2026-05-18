@@ -7,6 +7,9 @@ from typing import List, Dict, Any, Optional
 from app.database import get_db
 from services.integration_service import IntegrationService
 from datetime import datetime, timedelta
+from pathlib import Path
+import os
+import shutil
 import logging
 
 logger = logging.getLogger(__name__)
@@ -33,6 +36,13 @@ def _get_api_status() -> Dict[str, Any]:
     
     # Cache expired or doesn't exist, rebuild
     from app.config import settings
+
+    def _is_tool_available(executable_path: str) -> bool:
+        if not executable_path:
+            return False
+        if Path(executable_path).is_file():
+            return os.access(executable_path, os.X_OK)
+        return shutil.which(executable_path) is not None
     
     status_info = {
         "ai": {
@@ -90,18 +100,21 @@ def _get_api_status() -> Dict[str, Any]:
         },
         "external_tools": {
             "sherlock": {
-                "configured": False,  # Would need to check if executable exists in PATH
-                "status": "unknown",
+                "configured": _is_tool_available(settings.SHERLOCK_PATH),
+                "status": "configured" if _is_tool_available(settings.SHERLOCK_PATH) else "not_configured",
+                "path": settings.SHERLOCK_PATH,
                 "note": "Requires installation in PATH. Configure SHERLOCK_PATH in .env if needed."
             },
             "recon-ng": {
-                "configured": False,
-                "status": "unknown",
+                "configured": _is_tool_available(settings.RECONNG_PATH),
+                "status": "configured" if _is_tool_available(settings.RECONNG_PATH) else "not_configured",
+                "path": settings.RECONNG_PATH,
                 "note": "Requires installation in PATH. Configure RECONNG_PATH in .env if needed."
             },
             "theharvester": {
-                "configured": False,
-                "status": "unknown",
+                "configured": _is_tool_available(settings.THEHARVESTER_PATH),
+                "status": "configured" if _is_tool_available(settings.THEHARVESTER_PATH) else "not_configured",
+                "path": settings.THEHARVESTER_PATH,
                 "note": "Requires installation in PATH"
             }
         },
@@ -174,99 +187,6 @@ async def refresh_integration_status():
         "message": "Cache refreshed",
         "status": status_info
     }
-    
-    status_info = {
-        "ai": {
-            "openai": {
-                "configured": bool(settings.OPENAI_API_KEY and settings.OPENAI_API_KEY.strip() and settings.OPENAI_API_KEY != "sk-proj-TU_CLAVE_API_AQUI"),
-                "model": settings.OPENAI_MODEL,
-                "embedding_model": settings.OPENAI_EMBEDDING_MODEL,
-                "status": "configured" if (settings.OPENAI_API_KEY and settings.OPENAI_API_KEY.strip() and settings.OPENAI_API_KEY != "sk-proj-TU_CLAVE_API_AQUI") else "not_configured"
-            }
-        },
-        "osint_apis": {
-            "news_api": {
-                "configured": bool(settings.NEWS_API_KEY and settings.NEWS_API_KEY.strip() and settings.NEWS_API_KEY != "your-news-api-key"),
-                "status": "configured" if (settings.NEWS_API_KEY and settings.NEWS_API_KEY.strip() and settings.NEWS_API_KEY != "your-news-api-key") else "not_configured"
-            },
-            "github": {
-                "configured": bool(settings.GITHUB_TOKEN and settings.GITHUB_TOKEN.strip() and settings.GITHUB_TOKEN != "your-github-token"),
-                "status": "configured" if (settings.GITHUB_TOKEN and settings.GITHUB_TOKEN.strip() and settings.GITHUB_TOKEN != "your-github-token") else "not_configured"
-            },
-            "shodan": {
-                "configured": bool(settings.SHODAN_API_KEY and settings.SHODAN_API_KEY.strip() and settings.SHODAN_API_KEY != "your-shodan-api-key"),
-                "status": "configured" if (settings.SHODAN_API_KEY and settings.SHODAN_API_KEY.strip() and settings.SHODAN_API_KEY != "your-shodan-api-key") else "not_configured",
-                "note": "Requires paid account"
-            },
-            "ensembledata": {
-                "configured": bool(settings.ENSEMBLEDATA_API_KEY and settings.ENSEMBLEDATA_API_KEY.strip() and settings.ENSEMBLEDATA_API_KEY != "your-ensembledata-api-key"),
-                "status": "configured" if (settings.ENSEMBLEDATA_API_KEY and settings.ENSEMBLEDATA_API_KEY.strip() and settings.ENSEMBLEDATA_API_KEY != "your-ensembledata-api-key") else "not_configured",
-                "note": "Endpoint implementation pending"
-            },
-            "ipstack": {
-                "configured": bool(settings.IPSTACK_API_KEY and settings.IPSTACK_API_KEY.strip() and settings.IPSTACK_API_KEY != "your-ipstack-api-key"),
-                "status": "configured" if (settings.IPSTACK_API_KEY and settings.IPSTACK_API_KEY.strip() and settings.IPSTACK_API_KEY != "your-ipstack-api-key") else "not_configured"
-            }
-        },
-        "financial_apis": {
-            "alphavantage": {
-                "configured": bool(settings.ALPHAVANTAGE_API_KEY and settings.ALPHAVANTAGE_API_KEY.strip() and settings.ALPHAVANTAGE_API_KEY != "your-alphavantage-api-key"),
-                "status": "configured" if (settings.ALPHAVANTAGE_API_KEY and settings.ALPHAVANTAGE_API_KEY.strip() and settings.ALPHAVANTAGE_API_KEY != "your-alphavantage-api-key") else "not_configured"
-            },
-            "finnhub": {
-                "configured": bool(settings.FINNHUB_API_KEY and settings.FINNHUB_API_KEY.strip() and settings.FINNHUB_API_KEY != "your-finnhub-api-key"),
-                "status": "configured" if (settings.FINNHUB_API_KEY and settings.FINNHUB_API_KEY.strip() and settings.FINNHUB_API_KEY != "your-finnhub-api-key") else "not_configured"
-            },
-            "financial_modeling_prep": {
-                "configured": bool(getattr(settings, "FINANCIAL_MODELING_PREP_API_KEY", "") and settings.FINANCIAL_MODELING_PREP_API_KEY.strip() and settings.FINANCIAL_MODELING_PREP_API_KEY != "your-fmp-api-key"),
-                "status": "configured" if (getattr(settings, "FINANCIAL_MODELING_PREP_API_KEY", "") and settings.FINANCIAL_MODELING_PREP_API_KEY.strip() and settings.FINANCIAL_MODELING_PREP_API_KEY != "your-fmp-api-key") else "not_configured"
-            }
-        },
-        "geopolitical_apis": {
-            "permutable": {
-                "configured": bool(settings.PERMUTABLE_API_KEY and settings.PERMUTABLE_API_KEY.strip() and settings.PERMUTABLE_API_KEY != "your-permutable-api-key"),
-                "status": "configured" if (settings.PERMUTABLE_API_KEY and settings.PERMUTABLE_API_KEY.strip() and settings.PERMUTABLE_API_KEY != "your-permutable-api-key") else "not_configured",
-                "note": "Endpoint to be confirmed"
-            }
-        },
-        "external_tools": {
-            "sherlock": {
-                "configured": False,  # Would need to check if executable exists in PATH
-                "status": "unknown",
-                "note": "Requires installation in PATH. Configure SHERLOCK_PATH in .env if needed."
-            },
-            "recon-ng": {
-                "configured": False,
-                "status": "unknown",
-                "note": "Requires installation in PATH. Configure RECONNG_PATH in .env if needed."
-            },
-            "theharvester": {
-                "configured": False,
-                "status": "unknown",
-                "note": "Requires installation in PATH"
-            }
-        },
-        "summary": {
-            "total_apis": 0,
-            "configured_apis": 0,
-            "not_configured_apis": 0,
-            "critical_apis": {
-                "openai": bool(settings.OPENAI_API_KEY and settings.OPENAI_API_KEY.strip() and settings.OPENAI_API_KEY != "sk-proj-TU_CLAVE_API_AQUI")
-            }
-        }
-    }
-    
-    # Calculate summary
-    all_apis = []
-    for category in ["osint_apis", "financial_apis", "geopolitical_apis"]:
-        for api_name, api_info in status_info[category].items():
-            all_apis.append(api_info)
-    
-    status_info["summary"]["total_apis"] = len(all_apis)
-    status_info["summary"]["configured_apis"] = sum(1 for api in all_apis if api.get("configured", False))
-    status_info["summary"]["not_configured_apis"] = status_info["summary"]["total_apis"] - status_info["summary"]["configured_apis"]
-    
-    return status_info
 
 @router.post("/comprehensive-analysis")
 async def comprehensive_analysis(

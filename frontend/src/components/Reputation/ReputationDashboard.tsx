@@ -1,8 +1,6 @@
 import { useState } from 'react'
-
 import { useQuery } from '@tanstack/react-query'
-import { reputationService, reportsService } from '../../services/api'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts'
+import { reputationService } from '../../services/api'
 import './ReputationDashboard.css'
 
 interface ReputationDashboardProps {
@@ -10,7 +8,7 @@ interface ReputationDashboardProps {
   entityName?: string
 }
 
-export default function ReputationDashboard({ caseId, entityName }: ReputationDashboardProps) {
+export default function ReputationDashboard({ caseId }: ReputationDashboardProps) {
   const [selectedEntityId, setSelectedEntityId] = useState<number | null>(null)
   const [days, setDays] = useState<number>(30)
 
