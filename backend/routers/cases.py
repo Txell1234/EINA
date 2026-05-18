@@ -612,6 +612,77 @@ async def get_dashboard_metrics(
         "recommendations_generated": recommendations_generated
     }
 
+@router.get("/filtered", response_model=List[CaseResponse])
+async def get_filtered_cases(
+    status: Optional[str] = None,
+    case_type: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get filtered cases - Autenticació eliminada"""
+    query = Case.__table__.select()
+
+    if status:
+        query = query.where(Case.status == status)
+    if case_type:
+        query = query.where(Case.case_type == case_type)
+
+    query = query.offset(skip).limit(limit).order_by(Case.created_at.desc())
+
+    result = await db.execute(query)
+    cases = result.all()
+
+    return [CaseResponse.model_validate(case) for case in cases]
+
+@router.get("/search", response_model=List[CaseResponse])
+async def search_cases(
+    q: str,
+    skip: int = 0,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_db)
+):
+    """Search cases by name or description - Autenticació eliminada"""
+    from sqlalchemy import or_
+    query = Case.__table__.select().where(
+        or_(
+            Case.name.contains(q),
+            Case.description.contains(q)
+        )
+    )
+
+    query = query.offset(skip).limit(limit).order_by(Case.created_at.desc())
+
+    result = await db.execute(query)
+    cases = result.all()
+
+    return [CaseResponse.model_validate(case) for case in cases]
+
+@router.get("/{case_id}/full", response_model=dict)
+async def get_full_case(
+    case_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get full case with all related data - Autenticació eliminada"""
+    result = await db.execute(
+        Case.__table__.select().where(Case.id == case_id)
+    )
+    case = result.first()
+
+    if not case:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Case not found"
+        )
+
+    # TODO: Agregar datos relacionados (OSINT, AI, etc.)
+    return {
+        "case": CaseResponse.model_validate(case).model_dump(),
+        "osint_data": [],
+        "ai_analyses": [],
+        "predictions": [],
+    }
+
 @router.get("/{case_id}", response_model=CaseResponse)
 async def get_case(
     case_id: int,
@@ -756,77 +827,6 @@ async def delete_case(
         Case.__table__.delete().where(Case.id == case_id)
     )
     await db.commit()
-    
+
     return None
-
-@router.get("/{case_id}/full", response_model=dict)
-async def get_full_case(
-    case_id: int,
-    db: AsyncSession = Depends(get_db)
-):
-    """Get full case with all related data - Autenticació eliminada"""
-    result = await db.execute(
-        Case.__table__.select().where(Case.id == case_id)
-    )
-    case = result.first()
-    
-    if not case:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Case not found"
-        )
-    
-    # TODO: Agregar datos relacionados (OSINT, AI, etc.)
-    return {
-        "case": CaseResponse.model_validate(case).model_dump(),
-        "osint_data": [],
-        "ai_analyses": [],
-        "predictions": [],
-    }
-
-@router.get("/filtered", response_model=List[CaseResponse])
-async def get_filtered_cases(
-    status: Optional[str] = None,
-    case_type: Optional[str] = None,
-    skip: int = 0,
-    limit: int = 100,
-    db: AsyncSession = Depends(get_db)
-):
-    """Get filtered cases - Autenticació eliminada"""
-    query = Case.__table__.select()
-    
-    if status:
-        query = query.where(Case.status == status)
-    if case_type:
-        query = query.where(Case.case_type == case_type)
-    
-    query = query.offset(skip).limit(limit).order_by(Case.created_at.desc())
-    
-    result = await db.execute(query)
-    cases = result.all()
-    
-    return [CaseResponse.model_validate(case) for case in cases]
-
-@router.get("/search", response_model=List[CaseResponse])
-async def search_cases(
-    q: str,
-    skip: int = 0,
-    limit: int = 100,
-    db: AsyncSession = Depends(get_db)
-):
-    """Search cases by name or description - Autenticació eliminada"""
-    from sqlalchemy import or_
-    query = Case.__table__.select().where(
-        or_(
-            Case.name.contains(q),
-            Case.description.contains(q)
-        )
-    )
-    
-    query = query.offset(skip).limit(limit).order_by(Case.created_at.desc())
-    
-    result = await db.execute(query)
-    cases = result.all()
-    
-    return [CaseResponse.model_validate(case) for case in cases]
 

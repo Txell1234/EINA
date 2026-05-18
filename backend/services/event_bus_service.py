@@ -78,3 +78,17 @@ class EventBusService:
                 logger.warning("Event rule %s failed: %s", rule.name, result)
 
         return results
+
+    async def emit(self, event: Dict[str, Any]) -> None:
+        """Emit an event and run all matching handlers."""
+        await self.publish(event)
+
+
+_event_bus: EventBusService | None = None
+
+
+def get_event_bus() -> EventBusService:
+    global _event_bus
+    if _event_bus is None:
+        _event_bus = EventBusService()
+    return _event_bus

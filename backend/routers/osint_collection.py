@@ -217,49 +217,6 @@ async def search_wayback(
     
     return OSINTResultResponse.model_validate(result)
 
-@router.post("/rss", response_model=OSINTResultResponse)
-async def fetch_rss_feed(
-    feed_url: str,
-    limit: int = 20,
-    keywords: Optional[str] = None,
-    case_id: Optional[int] = None,
-    db: AsyncSession = Depends(get_db)
-):
-    """Fetch RSS/Atom feed entries"""
-    osint_service = OSINTService(db)
-    keyword_list = keywords.split(",") if keywords else None
-    result = await osint_service.execute_query(
-        query_type="rss",
-        query_params={"feed_url": feed_url, "limit": limit, "keywords": keyword_list},
-        case_id=case_id
-    )
-    return OSINTResultResponse.model_validate(result)
-
-@router.post("/gdelt", response_model=OSINTResultResponse)
-async def search_gdelt(
-    query: str,
-    max_records: int = 50,
-    mode: str = "artlist",
-    start_datetime: Optional[str] = None,
-    end_datetime: Optional[str] = None,
-    case_id: Optional[int] = None,
-    db: AsyncSession = Depends(get_db)
-):
-    """Search GDELT global events/news"""
-    osint_service = OSINTService(db)
-    result = await osint_service.execute_query(
-        query_type="gdelt",
-        query_params={
-            "query": query,
-            "max_records": max_records,
-            "mode": mode,
-            "start_datetime": start_datetime,
-            "end_datetime": end_datetime
-        },
-        case_id=case_id
-    )
-    return OSINTResultResponse.model_validate(result)
-
 @router.post("/dns", response_model=OSINTResultResponse)
 async def dns_lookup(
     domain: str,

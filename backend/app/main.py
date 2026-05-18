@@ -2,6 +2,7 @@
 FastAPI main application entry point
 """
 import sys
+from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -90,13 +91,89 @@ async def _check_critical_apis():
     else:
         logger.info("✓ Todas las APIs críticas están configuradas correctamente")
 
+
+def _log_startup_status() -> None:
+    """Log OpenAI and LLM provider configuration on startup."""
+    openai_key = settings.OPENAI_API_KEY.strip() if settings.OPENAI_API_KEY else ""
+    if not openai_key or openai_key == "sk-proj-TU_CLAVE_API_AQUI":
+        logger.warning("=" * 60)
+        logger.warning("ADVERTENCIA: OPENAI_API_KEY no está configurada correctamente")
+        logger.warning("Estado: OPENAI_API_KEY está vacía o contiene valor placeholder")
+        logger.warning("Consecuencias:")
+        logger.warning("  - Las funciones de IA usarán planes de fallback (sin análisis real)")
+        logger.warning("  - La clasificación OSINT retornará sentiment neutral y categorías vacías")
+        logger.warning("  - Los análisis Taranis/OSINTGPT/Ominis retornarán resultados de fallback")
+        logger.warning("  - La creación de casos por prompt usará plan básico en lugar de IA")
+        logger.warning("Solución:")
+        logger.warning("  - Configura OPENAI_API_KEY en el archivo .env con tu clave real")
+        logger.warning("  - Obtén una clave en https://platform.openai.com/api-keys")
+        logger.warning("  - Reinicia el servidor después de configurar la clave")
+        logger.warning("=" * 60)
+    else:
+        logger.info("✓ OpenAI configurado correctamente")
+        logger.info(f"  Modelo: {settings.OPENAI_MODEL}")
+        logger.info(f"  Modelo de embeddings: {settings.OPENAI_EMBEDDING_MODEL}")
+
+    from services.llm_service import llm_config_error_message, resolve_provider
+
+    llm_provider = resolve_provider()
+    if llm_provider:
+        logger.info(f"✓ LLM prospectiu/extracció: {llm_provider} (LLM_PROVIDER={settings.LLM_PROVIDER})")
+    else:
+        logger.warning("ADVERTENCIA: extracció i escenaris prospectius desactivats")
+        logger.warning(f"  {llm_config_error_message()}")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("=" * 60)
+    logger.info("INICIANT SERVIDOR BACKEND")
+    logger.info("=" * 60)
+
+    logger.info("Inicialitzant base de dades...")
+    await init_db()
+    logger.info("Base de dades inicialitzada correctament")
+
+    from services.event_handlers import register_event_handlers
+
+    register_event_handlers()
+
+    await _check_critical_apis()
+
+    openai_key = (settings.OPENAI_API_KEY or "").strip()
+    if not openai_key or openai_key == "sk-proj-TU_CLAVE_API_AQUI":
+        logger.warning("ADVERTÈNCIA: OPENAI_API_KEY no configurada correctament")
+        logger.warning("Les funcions d'IA usaran plans de fallback")
+    else:
+        logger.info("✓ OpenAI configurat: model=%s", settings.OPENAI_MODEL)
+
+    from services.llm_service import resolve_provider
+
+    provider = resolve_provider()
+    if provider:
+        logger.info("✓ LLM provider actiu: %s", provider)
+    else:
+        logger.warning("ADVERTÈNCIA: Cap proveïdor LLM configurat (Anthropic/OpenAI/Gemini)")
+
+    logger.info("=" * 60)
+    logger.info("SERVIDOR BACKEND LISTO")
+    logger.info(f"Servidor corriendo en http://{settings.HOST}:{settings.PORT}")
+    logger.info(f"Documentación disponible en http://{settings.HOST}:{settings.PORT}/docs")
+    logger.info("=" * 60)
+
+    yield
+
+    logger.info("Tancant servidor...")
+
+
 # FastAPI app instance
 app = FastAPI(
-    title="OSINT Intelligence Platform",
+    title=settings.APP_NAME,
     description="Plataforma integral de análisis OSINT con IA",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 # CORS middleware - Must be added before routers
@@ -138,56 +215,6 @@ app.include_router(geopolitical_advanced.router, tags=["Geopolitical Advanced"])
 app.include_router(integration.router, tags=["Integration"])
 app.include_router(extract_router.router, prefix="/api/extract", tags=["Extraction Pipeline"])
 app.include_router(prospective_router.router, prefix="/api/prospective", tags=["Prospective Analysis"])
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize database on startup"""
-    logger.info("=" * 60)
-    logger.info("INICIANDO SERVIDOR BACKEND")
-    logger.info("=" * 60)
-    
-    logger.info("Inicializando base de datos...")
-    await init_db()
-    logger.info("Base de datos inicializada correctamente")
-    
-    # Check and alert on critical API configuration
-    await _check_critical_apis()
-    
-    # Validar configuración de OpenAI
-    openai_key = settings.OPENAI_API_KEY.strip() if settings.OPENAI_API_KEY else ""
-    if not openai_key or openai_key == "sk-proj-TU_CLAVE_API_AQUI":
-        logger.warning("=" * 60)
-        logger.warning("ADVERTENCIA: OPENAI_API_KEY no está configurada correctamente")
-        logger.warning("Estado: OPENAI_API_KEY está vacía o contiene valor placeholder")
-        logger.warning("Consecuencias:")
-        logger.warning("  - Las funciones de IA usarán planes de fallback (sin análisis real)")
-        logger.warning("  - La clasificación OSINT retornará sentiment neutral y categorías vacías")
-        logger.warning("  - Los análisis Taranis/OSINTGPT/Ominis retornarán resultados de fallback")
-        logger.warning("  - La creación de casos por prompt usará plan básico en lugar de IA")
-        logger.warning("Solución:")
-        logger.warning("  - Configura OPENAI_API_KEY en el archivo .env con tu clave real")
-        logger.warning("  - Obtén una clave en https://platform.openai.com/api-keys")
-        logger.warning("  - Reinicia el servidor después de configurar la clave")
-        logger.warning("=" * 60)
-    else:
-        logger.info("✓ OpenAI configurado correctamente")
-        logger.info(f"  Modelo: {settings.OPENAI_MODEL}")
-        logger.info(f"  Modelo de embeddings: {settings.OPENAI_EMBEDDING_MODEL}")
-
-    from services.llm_service import llm_config_error_message, resolve_provider
-
-    llm_provider = resolve_provider()
-    if llm_provider:
-        logger.info(f"✓ LLM prospectiu/extracció: {llm_provider} (LLM_PROVIDER={settings.LLM_PROVIDER})")
-    else:
-        logger.warning("ADVERTENCIA: extracció i escenaris prospectius desactivats")
-        logger.warning(f"  {llm_config_error_message()}")
-    
-    logger.info("=" * 60)
-    logger.info("SERVIDOR BACKEND LISTO")
-    logger.info(f"Servidor corriendo en http://{settings.HOST}:{settings.PORT}")
-    logger.info(f"Documentación disponible en http://{settings.HOST}:{settings.PORT}/docs")
-    logger.info("=" * 60)
 
 @app.get("/")
 async def root():

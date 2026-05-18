@@ -374,6 +374,34 @@ export const osintService = {
     })
     return response.data
   },
+  gdelt: async (query: string, days = 7, maxResults = 50, caseId?: number) => {
+    const response = await api.post('/api/osint/gdelt', null, {
+      params: { query, days, max_results: maxResults, case_id: caseId },
+    })
+    return response.data
+  },
+  rssFeed: async (source: string, maxItems = 20, caseId?: number) => {
+    const response = await api.post('/api/osint/rss', null, {
+      params: { source, max_items: maxItems, case_id: caseId },
+    })
+    return response.data
+  },
+  rssAll: async (maxItems = 10, caseId?: number) => {
+    const response = await api.post('/api/osint/rss/all', null, {
+      params: { max_items: maxItems, case_id: caseId },
+    })
+    return response.data
+  },
+  openSanctions: async (query: string, caseId?: number) => {
+    const response = await api.post('/api/osint/opensanctions', null, {
+      params: { query, case_id: caseId },
+    })
+    return response.data
+  },
+  search: async (endpoint: string, params: Record<string, unknown>) => {
+    const response = await api.post(`/api/osint/${endpoint}`, null, { params })
+    return response.data
+  },
 }
 
 export const aiAnalysisService = {

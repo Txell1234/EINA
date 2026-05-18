@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models.extract import ExtractedStatement
 from models.osint import OSINTQuery, OSINTResult
 from services.llm_service import LLMService, llm_config_error_message
+from services.event_bus_service import get_event_bus
 
 logger = logging.getLogger(__name__)
 
@@ -198,6 +199,18 @@ class ExtractService:
                 yield {"event": "saved", "count": total_extracted}
 
         await self.db.commit()
+
+        await get_event_bus().emit(
+            {
+                "source": "extract_service",
+                "detail_type": "extraction.completed",
+                "detail": {
+                    "case_id": case_id,
+                    "total_extracted": total_extracted,
+                },
+            }
+        )
+
         yield {"event": "done", "total_extracted": total_extracted}
 
     def _extract_from_text(self, text: str) -> list[dict]:

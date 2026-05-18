@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { useCase, type ActiveCase } from '../../contexts/CaseContext'
 import { casesService, extractService, prospectiveService } from '../../services/api'
+import WorkflowProgress from '../shared/WorkflowProgress'
 import './ProspectiveAnalysis.css'
 
 const STEP_LABELS = [
@@ -57,6 +58,7 @@ interface ExtractStatementRow {
   posture_value: number
   tone: string
   grounding_score: number | null
+  cleanup_decision?: string
 }
 
 interface ExtractProgressPayload {
@@ -495,6 +497,18 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
           </span>
         ))}
       </div>
+
+      <WorkflowProgress
+        osintCount={activeCase?.osint_count ?? 0}
+        extractionCount={
+          (statements as ExtractStatementRow[]).filter(
+            (s) => s.cleanup_decision === 'KEEP',
+          ).length
+        }
+        hasMicmac={micmacResult !== null}
+        hasMactor={step >= 6}
+        hasScenarios={savedScenarios.length > 0}
+      />
 
       {errorMsg && <div className="prospective-alert prospective-alert--error">{errorMsg}</div>}
 
