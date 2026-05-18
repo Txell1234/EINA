@@ -160,21 +160,28 @@ class OSINTService:
             else:
                 result_data = {"error": f"Unknown query type: {query_type}"}
 
-            result = OSINTResult(query_id=query.id, data=result_data, status="completed")
+            has_error = (
+                isinstance(result_data, dict)
+                and (
+                    result_data.get("status") in ("error", "unavailable")
+                    or result_data.get("error") is not None
+                )
+            )
+            result_status = "error" if has_error else "completed"
+
+            result = OSINTResult(
+                query_id=query.id,
+                data=result_data,
+                status=result_status,
+                error_message=result_data.get("error") if has_error else None,
+            )
             self.db.add(result)
             await self.db.flush()
 
-            if isinstance(result_data, dict) and result_data.get("status") == "error":
-                query.status = "completed"
-            else:
-                query.status = "completed"
-
+            query.status = "completed"
             await self.db.commit()
 
-            if case_id and not (
-                isinstance(result_data, dict)
-                and result_data.get("status") in ("error", "unavailable")
-            ):
+            if case_id and not has_error:
                 try:
                     from services.ai_classification_service import AIClassificationService
 
@@ -191,12 +198,8 @@ class OSINTService:
                 "query_id": query.id,
                 "result_id": result.id,
                 "data": result_data,
-                "status": "completed",
-                "error": (
-                    result_data.get("error")
-                    if isinstance(result_data, dict) and result_data.get("status") == "error"
-                    else None
-                ),
+                "status": result_status,
+                "error": result_data.get("error") if has_error else None,
             }
 
         except Exception as e:

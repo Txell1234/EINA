@@ -144,15 +144,34 @@ class AIService:
                         "data": result.data,
                         "status": result.status
                     })
+
+        osint_results = osint_results or []
+        total_entries = len(osint_results)
+        useful_results = [
+            result for result in osint_results
+            if result.get("data")
+            and result.get("status") != "error"
+            and not (
+                isinstance(result.get("data"), dict)
+                and result["data"].get("status") == "error"
+            )
+        ]
+        useful_entries = len(useful_results)
         
         if analysis_type == "taranis":
-            return await self._taranis_analysis(osint_results or [])
+            analysis = await self._taranis_analysis(useful_results)
         elif analysis_type == "osintgpt":
-            return await self._osintgpt_analysis(osint_results or [])
+            analysis = await self._osintgpt_analysis(useful_results)
         elif analysis_type == "ominis":
-            return await self._ominis_analysis(osint_results or [])
+            analysis = await self._ominis_analysis(useful_results)
         else:
-            return {}
+            analysis = {}
+
+        analysis["quality_metrics"] = {
+            "total_entries": total_entries,
+            "useful_entries": useful_entries
+        }
+        return analysis
     
     async def _taranis_analysis(self, data: List[Dict]) -> Dict[str, Any]:
         """Taranis AI analysis - Situational analysis and predictions"""
@@ -2236,4 +2255,3 @@ Return JSON with:
                 "risks": [],
                 "opportunities": []
             }
-
