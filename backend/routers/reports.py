@@ -83,9 +83,15 @@ async def export_report(
             detail="Report file not generated yet"
         )
     
+    suffix = "pdf" if report.format == ReportFormat.PDF else "xlsx"
+    media = (
+        "application/pdf"
+        if report.format == ReportFormat.PDF
+        else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
     return FileResponse(
         report.file_path,
-        media_type="application/pdf" if report.format == ReportFormat.PDF else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        filename=f"report_{report_id}.{report.format}"
+        media_type=media,
+        filename=f"report_{report_id}.{suffix}",
     )
 

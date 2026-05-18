@@ -1,11 +1,14 @@
 import { lazy, Suspense, type ReactNode } from 'react'
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import Layout from './components/Layout'
-import Dashboard from './components/Dashboard/Dashboard'
 import Login from './components/Auth/Login'
-import { AuthProvider } from './contexts/AuthContext'
+import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { CaseProvider } from './contexts/CaseContext'
+import { I18nProvider } from './contexts/I18nContext'
 
+const OSINTIntelligenceDashboard = lazy(
+  () => import('./components/Dashboard/OSINTIntelligenceDashboard'),
+)
 const OSINTCollection = lazy(() => import('./components/OSINTCollection/OSINTCollection'))
 const AIAnalysis = lazy(() => import('./components/AIAnalysis/AIAnalysis'))
 const QualitativeAnalysis = lazy(() => import('./components/QualitativeAnalysis/QualitativeAnalysis'))
@@ -29,6 +32,11 @@ const ProspectiveAnalysis = lazy(
 )
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
+  const { isAuthenticated } = useAuth()
+  const location = useLocation()
+  if (!isAuthenticated) {
+    return <Navigate to="/login" state={{ from: location.pathname }} replace />
+  }
   return <>{children}</>
 }
 
@@ -45,7 +53,7 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         >
-          <Route index element={<Dashboard />} />
+          <Route index element={<OSINTIntelligenceDashboard />} />
           <Route path="osint-collection" element={<OSINTCollection />} />
           <Route path="ai-analysis" element={<AIAnalysis />} />
           <Route path="qualitative-analysis" element={<QualitativeAnalysis />} />
@@ -75,11 +83,13 @@ function App() {
         v7_relativeSplatPath: true,
       }}
     >
-      <CaseProvider>
-        <AuthProvider>
-          <AppRoutes />
-        </AuthProvider>
-      </CaseProvider>
+      <I18nProvider>
+        <CaseProvider>
+          <AuthProvider>
+            <AppRoutes />
+          </AuthProvider>
+        </CaseProvider>
+      </I18nProvider>
     </Router>
   )
 }

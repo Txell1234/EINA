@@ -1,0 +1,123 @@
+"""
+Unit tests for AlertMonitorService
+"""
+from unittest.mock import AsyncMock, patch
+
+import pytest
+
+from models.prospective import AlertMonitor, ProspectiveProject
+from services import alert_monitor_service as ams
+
+
+@pytest.mark.unit
+def test_keywords_extracts_terms():
+    text = "Augment de la presència militar a Catalunya i conflicte regional"
+    kws = ams._keywords(text)
+    assert isinstance(kws, list)
+    assert len(kws) <= 4
+    assert any("Catalunya" in k or "catalunya" in k.lower() for k in kws)
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_list_monitors_empty(db_session, sample_case):
+    project = ProspectiveProject(
+        case_id=sample_case.id,
+        title="Projecte prova",
+        hypothesis="H1",
+        context="Ctx",
+    )
+    db_session.add(project)
+    await db_session.commit()
+    await db_session.refresh(project)
+
+    rows = await ams.list_monitors(db_session, project.id)
+    assert rows == []
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_create_monitors_from_scenario(db_session, sample_case):
+    project = ProspectiveProject(
+        case_id=sample_case.id,
+        title="Monitor test",
+        hypothesis="H",
+        context="C",
+    )
+    db_session.add(project)
+    await db_session.flush()
+
+    narrative = (
+        "Escenari pessimista:\n"
+        "→ Augment de sancions econòmiques contra el sector energètic\n"
+        "→ Nova declaració oficial del govern central\n"
+    )
+    created = await ams.create_monitors_from_scenario(
+        db_session, project.id, scenario_id=None, narrative=narrative
+    )
+    assert len(created) >= 1
+    assert all("indicator" in c and "keywords" in c for c in created)
+
+    listed = await ams.list_monitors(db_session, project.id)
+    assert len(listed) == len(created)
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_run_all_active_monitors(db_session, sample_case):
+    project = ProspectiveProject(
+        case_id=sample_case.id,
+        title="Run all",
+        hypothesis="H",
+        context="C",
+    )
+    db_session.add(project)
+    await db_session.flush()
+
+    db_session.add(
+        AlertMonitor(
+            project_id=project.id,
+            indicator="Indicador de prova per monitor actiu",
+            keywords=["prova", "monitor"],
+            osint_sources=["gdelt"],
+            is_active=1,
+        )
+    )
+    await db_session.commit()
+
+    mock_osint = AsyncMock()
+    mock_osint.execute_query = AsyncMock(
+        return_value={"data": {"count": 2, "articles": []}}
+    )
+
+    with patch("services.osint_service.OSINTService", return_value=mock_osint):
+        result = await ams.run_all_active_monitors(db_session)
+
+    assert result["checked"] == 1
+    assert result["results"][0]["matches_found"] == 2
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_run_monitor_check_skips_inactive(db_session, sample_case):
+    project = ProspectiveProject(
+        case_id=sample_case.id,
+        title="Inactive",
+        hypothesis="H",
+        context="C",
+    )
+    db_session.add(project)
+    await db_session.flush()
+
+    monitor = AlertMonitor(
+        project_id=project.id,
+        indicator="Monitor inactiu de prova llarg",
+        keywords=["test"],
+        is_active=0,
+    )
+    db_session.add(monitor)
+    await db_session.commit()
+    await db_session.refresh(monitor)
+
+    result = await ams.run_monitor_check(db_session, monitor.id)
+    assert result["status"] == "skipped"

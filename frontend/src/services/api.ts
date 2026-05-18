@@ -198,18 +198,6 @@ export const integrationService = {
 }
 
 export const osintService = {
-  sherlock: async (username: string, caseId?: number) => {
-    const response = await api.post('/api/osint/sherlock', null, {
-      params: { username, case_id: caseId },
-    })
-    return response.data
-  },
-  reconngDomain: async (domain: string, caseId?: number) => {
-    const response = await api.post('/api/osint/recon-ng/domain', null, {
-      params: { domain, case_id: caseId },
-    })
-    return response.data
-  },
   googleNews: async (query: string, language = 'es', caseId?: number) => {
     const response = await api.post('/api/osint/google-news', null, {
       params: { query, language, case_id: caseId },
@@ -228,13 +216,7 @@ export const osintService = {
     })
     return response.data
   },
-  theharvester: async (domain: string, sources?: string, limit: number = 500, caseId?: number) => {
-    const response = await api.post('/api/osint/theharvester', null, {
-      params: { domain, sources, limit, case_id: caseId },
-    })
-    return response.data
-  },
-  shodan: async (query: string, facets?: string, page: number = 1, caseId?: number) => {
+  shodan: async (query: string, facets?: string, page = 1, caseId?: number) => {
     const response = await api.post('/api/osint/shodan', null, {
       params: { query, facets, page, case_id: caseId },
     })
@@ -246,131 +228,15 @@ export const osintService = {
     })
     return response.data
   },
-  dnsLookup: async (domain: string, recordType: string = 'A', caseId?: number) => {
+  dnsLookup: async (domain: string, caseId?: number) => {
     const response = await api.post('/api/osint/dns', null, {
-      params: { domain, record_type: recordType, case_id: caseId },
+      params: { domain, case_id: caseId },
     })
     return response.data
   },
   whois: async (domain: string, caseId?: number) => {
     const response = await api.post('/api/osint/whois', null, {
       params: { domain, case_id: caseId },
-    })
-    return response.data
-  },
-  // EnsembleData - TikTok
-  ensembledataTikTokUserInfo: async (username: string, caseId?: number) => {
-    const response = await api.post('/api/osint/ensembledata/tiktok/user-info', null, {
-      params: { username, case_id: caseId },
-    })
-    return response.data
-  },
-  ensembledataTikTokUserPosts: async (username: string, count: number = 30, caseId?: number) => {
-    const response = await api.post('/api/osint/ensembledata/tiktok/user-posts', null, {
-      params: { username, count, case_id: caseId },
-    })
-    return response.data
-  },
-  ensembledataTikTokHashtagPosts: async (hashtag: string, count: number = 30, caseId?: number) => {
-    const response = await api.post('/api/osint/ensembledata/tiktok/hashtag-posts', null, {
-      params: { hashtag, count, case_id: caseId },
-    })
-    return response.data
-  },
-  ensembledataTikTokKeywordPosts: async (keyword: string, count: number = 30, caseId?: number) => {
-    const response = await api.post('/api/osint/ensembledata/tiktok/keyword-posts', null, {
-      params: { keyword, count, case_id: caseId },
-    })
-    return response.data
-  },
-  // EnsembleData - Instagram
-  ensembledataInstagramUserInfo: async (username: string, caseId?: number) => {
-    const response = await api.post('/api/osint/ensembledata/instagram/user-info', null, {
-      params: { username, case_id: caseId },
-    })
-    return response.data
-  },
-  ensembledataInstagramUserPosts: async (username: string, count: number = 30, caseId?: number) => {
-    const response = await api.post('/api/osint/ensembledata/instagram/user-posts', null, {
-      params: { username, count, case_id: caseId },
-    })
-    return response.data
-  },
-  ensembledataInstagramHashtagPosts: async (hashtag: string, count: number = 30, caseId?: number) => {
-    const response = await api.post('/api/osint/ensembledata/instagram/hashtag-posts', null, {
-      params: { hashtag, count, case_id: caseId },
-    })
-    return response.data
-  },
-  // EnsembleData - YouTube
-  ensembledataYouTubeChannelInfo: async (channelId: string, caseId?: number) => {
-    const response = await api.post('/api/osint/ensembledata/youtube/channel-info', null, {
-      params: { channel_id: channelId, case_id: caseId },
-    })
-    return response.data
-  },
-  ensembledataYouTubeChannelVideos: async (channelId: string, count: number = 30, caseId?: number) => {
-    const response = await api.post('/api/osint/ensembledata/youtube/channel-videos', null, {
-      params: { channel_id: channelId, count, case_id: caseId },
-    })
-    return response.data
-  },
-  ensembledataYouTubeKeywordPosts: async (keyword: string, count: number = 30, caseId?: number) => {
-    const response = await api.post('/api/osint/ensembledata/youtube/keyword-posts', null, {
-      params: { keyword, count, case_id: caseId },
-    })
-    return response.data
-  },
-  // EnsembleData - Threads
-  ensembledataThreadsUserInfo: async (username: string, caseId?: number) => {
-    const response = await api.post('/api/osint/ensembledata/threads/user-info', null, {
-      params: { username, case_id: caseId },
-    })
-    return response.data
-  },
-  ensembledataThreadsUserPosts: async (username: string, count: number = 30, caseId?: number) => {
-    const response = await api.post('/api/osint/ensembledata/threads/user-posts', null, {
-      params: { username, count, case_id: caseId },
-    })
-    return response.data
-  },
-  ensembledataThreadsKeywordPosts: async (keyword: string, count: number = 30, caseId?: number) => {
-    const response = await api.post('/api/osint/ensembledata/threads/keyword-posts', null, {
-      params: { keyword, count, case_id: caseId },
-    })
-    return response.data
-  },
-  // EnsembleData - Reddit (adicional)
-  ensembledataRedditSubredditPosts: async (subreddit: string, count: number = 25, caseId?: number) => {
-    const response = await api.post('/api/osint/ensembledata/reddit/subreddit-posts', null, {
-      params: { subreddit, count, case_id: caseId },
-    })
-    return response.data
-  },
-  // EnsembleData - Twitter/X
-  ensembledataTwitterUserInfo: async (username: string, caseId?: number) => {
-    const response = await api.post('/api/osint/ensembledata/twitter/user-info', null, {
-      params: { username, case_id: caseId },
-    })
-    return response.data
-  },
-  ensembledataTwitterUserTweets: async (username: string, count: number = 20, caseId?: number) => {
-    const response = await api.post('/api/osint/ensembledata/twitter/user-tweets', null, {
-      params: { username, count, case_id: caseId },
-    })
-    return response.data
-  },
-  // EnsembleData - Twitch
-  ensembledataTwitchKeywordPosts: async (keyword: string, count: number = 30, caseId?: number) => {
-    const response = await api.post('/api/osint/ensembledata/twitch/keyword-posts', null, {
-      params: { keyword, count, case_id: caseId },
-    })
-    return response.data
-  },
-  // EnsembleData - Snapchat
-  ensembledataSnapchatUserInfo: async (username: string, caseId?: number) => {
-    const response = await api.post('/api/osint/ensembledata/snapchat/user-info', null, {
-      params: { username, case_id: caseId },
     })
     return response.data
   },
@@ -398,9 +264,15 @@ export const osintService = {
     })
     return response.data
   },
+  ipGeolocation: async (ip: string, caseId?: number) => {
+    const response = await api.post('/api/osint/ip-geolocation', null, {
+      params: { ip, case_id: caseId },
+    })
+    return response.data
+  },
   search: async (endpoint: string, params: Record<string, unknown>) => {
     const clean = Object.fromEntries(
-      Object.entries(params).filter(([, v]) => v !== null && v !== undefined && v !== '')
+      Object.entries(params).filter(([, v]) => v !== null && v !== undefined && v !== ''),
     )
     const response = await api.post(`/api/osint/${endpoint}`, null, { params: clean })
     return response.data
@@ -523,6 +395,25 @@ export const investmentsService = {
     const response = await api.get('/api/investments/opportunities', {
       params: { case_id: caseId, recommendation_id: recommendationId },
     })
+    return response.data
+  },
+}
+
+export const publicAffairsService = {
+  getPolicies: async () => {
+    const response = await api.get('/api/public-affairs/policies')
+    return response.data
+  },
+  getStakeholders: async () => {
+    const response = await api.get('/api/public-affairs/stakeholders')
+    return response.data
+  },
+  analyzeImpact: async (data: { policy_id: number; case_id?: number }) => {
+    const response = await api.post('/api/public-affairs/analyze-impact', data)
+    return response.data
+  },
+  getAdvocacyOpportunities: async () => {
+    const response = await api.get('/api/public-affairs/advocacy-opportunities')
     return response.data
   },
 }

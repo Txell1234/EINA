@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { casesService, dashboardService, geographicService, reportsService } from '../../services/api'
 import GeographicMap from '../Visualizations/GeographicMap'
+import WorkflowProgress from '../shared/WorkflowProgress'
+import { useCase } from '../../contexts/CaseContext'
 import './OSINTIntelligenceDashboard.css'
 import { useI18n } from '../../contexts/I18nContext'
 
@@ -23,6 +25,7 @@ export default function OSINTIntelligenceDashboard() {
   const [isExporting, setIsExporting] = useState(false)
   const [exportStatus, setExportStatus] = useState<string | null>(null)
   const { t } = useI18n()
+  const { activeCase } = useCase()
 
   const { data: cases, isLoading: casesLoading } = useQuery({
     queryKey: ['dashboard-cases'],
@@ -135,6 +138,15 @@ export default function OSINTIntelligenceDashboard() {
           <p className="dashboard-description">
             {t('dashboard.description')}
           </p>
+          {activeCase && (
+            <WorkflowProgress
+              osintCount={activeCase.osint_count}
+              extractionCount={activeCase.extraction_count}
+              hasMicmac={activeCase.has_micmac}
+              hasMactor={activeCase.has_mactor}
+              hasScenarios={activeCase.has_scenarios}
+            />
+          )}
           <div style={{ marginTop: '1rem' }}>
             <select
               value={selectedCaseId ?? ''}

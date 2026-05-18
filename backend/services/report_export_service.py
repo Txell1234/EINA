@@ -20,7 +20,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Pt, RGBColor
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from weasyprint import HTML
+from services.export_backends import ExportBackendError, render_pdf_from_html
 
 from models.prospective import (
     MACTORObjective,
@@ -298,7 +298,10 @@ def _html_report(bundle: dict[str, Any]) -> str:
 
 def _write_pdf_sync(path: Path, bundle: dict[str, Any]) -> None:
     html_str = _html_report(bundle)
-    HTML(string=html_str, base_url=str(path.parent.resolve())).write_pdf(path)
+    try:
+        render_pdf_from_html(html_str, path, base_url=str(path.parent.resolve()))
+    except ExportBackendError as exc:
+        raise RuntimeError(str(exc)) from exc
 
 
 def _add_doc_cover(doc: Document, project: ProspectiveProject) -> None:

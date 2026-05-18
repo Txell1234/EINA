@@ -426,6 +426,22 @@ Inclou 4-5 indicadors d'alerta primerenca observables."""
             )
             self.db.add(scenario)
             await self.db.commit()
+            await self.db.refresh(scenario)
+
+            from services.event_bus_service import get_event_bus
+
+            await get_event_bus().emit(
+                {
+                    "source": "prospective_service",
+                    "detail_type": "scenario.generated",
+                    "detail": {
+                        "project_id": project_id,
+                        "scenario_id": scenario.id,
+                        "name": spec["name"],
+                    },
+                }
+            )
+
             yield {"event": "scenario_done", "index": idx, "name": spec["name"]}
 
         yield {"event": "all_done"}

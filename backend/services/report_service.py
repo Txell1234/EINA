@@ -1,18 +1,62 @@
 """
 Report Service - Generate comprehensive reports
 """
+import asyncio
+import html as html_module
+import json
+import logging
+from pathlib import Path
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+
 from models.reports import Report, ReportStatus
 from models.case import Case
-from models.osint import OSINTQuery, OSINTResult
+from models.osint import OSINTQuery
 from models.ai_analysis import AIAnalysis
-from models.qualitative import QualitativeAnalysis
+from models.qualitative import QualitativeAnalysis, Premise
 from models.predictions import Prediction
 from models.investments import InvestmentRecommendation
-from models.qualitative import Premise
-import json
-from pathlib import Path
+
+from services.export_backends import (
+    ExportBackendError,
+    render_pdf_from_html,
+    write_case_report_excel,
+)
+
+logger = logging.getLogger(__name__)
+
+
+def _case_report_html(data: dict) -> str:
+    case = data.get("case") or {}
+    sections = ""
+    for key, title in [
+        ("osint_data", "Dades OSINT"),
+        ("ai_analyses", "Anàlisis IA"),
+        ("qualitative_analyses", "Anàlisi qualitativa"),
+        ("predictions", "Prediccions"),
+        ("investment_recommendations", "Recomanacions"),
+        ("premises", "Premisses"),
+    ]:
+        block = data.get(key) or []
+        sections += (
+            f"<h2>{title}</h2>"
+            f"<pre>{html_module.escape(json.dumps(block, ensure_ascii=False, indent=2))}</pre>"
+        )
+    bias = data.get("bias_guidance") or {}
+    return f"""<!DOCTYPE html><html lang="ca"><head><meta charset="UTF-8">
+<style>
+body{{font-family:Arial,sans-serif;font-size:11pt;color:#1a1a2e;margin:2cm}}
+h1{{color:#1e3a5f}} h2{{color:#1e3a5f;border-bottom:1px solid #ccc;padding-bottom:4px}}
+pre{{background:#f8f9fa;padding:12px;font-size:9pt;white-space:pre-wrap}}
+</style></head><body>
+<h1>Informe OSINT — {html_module.escape(str(case.get('name', '')))}</h1>
+<p>{html_module.escape(str(case.get('description', '')))}</p>
+{sections}
+<h2>Guia de biaix</h2>
+<pre>{html_module.escape(json.dumps(bias, ensure_ascii=False, indent=2))}</pre>
+</body></html>"""
+
 
 class ReportService:
     def __init__(self, db: AsyncSession):
@@ -160,33 +204,58 @@ class ReportService:
         }
     
     async def _generate_pdf(self, report_id: int, data: dict) -> dict:
-        """Generate PDF report (JSON fallback until Phase 4)."""
-        file_path = f"reports/report_{report_id}.json"
+        """Generate PDF report via WeasyPrint, JSON fallback if unavailable."""
         Path("reports").mkdir(exist_ok=True)
+        pdf_path = Path("reports") / f"report_{report_id}.pdf"
+        try:
+            html = _case_report_html(data)
+            await asyncio.to_thread(
+                render_pdf_from_html, html, pdf_path
+            )
+            return {
+                "status": "completed",
+                "format": "pdf",
+                "file_path": str(pdf_path),
+            }
+        except ExportBackendError as exc:
+            logger.warning("WeasyPrint no disponible per report %s: %s", report_id, exc)
+        except Exception as exc:
+            logger.warning("PDF generation failed for report %s: %s", report_id, exc)
 
-        with open(file_path, "w", encoding="utf-8") as f:
+        json_path = Path("reports") / f"report_{report_id}.json"
+        with open(json_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
-
         return {
-            "status": "not_implemented",
-            "message": "Exportació a PDF pendent d'implementació. Disponible a la Fase 4.",
+            "status": "fallback_json",
+            "message": "PDF no disponible (instal·la weasyprint + libpango). S'ha generat JSON.",
             "format": "json",
-            "file_path": file_path,
+            "file_path": str(json_path),
         }
 
     async def _generate_excel(self, report_id: int, data: dict) -> dict:
-        """Generate Excel report (JSON fallback until Phase 4)."""
-        file_path = f"reports/report_{report_id}.json"
+        """Generate Excel (.xlsx) report via openpyxl, JSON fallback if unavailable."""
         Path("reports").mkdir(exist_ok=True)
+        xlsx_path = Path("reports") / f"report_{report_id}.xlsx"
+        try:
+            await asyncio.to_thread(write_case_report_excel, data, xlsx_path)
+            return {
+                "status": "completed",
+                "format": "excel",
+                "file_path": str(xlsx_path),
+            }
+        except ExportBackendError as exc:
+            logger.warning("openpyxl no disponible per report %s: %s", report_id, exc)
+        except Exception as exc:
+            logger.warning("Excel generation failed for report %s: %s", report_id, exc)
 
-        with open(file_path, "w", encoding="utf-8") as f:
+        json_path = Path("reports") / f"report_{report_id}.json"
+        with open(json_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
-
         return {
-            "status": "not_implemented",
-            "message": "Exportació a Excel pendent d'implementació. Disponible a la Fase 4.",
+            "status": "fallback_json",
+            "message": "Exportació Excel no disponible. S'ha generat JSON equivalent.",
             "format": "json",
-            "file_path": file_path,
+            "file_path": str(json_path),
         }
 
 

@@ -51,6 +51,16 @@ async def handle_extraction_completed(event: Dict[str, Any]) -> None:
         )
 
 
+async def handle_scenario_generated(event: Dict[str, Any]) -> None:
+    detail = event.get("detail", {})
+    logger.info(
+        "Scenario generated: project=%s scenario=%s name=%s",
+        detail.get("project_id"),
+        detail.get("scenario_id"),
+        detail.get("name"),
+    )
+
+
 def register_event_handlers() -> None:
     bus = get_event_bus()
     bus.register_rule(
@@ -58,5 +68,11 @@ def register_event_handlers() -> None:
         handler=handle_extraction_completed,
         sources=["extract_service"],
         detail_types=["extraction.completed"],
+    )
+    bus.register_rule(
+        name="log-scenario-generated",
+        handler=handle_scenario_generated,
+        sources=["prospective_service"],
+        detail_types=["scenario.generated"],
     )
     logger.info("Event bus handlers registered")

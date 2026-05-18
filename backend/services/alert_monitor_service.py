@@ -69,7 +69,7 @@ async def create_monitors_from_scenario(
 
     await db.commit()
     logger.info(
-        "Created %d monitors for project %d / scenario %d",
+        "Created %d monitors for project %d / scenario %s",
         len(created), project_id, scenario_id,
     )
     return created
@@ -146,3 +146,20 @@ async def list_monitors(db: AsyncSession, project_id: int) -> list[dict]:
         }
         for m in rows
     ]
+
+
+async def run_all_active_monitors(db: AsyncSession) -> dict:
+    """Run OSINT checks for every active monitor."""
+    from models.prospective import AlertMonitor
+
+    rows = (
+        await db.execute(select(AlertMonitor).where(AlertMonitor.is_active == 1))
+    ).scalars().all()
+    results = []
+    for monitor in rows:
+        try:
+            r = await run_monitor_check(db, monitor.id)
+            results.append(r)
+        except Exception as exc:
+            logger.warning("Monitor %d failed: %s", monitor.id, exc)
+    return {"checked": len(results), "results": results}

@@ -26,6 +26,28 @@ pip install -r requirements.txt
 - python-jose[cryptography] + passlib[bcrypt] (auth/JWT y hashing)
 - python-multipart (formularios OAuth2)
 - dnspython (resolución DNS/WHOIS, opcional para integraciones DNS)
+- weasyprint + openpyxl (export PDF/Excel de informes)
+
+### Exportació PDF/Excel en producció
+
+WeasyPrint requereix biblioteques natives (**libpango**, GDK-Pixbuf, etc.). En Linux/Docker:
+
+```bash
+# Opció recomanada — imatge Docker amb deps ja instal·lades
+cd backend
+docker build -t eina-backend .
+docker run -p 8000:8000 --env-file .env eina-backend
+```
+
+Instal·lació manual (Debian/Ubuntu):
+
+```bash
+sudo apt-get install -y libpango-1.0-0 libpangocairo-1.0-0 libgdk-pixbuf-2.0-0 \
+  libffi-dev shared-mime-info fonts-dejavu-core
+pip install -r requirements.txt
+```
+
+Comprova l'estat a `GET /health` → `services.export.weasyprint` i `services.export.openpyxl`.
 
 3. Configurar variables de entorno:
 ```bash

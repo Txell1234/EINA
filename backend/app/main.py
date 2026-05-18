@@ -4,6 +4,7 @@ FastAPI main application entry point
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
+import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -124,6 +125,26 @@ def _log_startup_status() -> None:
         logger.warning(f"  {llm_config_error_message()}")
 
 
+MONITOR_INTERVAL_SECONDS = 30 * 60
+
+
+async def _monitor_scheduler_loop() -> None:
+    while True:
+        await asyncio.sleep(MONITOR_INTERVAL_SECONDS)
+        try:
+            from app.database import AsyncSessionLocal
+            from services.alert_monitor_service import run_all_active_monitors
+
+            async with AsyncSessionLocal() as db:
+                summary = await run_all_active_monitors(db)
+                if summary.get("checked"):
+                    logger.info("Monitor scheduler: %d monitors comprovats", summary["checked"])
+        except asyncio.CancelledError:
+            break
+        except Exception as exc:
+            logger.warning("Monitor scheduler error: %s", exc)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("=" * 60)
@@ -161,7 +182,15 @@ async def lifespan(app: FastAPI):
     logger.info(f"Documentación disponible en http://{settings.HOST}:{settings.PORT}/docs")
     logger.info("=" * 60)
 
+    monitor_task = asyncio.create_task(_monitor_scheduler_loop())
+
     yield
+
+    monitor_task.cancel()
+    try:
+        await monitor_task
+    except asyncio.CancelledError:
+        pass
 
     logger.info("Tancant servidor...")
 
@@ -237,6 +266,11 @@ async def health_check():
         settings.OPENAI_API_KEY != "sk-proj-TU_CLAVE_API_AQUI"
     )
     
+    from services.export_backends import probe_openpyxl, probe_weasyprint
+
+    openpyxl_status = probe_openpyxl()
+    weasyprint_status = probe_weasyprint(smoke_test=False)
+
     return JSONResponse({
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
@@ -245,11 +279,20 @@ async def health_check():
                 "configured": openai_configured,
                 "status": "available" if openai_configured else "fallback_mode",
                 "model": settings.OPENAI_MODEL if openai_configured else None
-            }
+            },
+            "export": {
+                "weasyprint": weasyprint_status,
+                "openpyxl": openpyxl_status,
+            },
         },
         "recommendations": [] if openai_configured else [
             "Configure OPENAI_API_KEY in .env to enable full AI analysis capabilities"
         ]
+        + (
+            ["Install WeasyPrint native libs for PDF export — see backend/Dockerfile"]
+            if not weasyprint_status.get("available")
+            else []
+        )
     })
 
 if __name__ == "__main__":

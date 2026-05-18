@@ -14,40 +14,59 @@ import {
 import type { LucideIcon } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useCase } from '../contexts/CaseContext'
+import { useI18n } from '../contexts/I18nContext'
 import './Layout.css'
 
+type NavLabelKey =
+  | 'nav.osintSources'
+  | 'nav.extraction'
+  | 'nav.variables'
+  | 'nav.mactor'
+  | 'nav.morph'
+  | 'nav.scenarios'
+  | 'nav.alerts'
+  | 'nav.exportReport'
+  | 'nav.dashboard'
+  | 'nav.admin'
+
+type GroupLabelKey =
+  | 'nav.group.recollida'
+  | 'nav.group.analisi'
+  | 'nav.group.resultats'
+  | 'nav.group.sistema'
+
 const NAV_GROUPS: {
-  label: string
-  items: { path: string; label: string; icon: LucideIcon; end?: boolean }[]
+  labelKey: GroupLabelKey
+  items: { path: string; labelKey: NavLabelKey; icon: LucideIcon; end?: boolean }[]
 }[] = [
   {
-    label: 'Recollida',
+    labelKey: 'nav.group.recollida',
     items: [
-      { path: '/osint-collection', label: 'Fonts OSINT', icon: Search },
-      { path: '/data-synchronization', label: 'Extracció', icon: Cpu },
+      { path: '/osint-collection', labelKey: 'nav.osintSources', icon: Search },
+      { path: '/data-synchronization', labelKey: 'nav.extraction', icon: Cpu },
     ],
   },
   {
-    label: 'Anàlisi',
+    labelKey: 'nav.group.analisi',
     items: [
-      { path: '/prospective/variables', label: 'Variables · MIC-MAC', icon: ChartScatter },
-      { path: '/prospective/mactor', label: 'Actors · MACTOR', icon: Users },
-      { path: '/prospective/morph', label: 'Morfològic', icon: LayoutGrid },
+      { path: '/prospective/variables', labelKey: 'nav.variables', icon: ChartScatter },
+      { path: '/prospective/mactor', labelKey: 'nav.mactor', icon: Users },
+      { path: '/prospective/morph', labelKey: 'nav.morph', icon: LayoutGrid },
     ],
   },
   {
-    label: 'Resultats',
+    labelKey: 'nav.group.resultats',
     items: [
-      { path: '/prospective-analysis', label: 'Escenaris', icon: Telescope },
-      { path: '/investment-advanced', label: 'Alertes actives', icon: Bell },
-      { path: '/investment-recommendations', label: 'Exportar informe', icon: FileDown },
+      { path: '/prospective-analysis', labelKey: 'nav.scenarios', icon: Telescope },
+      { path: '/investment-advanced', labelKey: 'nav.alerts', icon: Bell },
+      { path: '/investment-recommendations', labelKey: 'nav.exportReport', icon: FileDown },
     ],
   },
   {
-    label: 'Sistema',
+    labelKey: 'nav.group.sistema',
     items: [
-      { path: '/', label: 'Dashboard', icon: Home, end: true },
-      { path: '/admin', label: 'Administració', icon: Settings },
+      { path: '/', labelKey: 'nav.dashboard', icon: Home, end: true },
+      { path: '/admin', labelKey: 'nav.admin', icon: Settings },
     ],
   },
 ]
@@ -64,6 +83,7 @@ export default function Layout() {
   const navigate = useNavigate()
   const { activeCase, clearActiveCase } = useCase()
   const { logout } = useAuth()
+  const { t, locale, setLocale } = useI18n()
 
   const handleLogout = () => {
     logout()
@@ -76,12 +96,12 @@ export default function Layout() {
       <aside className="sidebar">
         <div className="sidebar-header">
           <h1>EINA</h1>
-          <p>Intel·ligència Estratègica</p>
+          <p>{t('layout.subtitle')}</p>
         </div>
 
         {activeCase ? (
           <div className="sidebar-active-case">
-            <div className="active-case-label">Cas actiu</div>
+            <div className="active-case-label">{t('layout.activeCase')}</div>
             <div className="active-case-name">{activeCase.name}</div>
             {(activeCase.osint_count !== undefined || activeCase.extraction_count) && (
               <div className="active-case-meta">
@@ -93,13 +113,13 @@ export default function Layout() {
             )}
           </div>
         ) : (
-          <div className="sidebar-no-case">Cap cas seleccionat</div>
+          <div className="sidebar-no-case">{t('layout.noCase')}</div>
         )}
 
         <nav className="sidebar-nav">
           {NAV_GROUPS.map((group) => (
-            <div key={group.label} className="nav-group">
-              <div className="nav-group-label">{group.label}</div>
+            <div key={group.labelKey} className="nav-group">
+              <div className="nav-group-label">{t(group.labelKey)}</div>
               {group.items.map((item) => {
                 const Icon = item.icon
                 const active = isNavActive(location.pathname, item.path, item.end)
@@ -112,7 +132,7 @@ export default function Layout() {
                     <span className="nav-icon" aria-hidden>
                       <Icon size={18} strokeWidth={2} />
                     </span>
-                    <span className="nav-label">{item.label}</span>
+                    <span className="nav-label">{t(item.labelKey)}</span>
                   </Link>
                 )
               })}
@@ -121,8 +141,19 @@ export default function Layout() {
         </nav>
 
         <div className="sidebar-footer">
+          <select
+            className="locale-select"
+            value={locale}
+            onChange={(e) => setLocale(e.target.value as typeof locale)}
+            aria-label="Idioma"
+          >
+            <option value="ca">CA</option>
+            <option value="es">ES</option>
+            <option value="en">EN</option>
+            <option value="fr">FR</option>
+          </select>
           <button type="button" onClick={handleLogout} className="logout-btn">
-            Tancar Sessió
+            {t('layout.logout')}
           </button>
         </div>
       </aside>

@@ -50,6 +50,22 @@ type TranslationKeys =
   | 'quickAccess.integrations'
   | 'quickAccess.reputation'
   | 'quickAccess.publicAffairs'
+  | 'layout.subtitle'
+  | 'layout.activeCase'
+  | 'layout.noCase'
+  | 'layout.logout'
+  | 'nav.group.recollida'
+  | 'nav.group.analisi'
+  | 'nav.group.resultats'
+  | 'nav.group.sistema'
+  | 'nav.osintSources'
+  | 'nav.extraction'
+  | 'nav.variables'
+  | 'nav.mactor'
+  | 'nav.morph'
+  | 'nav.scenarios'
+  | 'nav.alerts'
+  | 'nav.exportReport'
 
 type Translations = Record<TranslationKeys, string>
 
@@ -102,6 +118,22 @@ const translations: Record<SupportedLocale, Translations> = {
     'quickAccess.integrations': 'Integrations',
     'quickAccess.reputation': 'Reputation',
     'quickAccess.publicAffairs': 'Public Affairs',
+    'layout.subtitle': 'Strategic Intelligence',
+    'layout.activeCase': 'Active case',
+    'layout.noCase': 'No case selected',
+    'layout.logout': 'Log Out',
+    'nav.group.recollida': 'Collection',
+    'nav.group.analisi': 'Analysis',
+    'nav.group.resultats': 'Results',
+    'nav.group.sistema': 'System',
+    'nav.osintSources': 'OSINT Sources',
+    'nav.extraction': 'Extraction',
+    'nav.variables': 'Variables · MIC-MAC',
+    'nav.mactor': 'Actors · MACTOR',
+    'nav.morph': 'Morphological',
+    'nav.scenarios': 'Scenarios',
+    'nav.alerts': 'Active alerts',
+    'nav.exportReport': 'Export report',
   },
   es: {
     'app.name': 'Plataforma de Inteligencia OSINT',
@@ -151,6 +183,22 @@ const translations: Record<SupportedLocale, Translations> = {
     'quickAccess.integrations': 'Integraciones',
     'quickAccess.reputation': 'Reputación',
     'quickAccess.publicAffairs': 'Asuntos públicos',
+    'layout.subtitle': 'Inteligencia Estratégica',
+    'layout.activeCase': 'Caso activo',
+    'layout.noCase': 'Ningún caso seleccionado',
+    'layout.logout': 'Cerrar sesión',
+    'nav.group.recollida': 'Recopilación',
+    'nav.group.analisi': 'Análisis',
+    'nav.group.resultats': 'Resultados',
+    'nav.group.sistema': 'Sistema',
+    'nav.osintSources': 'Fuentes OSINT',
+    'nav.extraction': 'Extracción',
+    'nav.variables': 'Variables · MIC-MAC',
+    'nav.mactor': 'Actores · MACTOR',
+    'nav.morph': 'Morfológico',
+    'nav.scenarios': 'Escenarios',
+    'nav.alerts': 'Alertas activas',
+    'nav.exportReport': 'Exportar informe',
   },
   ca: {
     'app.name': 'Plataforma d’Intel·ligència OSINT',
@@ -200,6 +248,22 @@ const translations: Record<SupportedLocale, Translations> = {
     'quickAccess.integrations': 'Integracions',
     'quickAccess.reputation': 'Reputació',
     'quickAccess.publicAffairs': 'Assumptes públics',
+    'layout.subtitle': 'Intel·ligència Estratègica',
+    'layout.activeCase': 'Cas actiu',
+    'layout.noCase': 'Cap cas seleccionat',
+    'layout.logout': 'Tancar sessió',
+    'nav.group.recollida': 'Recollida',
+    'nav.group.analisi': 'Anàlisi',
+    'nav.group.resultats': 'Resultats',
+    'nav.group.sistema': 'Sistema',
+    'nav.osintSources': 'Fonts OSINT',
+    'nav.extraction': 'Extracció',
+    'nav.variables': 'Variables · MIC-MAC',
+    'nav.mactor': 'Actors · MACTOR',
+    'nav.morph': 'Morfològic',
+    'nav.scenarios': 'Escenaris',
+    'nav.alerts': 'Alertes actives',
+    'nav.exportReport': 'Exportar informe',
   },
   fr: {
     'app.name': 'Plateforme d’intelligence OSINT',
@@ -249,6 +313,22 @@ const translations: Record<SupportedLocale, Translations> = {
     'quickAccess.integrations': 'Intégrations',
     'quickAccess.reputation': 'Réputation',
     'quickAccess.publicAffairs': 'Affaires publiques',
+    'layout.subtitle': 'Intelligence stratégique',
+    'layout.activeCase': 'Cas actif',
+    'layout.noCase': 'Aucun cas sélectionné',
+    'layout.logout': 'Se déconnecter',
+    'nav.group.recollida': 'Collecte',
+    'nav.group.analisi': 'Analyse',
+    'nav.group.resultats': 'Résultats',
+    'nav.group.sistema': 'Système',
+    'nav.osintSources': 'Sources OSINT',
+    'nav.extraction': 'Extraction',
+    'nav.variables': 'Variables · MIC-MAC',
+    'nav.mactor': 'Acteurs · MACTOR',
+    'nav.morph': 'Morphologique',
+    'nav.scenarios': 'Scénarios',
+    'nav.alerts': 'Alertes actives',
+    'nav.exportReport': 'Exporter le rapport',
   },
 }
 

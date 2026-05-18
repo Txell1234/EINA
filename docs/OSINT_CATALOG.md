@@ -9,7 +9,35 @@ Scoring: fiabilitat, cobertura, latència, cost, accessibilitat (1-5).
 
 Total de fonts: 119
 
-## Top 20 global
+> **Nota de revisió (EINA):** S'han exclòs del Top 20 fonts amb risc legal/reputacional
+> (doxxing, SSN lookup, VK scraping, filtracions). Preferir fonts integrades a la plataforma.
+
+## Top 20 global (revisat per ús professional)
+
+| # | Font | Categoria | Score | URL |
+| --- | --- | --- | --- | --- |
+| 1 | GDELT | geopolitica | 5.0 | Integrat EINA `/api/osint/gdelt` |
+| 2 | OpenSanctions | geopolitica | 5.0 | Integrat EINA `/api/osint/opensanctions` |
+| 3 | CFR / IISS / Brookings (RSS) | geopolitica | 4.8 | Integrat EINA `/api/osint/rss` |
+| 4 | censys.io | dominis_i_infra | 4.4 | https://censys.io/ |
+| 5 | www.shodan.io | dominis_i_infra | 4.4 | Integrat EINA `/api/osint/shodan` |
+| 6 | whois.icann.org | dominis_i_infra | 4.4 | https://whois.icann.org/en |
+| 7 | Google News | notícies | 4.3 | Integrat EINA `/api/osint/google-news` |
+| 8 | Reddit | notícies | 4.2 | Integrat EINA `/api/osint/reddit` |
+| 9 | GitHub | infraestructura | 4.2 | Integrat EINA `/api/osint/github` |
+| 10 | Wayback Machine | infraestructura | 4.2 | Integrat EINA `/api/osint/wayback` |
+| 11 | www.marinetraffic.com | geolocalitzacio | 4.0 | https://www.marinetraffic.com |
+| 12 | 29a.ch (photo forensics) | imatges | 3.8 | https://29a.ch/photo-forensics/ |
+| 13 | berify.com | imatges | 3.8 | https://berify.com/ |
+| 14 | fotoforensics.com | imatges | 3.8 | http://fotoforensics.com/ |
+| 15 | checkusernames.com | altres | 3.8 | https://checkusernames.com |
+| 16 | whatismyipaddress.com | dominis_i_infra | 4.0 | https://whatismyipaddress.com |
+| 17 | whois.domaintools.com | dominis_i_infra | 4.0 | http://whois.domaintools.com/ |
+| 18 | ipstack | geolocalitzacio | 4.0 | Integrat EINA `/api/osint/ip-geolocation` |
+| 19 | Foreign Affairs (RSS) | geopolitica | 4.5 | Integrat EINA RSS |
+| 20 | International Crisis Group | geopolitica | 4.5 | Integrat EINA RSS |
+
+## Top 20 global (catàleg original — conté fonts excloses)
 
 | # | Font | Categoria | Score | URL |
 | --- | --- | --- | --- | --- |
