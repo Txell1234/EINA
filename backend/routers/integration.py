@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Dict, Any, Optional
 from app.database import get_db
+from app.config import settings, INTEGRATION_REQUIREMENTS
 from services.integration_service import IntegrationService
 from datetime import datetime, timedelta
 from pathlib import Path
