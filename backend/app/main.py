@@ -53,6 +53,8 @@ from routers import (
     integration,
 )
 from routers import geopolitical
+from routers import extract as extract_router
+from routers import prospective as prospective_router
 
 # Create database tables
 async def init_db():
@@ -134,6 +136,8 @@ app.include_router(reputation.router, tags=["Reputation"])
 app.include_router(public_affairs.router, tags=["Public Affairs"])
 app.include_router(geopolitical_advanced.router, tags=["Geopolitical Advanced"])
 app.include_router(integration.router, tags=["Integration"])
+app.include_router(extract_router.router, prefix="/api/extract", tags=["Extraction Pipeline"])
+app.include_router(prospective_router.router, prefix="/api/prospective", tags=["Prospective Analysis"])
 
 @app.on_event("startup")
 async def startup_event():

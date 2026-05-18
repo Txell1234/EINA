@@ -14,6 +14,18 @@ from .reports import Report
 from .investments import InvestmentRecommendation, RiskAnalysis, Opportunity
 from .reputation import ReputationProfile, ReputationHistory, StakeholderAnalysis
 from .public_affairs import PolicyAnalysis, AdvocacyCampaign
+from .extract import ExtractedStatement
+from .prospective import (
+    ProspectiveProject,
+    ProspectiveVariable,
+    MICMACResult,
+    ProspectiveActor,
+    MACTORObjective,
+    MACTORPosture,
+    MACTORResult,
+    MorphComponent,
+    ProspectiveScenario,
+)
 
 __all__ = [
     "Base",
@@ -30,5 +42,9 @@ __all__ = [
     "SupplyChainRisk", "EconomicInterdependence",
     "ReputationProfile", "ReputationHistory", "StakeholderAnalysis",
     "PolicyAnalysis", "AdvocacyCampaign",
+    "ExtractedStatement",
+    "ProspectiveProject", "ProspectiveVariable", "MICMACResult",
+    "ProspectiveActor", "MACTORObjective", "MACTORPosture", "MACTORResult",
+    "MorphComponent", "ProspectiveScenario",
 ]
 
