@@ -370,3 +370,64 @@ async def check_monitor(monitor_id: int, db: AsyncSession = Depends(get_db)):
     from services.alert_monitor_service import run_monitor_check
 
     return await run_monitor_check(db, monitor_id)
+
+
+class ToggleMonitorRequest(BaseModel):
+    is_active: bool
+
+
+@router.patch("/monitors/{monitor_id}/toggle")
+async def toggle_monitor(
+    monitor_id: int,
+    data: ToggleMonitorRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Activate or pause an alert monitor."""
+    from models.prospective import AlertMonitor
+
+    r = await db.execute(select(AlertMonitor).where(AlertMonitor.id == monitor_id))
+    monitor = r.scalar_one_or_none()
+    if not monitor:
+        raise HTTPException(status_code=404, detail="Monitor no trobat")
+    monitor.is_active = 1 if data.is_active else 0
+    await db.commit()
+    return {"id": monitor_id, "is_active": bool(monitor.is_active)}
+
+
+class ManualMonitorRequest(BaseModel):
+    indicator: str
+    keywords: List[str] = []
+    osint_sources: List[str] = ["gdelt", "google_news", "reddit"]
+
+
+@router.post("/projects/{project_id}/monitors/manual")
+async def add_manual_monitor(
+    project_id: int,
+    data: ManualMonitorRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Add a manually defined alert monitor to a project."""
+    from models.prospective import AlertMonitor
+    from services.alert_monitor_service import _keywords as _kw
+
+    kws = data.keywords if data.keywords else _kw(data.indicator)
+    monitor = AlertMonitor(
+        project_id=project_id,
+        indicator=data.indicator,
+        keywords=kws,
+        osint_sources=data.osint_sources,
+        is_active=1,
+    )
+    db.add(monitor)
+    await db.commit()
+    await db.refresh(monitor)
+    return {
+        "id": monitor.id,
+        "indicator": monitor.indicator,
+        "keywords": monitor.keywords,
+        "osint_sources": monitor.osint_sources,
+        "is_active": True,
+        "match_count": 0,
+        "last_checked": None,
+        "last_match": None,
+    }

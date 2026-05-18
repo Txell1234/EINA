@@ -24,7 +24,7 @@ type NavLabelKey =
   | 'nav.mactor'
   | 'nav.morph'
   | 'nav.scenarios'
-  | 'nav.alerts'
+  | 'nav.alertMonitors'
   | 'nav.exportReport'
   | 'nav.dashboard'
   | 'nav.admin'
@@ -58,7 +58,7 @@ const NAV_GROUPS: {
     labelKey: 'nav.group.resultats',
     items: [
       { path: '/prospective-analysis', labelKey: 'nav.scenarios', icon: Telescope },
-      { path: '/investment-advanced', labelKey: 'nav.alerts', icon: Bell },
+      { path: '/alert-monitors', labelKey: 'nav.alertMonitors', icon: Bell },
       { path: '/investment-recommendations', labelKey: 'nav.exportReport', icon: FileDown },
     ],
   },

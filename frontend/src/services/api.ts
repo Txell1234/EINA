@@ -838,5 +838,23 @@ export const prospectiveService = {
     const response = await api.post(`/api/prospective/monitors/${monitorId}/check`)
     return response.data
   },
+
+  toggleMonitor: async (monitorId: number, isActive: boolean) => {
+    const response = await api.patch(`/api/prospective/monitors/${monitorId}/toggle`, {
+      is_active: isActive,
+    })
+    return response.data
+  },
+
+  addManualMonitor: async (
+    projectId: number,
+    data: { indicator: string; keywords?: string[]; osint_sources?: string[] },
+  ) => {
+    const response = await api.post(
+      `/api/prospective/projects/${projectId}/monitors/manual`,
+      data,
+    )
+    return response.data
+  },
 }
 

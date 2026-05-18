@@ -65,7 +65,23 @@ type TranslationKeys =
   | 'nav.morph'
   | 'nav.scenarios'
   | 'nav.alerts'
+  | 'nav.alertMonitors'
   | 'nav.exportReport'
+  | 'alerts.title'
+  | 'alerts.noProject'
+  | 'alerts.noMonitors'
+  | 'alerts.checkNow'
+  | 'alerts.activate'
+  | 'alerts.deactivate'
+  | 'alerts.indicator'
+  | 'alerts.keywords'
+  | 'alerts.sources'
+  | 'alerts.lastCheck'
+  | 'alerts.lastMatch'
+  | 'alerts.matches'
+  | 'alerts.triggered'
+  | 'alerts.monitoring'
+  | 'alerts.selectProject'
 
 type Translations = Record<TranslationKeys, string>
 
@@ -133,7 +149,23 @@ const translations: Record<SupportedLocale, Translations> = {
     'nav.morph': 'Morphological',
     'nav.scenarios': 'Scenarios',
     'nav.alerts': 'Active alerts',
+    'nav.alertMonitors': 'Alert Monitors',
     'nav.exportReport': 'Export report',
+    'alerts.title': 'Active Alert Monitors',
+    'alerts.noProject': 'Select a prospective project to see its monitors.',
+    'alerts.noMonitors': 'No monitors yet. Generate scenarios and activate monitoring from the Scenarios step.',
+    'alerts.checkNow': 'Check now',
+    'alerts.activate': 'Activate',
+    'alerts.deactivate': 'Pause',
+    'alerts.indicator': 'Indicator',
+    'alerts.keywords': 'Keywords',
+    'alerts.sources': 'Sources',
+    'alerts.lastCheck': 'Last check',
+    'alerts.lastMatch': 'Last match',
+    'alerts.matches': 'Matches',
+    'alerts.triggered': 'Triggered',
+    'alerts.monitoring': 'Monitoring',
+    'alerts.selectProject': 'Select project',
   },
   es: {
     'app.name': 'Plataforma de Inteligencia OSINT',
@@ -198,7 +230,23 @@ const translations: Record<SupportedLocale, Translations> = {
     'nav.morph': 'Morfológico',
     'nav.scenarios': 'Escenarios',
     'nav.alerts': 'Alertas activas',
+    'nav.alertMonitors': 'Monitores de alerta',
     'nav.exportReport': 'Exportar informe',
+    'alerts.title': 'Monitores de alerta activos',
+    'alerts.noProject': 'Selecciona un proyecto prospectivo para ver sus monitores.',
+    'alerts.noMonitors': 'Sin monitores todavía. Genera escenarios y activa el monitoreo desde el paso Escenarios.',
+    'alerts.checkNow': 'Comprobar ahora',
+    'alerts.activate': 'Activar',
+    'alerts.deactivate': 'Pausar',
+    'alerts.indicator': 'Indicador',
+    'alerts.keywords': 'Palabras clave',
+    'alerts.sources': 'Fuentes',
+    'alerts.lastCheck': 'Última comprobación',
+    'alerts.lastMatch': 'Última coincidencia',
+    'alerts.matches': 'Coincidencias',
+    'alerts.triggered': 'Disparado',
+    'alerts.monitoring': 'Monitorizando',
+    'alerts.selectProject': 'Seleccionar proyecto',
   },
   ca: {
     'app.name': 'Plataforma d’Intel·ligència OSINT',
@@ -263,7 +311,23 @@ const translations: Record<SupportedLocale, Translations> = {
     'nav.morph': 'Morfològic',
     'nav.scenarios': 'Escenaris',
     'nav.alerts': 'Alertes actives',
+    'nav.alertMonitors': 'Monitors d\'alerta',
     'nav.exportReport': 'Exportar informe',
+    'alerts.title': 'Monitors d\'alerta actius',
+    'alerts.noProject': 'Selecciona un projecte prospectiu per veure els seus monitors.',
+    'alerts.noMonitors': 'Sense monitors encara. Genera escenaris i activa el monitoratge des del pas Escenaris.',
+    'alerts.checkNow': 'Comprovar ara',
+    'alerts.activate': 'Activar',
+    'alerts.deactivate': 'Pausar',
+    'alerts.indicator': 'Indicador',
+    'alerts.keywords': 'Paraules clau',
+    'alerts.sources': 'Fonts',
+    'alerts.lastCheck': 'Última comprovació',
+    'alerts.lastMatch': 'Última coincidència',
+    'alerts.matches': 'Coincidències',
+    'alerts.triggered': 'Disparat',
+    'alerts.monitoring': 'Monitoritzant',
+    'alerts.selectProject': 'Selecciona projecte',
   },
   fr: {
     'app.name': 'Plateforme d’intelligence OSINT',
@@ -328,7 +392,23 @@ const translations: Record<SupportedLocale, Translations> = {
     'nav.morph': 'Morphologique',
     'nav.scenarios': 'Scénarios',
     'nav.alerts': 'Alertes actives',
+    'nav.alertMonitors': 'Moniteurs d\'alerte',
     'nav.exportReport': 'Exporter le rapport',
+    'alerts.title': 'Moniteurs d\'alerte actifs',
+    'alerts.noProject': 'Sélectionnez un projet prospectif pour voir ses moniteurs.',
+    'alerts.noMonitors': 'Pas encore de moniteurs. Générez des scénarios et activez la surveillance depuis l\'étape Scénarios.',
+    'alerts.checkNow': 'Vérifier maintenant',
+    'alerts.activate': 'Activer',
+    'alerts.deactivate': 'Mettre en pause',
+    'alerts.indicator': 'Indicateur',
+    'alerts.keywords': 'Mots-clés',
+    'alerts.sources': 'Sources',
+    'alerts.lastCheck': 'Dernière vérification',
+    'alerts.lastMatch': 'Dernière correspondance',
+    'alerts.matches': 'Correspondances',
+    'alerts.triggered': 'Déclenché',
+    'alerts.monitoring': 'Surveillance',
+    'alerts.selectProject': 'Sélectionner projet',
   },
 }
 

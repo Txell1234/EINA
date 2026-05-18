@@ -27,6 +27,7 @@ const AdvancedVisualizations = lazy(
 const InvestmentAdvancedDashboard = lazy(
   () => import('./components/InvestmentAdvanced/InvestmentAdvancedDashboard'),
 )
+const AlertMonitors = lazy(() => import('./components/AlertMonitors/AlertMonitors'))
 const ProspectiveAnalysis = lazy(
   () => import('./components/ProspectiveAnalysis/ProspectiveAnalysis'),
 )
@@ -65,6 +66,7 @@ function AppRoutes() {
           <Route path="integration" element={<IntegrationDashboard />} />
           <Route path="geopolitical-advanced" element={<AdvancedVisualizations />} />
           <Route path="investment-advanced" element={<InvestmentAdvancedDashboard />} />
+          <Route path="alert-monitors" element={<AlertMonitors />} />
           <Route path="prospective-analysis" element={<ProspectiveAnalysis entryStep={7} />} />
           <Route path="prospective/variables" element={<ProspectiveAnalysis entryStep={2} />} />
           <Route path="prospective/mactor" element={<ProspectiveAnalysis entryStep={5} />} />

@@ -1,6 +1,15 @@
 """
 Pytest configuration and fixtures for EINA Platform tests
 """
+import os
+
+# Inject test environment BEFORE any app import to prevent SECRET_KEY validation error
+os.environ.setdefault("SECRET_KEY", "pytest-test-secret-key-32-chars-min")
+os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
+os.environ.setdefault("OPENAI_API_KEY", "sk-test-placeholder")
+os.environ.setdefault("DEBUG", "true")
+os.environ.setdefault("LLM_PROVIDER", "openai")  # use placeholder, no real calls in tests
+
 import pytest
 import asyncio
 from typing import AsyncGenerator, Generator
@@ -10,7 +19,7 @@ from fastapi.testclient import TestClient
 
 from app.database import Base, get_db
 from app.main import app
-from models import *  # Import all models to ensure they're registered
+from models import *  # noqa: F401, F403
 
 
 # Test database URL (in-memory SQLite)
@@ -186,6 +195,3 @@ async def sample_osint_data(db_session: AsyncSession, sample_case):
     await db_session.commit()
     
     return {"query": query, "result": result}
-
-
-

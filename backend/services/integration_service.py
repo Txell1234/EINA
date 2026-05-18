@@ -397,8 +397,14 @@ class IntegrationService:
         if "regulatory" in risks:
             reg_risks = risks["regulatory"].get("risks", [])
             if reg_risks:
-                avg_reg = sum(r.get("risk", {}).get("regulatory_risk", {}).get("risk_level", "medium") for r in reg_risks) / len(reg_risks)
-                risk_scores.append(self._level_to_score(avg_reg))
+                reg_scores = [
+                    self._level_to_score(
+                        str(r.get("risk", {}).get("regulatory_risk", {}).get("risk_level", "medium"))
+                    )
+                    for r in reg_risks
+                ]
+                avg_reg = sum(reg_scores) / len(reg_scores)
+                risk_scores.append(avg_reg)
         
         # Inversión
         if "investment" in risks:
