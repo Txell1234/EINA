@@ -8,7 +8,7 @@ from datetime import datetime
 from app.database import get_db
 from services.reputation_service import ReputationService
 from models.reputation import ReputationProfile, ReputationHistory, StakeholderAnalysis, EntityType
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 import logging
 
 logger = logging.getLogger(__name__)
@@ -23,8 +23,7 @@ class ReputationProfileResponse(BaseModel):
     reputation_score: float
     sentiment_trend: str
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class ReputationHistoryResponse(BaseModel):
     id: int
@@ -33,8 +32,7 @@ class ReputationHistoryResponse(BaseModel):
     score_change: float
     change_reason: Optional[str]
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 @router.get("/profiles")
 async def list_reputation_profiles(

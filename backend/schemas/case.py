@@ -1,7 +1,7 @@
 """
 Case schemas
 """
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, List
 from datetime import datetime
 from models.case import CaseStatus, CaseType
@@ -27,8 +27,7 @@ class CaseResponse(BaseModel):
     created_at: Optional[datetime] = None  # Can be None initially, will be set by DB
     updated_at: Optional[datetime] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class CasePromptRequest(BaseModel):
     prompt: str
@@ -46,8 +45,7 @@ class CasePromptResponse(BaseModel):
     ai_analysis: dict
     created_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class KPISuggestionResponse(BaseModel):
     """Response for KPI suggestions"""

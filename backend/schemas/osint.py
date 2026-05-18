@@ -1,7 +1,7 @@
 """
 OSINT schemas
 """
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, Dict, Any
 from datetime import datetime
 from models.osint import QueryStatus
@@ -20,8 +20,7 @@ class OSINTQueryResponse(BaseModel):
     created_at: datetime
     completed_at: Optional[datetime]
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class OSINTResultResponse(BaseModel):
     query_id: Optional[int] = None
@@ -30,6 +29,5 @@ class OSINTResultResponse(BaseModel):
     status: str
     error: Optional[str] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 

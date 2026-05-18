@@ -1,7 +1,7 @@
 """
 Predictions schemas
 """
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, Dict, Any
 from datetime import datetime
 
@@ -23,8 +23,7 @@ class PredictionResponse(BaseModel):
     metadata: Optional[Dict[str, Any]]
     created_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class TrendPredictionResponse(BaseModel):
     id: int
@@ -32,8 +31,7 @@ class TrendPredictionResponse(BaseModel):
     confidence_percentage: float
     created_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 

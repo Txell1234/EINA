@@ -50,13 +50,20 @@ class ReportService:
             }
             
             # Generate file based on format
+            export_meta = None
             if report.format == "pdf":
-                file_path = await self._generate_pdf(report_id, report_data)
+                export_meta = await self._generate_pdf(report_id, report_data)
             elif report.format == "excel":
-                file_path = await self._generate_excel(report_id, report_data)
+                export_meta = await self._generate_excel(report_id, report_data)
             else:
                 file_path = None
-            
+
+            if export_meta is not None:
+                file_path = export_meta.get("file_path")
+                report_data["export"] = export_meta
+            else:
+                file_path = None
+
             # Update report
             report.content = report_data
             report.file_path = file_path
@@ -119,29 +126,35 @@ class ReportService:
         
         return [{"id": r.id, "type": r.recommendation_type, "confidence": r.confidence_percentage} for r in recommendations]
     
-    async def _generate_pdf(self, report_id: int, data: dict) -> str:
-        """Generate PDF report"""
-        # TODO: Implement PDF generation using reportlab or similar
-        # For now, return JSON file path
+    async def _generate_pdf(self, report_id: int, data: dict) -> dict:
+        """Generate PDF report (JSON fallback until Phase 4)."""
         file_path = f"reports/report_{report_id}.json"
         Path("reports").mkdir(exist_ok=True)
-        
+
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
-        
-        return file_path
-    
-    async def _generate_excel(self, report_id: int, data: dict) -> str:
-        """Generate Excel report"""
-        # TODO: Implement Excel generation using openpyxl or similar
-        # For now, return JSON file path
+
+        return {
+            "status": "not_implemented",
+            "message": "Exportació a PDF pendent d'implementació. Disponible a la Fase 4.",
+            "format": "json",
+            "file_path": file_path,
+        }
+
+    async def _generate_excel(self, report_id: int, data: dict) -> dict:
+        """Generate Excel report (JSON fallback until Phase 4)."""
         file_path = f"reports/report_{report_id}.json"
         Path("reports").mkdir(exist_ok=True)
-        
+
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
-        
-        return file_path
+
+        return {
+            "status": "not_implemented",
+            "message": "Exportació a Excel pendent d'implementació. Disponible a la Fase 4.",
+            "format": "json",
+            "file_path": file_path,
+        }
 
 
 

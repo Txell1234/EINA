@@ -1,7 +1,7 @@
 """
 Qualitative Analysis schemas
 """
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, List
 from datetime import datetime
 from models.qualitative import ReasoningFrameworkType, KPIType
@@ -18,8 +18,7 @@ class PremiseResponse(BaseModel):
     framework_id: Optional[int]
     created_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class KPICreate(BaseModel):
     name: str
@@ -44,8 +43,7 @@ class KPIResponse(BaseModel):
     is_template: bool
     created_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class CaseKPICreate(BaseModel):
     case_id: int
@@ -68,8 +66,7 @@ class CaseKPIResponse(BaseModel):
     updated_at: Optional[datetime]
     kpi: Optional[KPIResponse] = None  # Include KPI details
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class ReasoningFrameworkResponse(BaseModel):
     id: int
@@ -79,8 +76,7 @@ class ReasoningFrameworkResponse(BaseModel):
     is_active: bool
     created_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class QualitativeAnalysisRequest(BaseModel):
     case_id: int
@@ -98,7 +94,6 @@ class QualitativeAnalysisResponse(BaseModel):
     confidence_score: float
     created_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 

@@ -1,7 +1,7 @@
 """
 AI Analysis schemas
 """
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
@@ -17,8 +17,7 @@ class AIAnalysisResponse(BaseModel):
     confidence_score: float
     created_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class ConceptResponse(BaseModel):
     id: int
@@ -30,8 +29,7 @@ class ConceptResponse(BaseModel):
     extra_data: Optional[Dict[str, Any]] = None
     created_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class TrendResponse(BaseModel):
     id: int
@@ -43,8 +41,7 @@ class TrendResponse(BaseModel):
     metadata: Optional[Dict[str, Any]]
     created_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class SentimentResponse(BaseModel):
     id: int
@@ -55,6 +52,5 @@ class SentimentResponse(BaseModel):
     source_text: Optional[str]
     created_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 

@@ -8,7 +8,7 @@ from app.database import get_db
 from services.geopolitical_relation_service import GeopoliticalRelationService
 from services.geopolitical_risk_service import GeopoliticalRiskService
 from services.diplomatic_event_service import DiplomaticEventService
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 import logging
 
 logger = logging.getLogger(__name__)
@@ -27,8 +27,7 @@ class BilateralRelationResponse(BaseModel):
     economic_cooperation: float
     security_cooperation: float
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class TreatyResponse(BaseModel):
     id: int
@@ -39,8 +38,7 @@ class TreatyResponse(BaseModel):
     countries: List[str]
     impact_score: float
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class DiplomaticEventResponse(BaseModel):
     id: int
@@ -53,8 +51,7 @@ class DiplomaticEventResponse(BaseModel):
     impact_score: float
     sentiment_score: Optional[float]
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class GeopoliticalRiskResponse(BaseModel):
     id: int
@@ -69,8 +66,7 @@ class GeopoliticalRiskResponse(BaseModel):
     risk_change_30d: float
     alert_triggered: bool
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 @router.post("/relations/extract")
 async def extract_relations(
