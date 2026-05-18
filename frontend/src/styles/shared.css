@@ -1,0 +1,186 @@
+/* ── EMPTY STATE ── */
+.empty-state {
+  text-align: center;
+  padding: var(--spacing-2xl) var(--spacing-xl);
+  color: var(--color-gray-500);
+}
+
+.empty-state-icon {
+  font-size: 2.5rem;
+  margin-bottom: var(--spacing-md);
+  opacity: 0.6;
+}
+
+.empty-state-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-gray-700);
+  margin-bottom: var(--spacing-sm);
+}
+
+.empty-state-desc {
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-relaxed);
+  max-width: 400px;
+  margin: 0 auto var(--spacing-lg);
+}
+
+/* ── WORKFLOW PROGRESS ── */
+.workflow-progress {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: var(--color-gray-50);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none;
+}
+
+.workflow-progress::-webkit-scrollbar {
+  display: none;
+}
+
+.workflow-step {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-gray-400);
+  padding: var(--spacing-xs) var(--spacing-sm);
+}
+
+.workflow-step.done {
+  color: var(--color-success);
+}
+
+.workflow-step-count {
+  background: var(--color-primary);
+  color: var(--color-white);
+  border-radius: var(--radius-full);
+  font-size: 0.65rem;
+  padding: 0 5px;
+  margin-left: 3px;
+}
+
+.workflow-step-sep {
+  color: var(--color-gray-300);
+  padding: 0 2px;
+}
+
+/* ── STATUS BADGE ── */
+.status-badge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+}
+
+.status-badge-pill::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.status-badge-pill.success {
+  background: rgba(40, 167, 69, 0.1);
+  color: var(--color-success-dark);
+}
+
+.status-badge-pill.success::before {
+  background: var(--color-success);
+}
+
+.status-badge-pill.warning {
+  background: rgba(255, 193, 7, 0.1);
+  color: var(--color-warning-dark);
+}
+
+.status-badge-pill.warning::before {
+  background: var(--color-warning);
+}
+
+.status-badge-pill.danger {
+  background: rgba(220, 53, 69, 0.1);
+  color: var(--color-danger-dark);
+}
+
+.status-badge-pill.danger::before {
+  background: var(--color-danger);
+}
+
+.status-badge-pill.neutral {
+  background: var(--color-gray-100);
+  color: var(--color-gray-600);
+}
+
+.status-badge-pill.neutral::before {
+  background: var(--color-gray-400);
+}
+
+/* ── POSTURE VALUE (MACTOR –2..+2) ── */
+.posture-val {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+}
+
+.posture-val.p2 {
+  background: rgba(40, 167, 69, 0.15);
+  color: var(--color-success-dark);
+}
+
+.posture-val.p1 {
+  background: rgba(40, 167, 69, 0.08);
+  color: var(--color-success);
+}
+
+.posture-val.p0 {
+  background: var(--color-gray-100);
+  color: var(--color-gray-500);
+}
+
+.posture-val.n1 {
+  background: rgba(220, 53, 69, 0.08);
+  color: var(--color-danger);
+}
+
+.posture-val.n2 {
+  background: rgba(220, 53, 69, 0.15);
+  color: var(--color-danger-dark);
+}
+
+/* ── SECTION HEADER ── */
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-lg);
+  padding-bottom: var(--spacing-md);
+  border-bottom: 1px solid var(--color-gray-200);
+}
+
+.section-header h2 {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-gray-900);
+  margin: 0;
+}
+
+.section-header-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+}

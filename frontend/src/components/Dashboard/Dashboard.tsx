@@ -1,6 +1,10 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { casesService, geographicService, heatmapService } from '../../services/api'
+import type { ActiveCase } from '../../contexts/CaseContext'
+import { useCase } from '../../contexts/CaseContext'
+import EmptyState from '../shared/EmptyState'
+import WorkflowProgress from '../shared/WorkflowProgress'
 import CreateCaseModal from './CreateCaseModal'
 import EditCaseModal from './EditCaseModal'
 import VisualizationsDashboard from '../Visualizations/VisualizationsDashboard'
@@ -61,6 +65,7 @@ function DashboardHeatmapSummary() {
 }
 
 export default function Dashboard() {
+  const { activeCase, setActiveCase } = useCase()
   const [selectedCaseId, setSelectedCaseId] = useState<number | null>(null)
   const [showVisualizations, setShowVisualizations] = useState(false)
   const [editingCaseId, setEditingCaseId] = useState<number | null>(null)
@@ -125,6 +130,26 @@ export default function Dashboard() {
     setShowVisualizations(true)
   }
 
+  const handleSelectActiveCase = (caseItem: {
+    id: number
+    name: string
+    case_type?: string
+    status: string
+  }) => {
+    const next: ActiveCase = {
+      id: caseItem.id,
+      name: caseItem.name,
+      case_type: caseItem.case_type ?? 'general',
+      status: caseItem.status,
+      osint_count: activeCase?.id === caseItem.id ? activeCase.osint_count : undefined,
+      extraction_count: activeCase?.id === caseItem.id ? activeCase.extraction_count : undefined,
+      has_micmac: activeCase?.id === caseItem.id ? activeCase.has_micmac : undefined,
+      has_mactor: activeCase?.id === caseItem.id ? activeCase.has_mactor : undefined,
+      has_scenarios: activeCase?.id === caseItem.id ? activeCase.has_scenarios : undefined,
+    }
+    setActiveCase(next)
+  }
+
   const getStatusLabel = (status: string) => {
     const labels: Record<string, string> = {
       'pending': 'Pendent',
@@ -168,6 +193,16 @@ export default function Dashboard() {
           <CreateCaseModal />
         </div>
       </div>
+
+      {activeCase && (
+        <WorkflowProgress
+          osintCount={activeCase.osint_count}
+          extractionCount={activeCase.extraction_count}
+          hasMicmac={activeCase.has_micmac}
+          hasMactor={activeCase.has_mactor}
+          hasScenarios={activeCase.has_scenarios}
+        />
+      )}
 
       <div className="metrics-grid">
         <div className="metric-card">
@@ -262,19 +297,29 @@ export default function Dashboard() {
                       </td>
                       <td>
                         <div className="case-actions">
-                          <button 
+                          <button
+                            type="button"
+                            className={`btn-edit ${activeCase?.id === caseItem.id ? 'btn-edit--active' : ''}`}
+                            onClick={() => handleSelectActiveCase(caseItem)}
+                            title="Seleccionar com a cas actiu"
+                          >
+                            {activeCase?.id === caseItem.id ? '✓ Cas actiu' : 'Seleccionar'}
+                          </button>
+                          <button
+                            type="button"
                             className="btn-edit"
                             onClick={() => setEditingCaseId(caseItem.id)}
                             title="Editar cas"
                           >
-                            ✏️ Editar
+                            Editar
                           </button>
-                          <button 
+                          <button
+                            type="button"
                             className="btn-view"
                             onClick={() => handleViewVisualizations(caseItem.id)}
                             title="Veure visualitzacions i anàlisi detallada"
                           >
-                            📊 Analitzar
+                            Analitzar
                           </button>
                         </div>
                       </td>
@@ -330,7 +375,11 @@ export default function Dashboard() {
                           </p>
                         </div>
                       ) : (
-                        <p>No hi ha casos disponibles. Crea un nou cas per començar.</p>
+                        <EmptyState
+                          icon="◈"
+                          title="No hi ha casos actius"
+                          description="Crea el teu primer cas per començar a recopilar dades OSINT i generar anàlisis prospectives."
+                        />
                       )}
                     </td>
                   </tr>

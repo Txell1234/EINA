@@ -1,5 +1,5 @@
-import React from 'react'
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import type { ReactNode } from 'react'
 import Layout from './components/Layout'
 import Dashboard from './components/Dashboard/Dashboard'
 import OSINTCollection from './components/OSINTCollection/OSINTCollection'
@@ -14,12 +14,11 @@ import PublicAffairsDashboard from './components/PublicAffairs/PublicAffairsDash
 import IntegrationDashboard from './components/Integration/IntegrationDashboard'
 import AdvancedVisualizations from './components/Geopolitical/AdvancedVisualizations'
 import InvestmentAdvancedDashboard from './components/InvestmentAdvanced/InvestmentAdvancedDashboard'
-import { AuthProvider, useAuth } from './contexts/AuthContext'
+import PlaceholderPage from './components/shared/PlaceholderPage'
+import { AuthProvider } from './contexts/AuthContext'
+import { CaseProvider } from './contexts/CaseContext'
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  // Temporalmente deshabilitado - permite acceso sin autenticación
-  // const { isAuthenticated } = useAuth()
-  // return isAuthenticated ? <>{children}</> : <Navigate to="/login" />
+function ProtectedRoute({ children }: { children: ReactNode }) {
   return <>{children}</>
 }
 
@@ -47,6 +46,15 @@ function AppRoutes() {
         <Route path="integration" element={<IntegrationDashboard />} />
         <Route path="geopolitical-advanced" element={<AdvancedVisualizations />} />
         <Route path="investment-advanced" element={<InvestmentAdvancedDashboard />} />
+        <Route
+          path="prospective-analysis"
+          element={
+            <PlaceholderPage
+              title="Escenaris prospectius"
+              description="El wizard d'anàlisi prospectiva (MIC-MAC, MACTOR, morfològic i narratives Claude) s'implementarà al Bloc D de la Fase 3."
+            />
+          }
+        />
       </Route>
     </Routes>
   )
@@ -60,12 +68,13 @@ function App() {
         v7_relativeSplatPath: true,
       }}
     >
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
+      <CaseProvider>
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
+      </CaseProvider>
     </Router>
   )
 }
 
 export default App
-
