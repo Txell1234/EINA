@@ -40,7 +40,7 @@ class HeatmapDataResponse(BaseModel):
 # IMPORTANT: Dashboard summary must be BEFORE {case_id} routes to avoid route conflicts
 @router.get("/dashboard/summary")
 async def get_dashboard_heatmap_summary(
-    granularity: str = Query("country", regex="^(country|region|city|municipality)$"),
+    granularity: str = Query("country", pattern="^(country|region|city|municipality)$"),
     db: AsyncSession = Depends(get_db)
 ):
     """Get aggregated heatmap data for all cases (dashboard summary)"""
@@ -126,7 +126,7 @@ async def get_dashboard_heatmap_summary(
 @router.get("/{case_id}/posts", response_model=HeatmapDataResponse)
 async def get_posts_heatmap(
     case_id: int,
-    granularity: str = Query("city", regex="^(country|region|city|municipality)$"),
+    granularity: str = Query("city", pattern="^(country|region|city|municipality)$"),
     platform: Optional[str] = Query(None),
     start_date: Optional[str] = Query(None),
     end_date: Optional[str] = Query(None),
@@ -178,7 +178,7 @@ async def get_posts_heatmap(
 @router.get("/{case_id}/sentiment", response_model=HeatmapDataResponse)
 async def get_sentiment_heatmap(
     case_id: int,
-    granularity: str = Query("city", regex="^(country|region|city|municipality)$"),
+    granularity: str = Query("city", pattern="^(country|region|city|municipality)$"),
     platform: Optional[str] = Query(None),
     start_date: Optional[str] = Query(None),
     end_date: Optional[str] = Query(None),
@@ -229,7 +229,7 @@ async def get_sentiment_heatmap(
 @router.get("/{case_id}/engagement", response_model=HeatmapDataResponse)
 async def get_engagement_heatmap(
     case_id: int,
-    granularity: str = Query("city", regex="^(country|region|city|municipality)$"),
+    granularity: str = Query("city", pattern="^(country|region|city|municipality)$"),
     platform: Optional[str] = Query(None),
     start_date: Optional[str] = Query(None),
     end_date: Optional[str] = Query(None),
@@ -281,7 +281,7 @@ async def get_engagement_heatmap(
 async def get_custom_heatmap(
     case_id: int,
     metric: str = Query("posts", description="Metric type: posts, sentiment, engagement"),
-    granularity: str = Query("city", regex="^(country|region|city|municipality)$"),
+    granularity: str = Query("city", pattern="^(country|region|city|municipality)$"),
     platform: Optional[str] = Query(None),
     start_date: Optional[str] = Query(None),
     end_date: Optional[str] = Query(None),

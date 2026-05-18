@@ -113,22 +113,15 @@ app.add_middleware(
 # Include routers
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(cases.router, prefix="/api/cases", tags=["Cases"])
-app.include_router(cases.router, prefix="/cases", tags=["Cases"])  # Sin /api para compatibilidad
 app.include_router(osint_collection.router, prefix="/api/osint", tags=["OSINT Collection"])
-app.include_router(osint_collection.router, prefix="/osint", tags=["OSINT Collection"])  # Sin /api
 app.include_router(ai_analysis.router, prefix="/api/ai", tags=["AI Analysis"])
-app.include_router(ai_analysis.router, prefix="/ai", tags=["AI Analysis"])  # Sin /api
 app.include_router(qualitative.router, prefix="/api/qualitative", tags=["Qualitative Analysis"])
-app.include_router(qualitative.router, prefix="/qualitative", tags=["Qualitative Analysis"])  # Sin /api
 app.include_router(predictions.router, prefix="/api/predictions", tags=["Predictions"])
 app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
 app.include_router(investments.router, prefix="/api/investments", tags=["Investment Recommendations"])
-app.include_router(investments.router, prefix="/investment", tags=["Investment Recommendations"])  # Sin /api
 app.include_router(kpis.router, prefix="/kpis", tags=["KPIs"])
 app.include_router(sync.router, prefix="/api/sync", tags=["Synchronization"])
-app.include_router(sync.router, prefix="/sync", tags=["Synchronization"])  # Sin /api para compatibilidad
 app.include_router(unified.router, prefix="/api/unified", tags=["Unified Analysis"])
-app.include_router(unified.router, prefix="/unified", tags=["Unified Analysis"])  # Sin /api para compatibilidad
 app.include_router(visualizations.router, prefix="/api/visualizations", tags=["Visualizations"])
 app.include_router(geographic.router, prefix="/api/geographic", tags=["Geographic"])
 app.include_router(geopolitical.router, tags=["Geopolitical"])

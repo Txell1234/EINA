@@ -209,7 +209,7 @@ export default function RiskComparison({ countries, caseId }: RiskComparisonProp
           <div className="legend-items">
             <div className="legend-item">
               <span className="trend-icon">↗️</span>
-              <span>Augmentant (>5)</span>
+              <span>Augmentant ({'>'}5)</span>
             </div>
             <div className="legend-item">
               <span className="trend-icon">→</span>
@@ -217,7 +217,7 @@ export default function RiskComparison({ countries, caseId }: RiskComparisonProp
             </div>
             <div className="legend-item">
               <span className="trend-icon">↘️</span>
-              <span>Disminuint (<-5)</span>
+              <span>Disminuint ({'<'}-5)</span>
             </div>
           </div>
         </div>
