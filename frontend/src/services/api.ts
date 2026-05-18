@@ -634,6 +634,89 @@ export const adminService = {
   },
 }
 
+export const geopoliticalService = {
+  getRisks: async (caseId?: number) => {
+    const response = await api.get('/api/geopolitical/risks', {
+      params: caseId !== undefined ? { case_id: caseId } : {},
+    })
+    return response.data
+  },
+  calculateRisks: async (caseId?: number) => {
+    const response = await api.post('/api/geopolitical/risks/calculate', null, {
+      params: caseId !== undefined ? { case_id: caseId } : {},
+    })
+    return response.data
+  },
+  getBilateralMatrix: async (caseId?: number) => {
+    const response = await api.get('/api/geopolitical/relations/matrix', {
+      params: caseId !== undefined ? { case_id: caseId } : {},
+    })
+    return response.data
+  },
+  getRelationTimeline: async (country1: string, country2: string, days = 90) => {
+    const response = await api.get('/api/geopolitical/relations/timeline', {
+      params: { country1, country2, days },
+    })
+    return response.data
+  },
+  compareRisks: async (countries: string[]) => {
+    const response = await api.get('/api/geopolitical/risks/comparison', {
+      params: { countries: countries.join(',') },
+    })
+    return response.data
+  },
+}
+
+export const reputationService = {
+  getProfiles: async (caseId?: number) => {
+    const response = await api.get('/api/reputation/profiles', {
+      params: caseId !== undefined ? { case_id: caseId } : {},
+    })
+    return response.data
+  },
+  getScore: async (entityId: number | string, entityType = 'company') => {
+    const entityName = String(entityId)
+    const response = await api.get(`/api/reputation/${encodeURIComponent(entityName)}/score`, {
+      params: { entity_type: entityType },
+    })
+    return response.data
+  },
+  getHistory: async (entityId: number | string, days = 30) => {
+    const entityName = String(entityId)
+    const response = await api.get(`/api/reputation/${encodeURIComponent(entityName)}/history`, {
+      params: { days },
+    })
+    return response.data
+  },
+  getCrisisIndicators: async (entityId: number | string, caseId?: number) => {
+    const entityName = String(entityId)
+    const response = await api.get(
+      `/api/reputation/${encodeURIComponent(entityName)}/crisis-indicators`,
+      { params: caseId !== undefined ? { case_id: caseId } : {} },
+    )
+    return response.data
+  },
+  getStakeholders: async (caseId?: number, entityName?: string) => {
+    const response = await api.get('/api/reputation/stakeholders', {
+      params: {
+        ...(entityName ? { entity_name: entityName } : {}),
+        ...(caseId !== undefined ? { case_id: caseId } : {}),
+      },
+    })
+    return response.data
+  },
+  analyze: async (entityName: string, entityType = 'company', caseId?: number) => {
+    const response = await api.post('/api/reputation/analyze', null, {
+      params: {
+        entity_name: entityName,
+        entity_type: entityType,
+        ...(caseId !== undefined ? { case_id: caseId } : {}),
+      },
+    })
+    return response.data
+  },
+}
+
 export default api
 
 export const extractService = {

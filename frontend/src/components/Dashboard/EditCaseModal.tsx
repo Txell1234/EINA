@@ -22,14 +22,15 @@ export default function EditCaseModal({ caseId, isOpen, onClose, onSuccess }: Ed
     queryKey: ['case', caseId],
     queryFn: () => casesService.get(caseId),
     enabled: isOpen && !!caseId,
-    onSuccess: (data) => {
-      if (data) {
-        setName(data.name || '')
-        setDescription(data.description || '')
-        setCaseType(data.case_type || 'general')
-      }
-    }
   })
+
+  useEffect(() => {
+    if (caseData) {
+      setName(caseData.name || '')
+      setDescription(caseData.description || '')
+      setCaseType(caseData.case_type || 'general')
+    }
+  }, [caseData])
 
   const updateMutation = useMutation({
     mutationFn: async (data: { name: string; description: string; case_type: string }) => {

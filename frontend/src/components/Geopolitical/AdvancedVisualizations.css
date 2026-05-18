@@ -1,1 +1,16 @@
+.advanced-visualizations {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
 
+.timeline-controls {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.timeline-controls input {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border, #dee2e6);
+  border-radius: 6px;
+}

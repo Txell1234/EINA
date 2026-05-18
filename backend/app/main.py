@@ -173,6 +173,15 @@ async def startup_event():
         logger.info("✓ OpenAI configurado correctamente")
         logger.info(f"  Modelo: {settings.OPENAI_MODEL}")
         logger.info(f"  Modelo de embeddings: {settings.OPENAI_EMBEDDING_MODEL}")
+
+    from services.llm_service import llm_config_error_message, resolve_provider
+
+    llm_provider = resolve_provider()
+    if llm_provider:
+        logger.info(f"✓ LLM prospectiu/extracció: {llm_provider} (LLM_PROVIDER={settings.LLM_PROVIDER})")
+    else:
+        logger.warning("ADVERTENCIA: extracció i escenaris prospectius desactivats")
+        logger.warning(f"  {llm_config_error_message()}")
     
     logger.info("=" * 60)
     logger.info("SERVIDOR BACKEND LISTO")

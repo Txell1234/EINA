@@ -44,13 +44,26 @@ class Settings(BaseSettings):
             return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
         return self.CORS_ORIGINS
 
+    # LLM provider for extraction + prospective scenarios
+    # auto = first available key (anthropic → openai → gemini)
+    LLM_PROVIDER: str = "auto"
+
     # OpenAI
     OPENAI_API_KEY: str = ""
     OPENAI_MODEL: str = "gpt-4"
     OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-small"
+    OPENAI_EXTRACT_MODEL: str = "gpt-4o-mini"
+    OPENAI_SCENARIO_MODEL: str = "gpt-4o"
 
-    # Anthropic (prospective scenario narratives)
+    # Anthropic Claude
     ANTHROPIC_API_KEY: str = ""
+    ANTHROPIC_EXTRACT_MODEL: str = "claude-haiku-4-5-20251001"
+    ANTHROPIC_SCENARIO_MODEL: str = "claude-sonnet-4-20250514"
+
+    # Google Gemini
+    GEMINI_API_KEY: str = ""
+    GEMINI_EXTRACT_MODEL: str = "gemini-2.0-flash"
+    GEMINI_SCENARIO_MODEL: str = "gemini-2.0-flash"
 
     # OSINT Tools
     SHERLOCK_PATH: str = "sherlock"

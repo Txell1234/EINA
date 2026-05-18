@@ -127,16 +127,10 @@ export default function GeographicMap({
         <div className="map-header">
           <h3>{title}</h3>
           <div className="view-mode-toggle">
-            <button
-              className={viewMode === 'markers' ? 'active' : ''}
-              onClick={() => setViewMode('markers')}
-            >
+            <button type="button" onClick={() => setViewMode('markers')}>
               Marcadors
             </button>
-            <button
-              className={viewMode === 'heatmap' ? 'active' : ''}
-              onClick={() => setViewMode('heatmap')}
-            >
+            <button type="button" className="active" onClick={() => setViewMode('heatmap')}>
               Mapa de Calor
             </button>
           </div>
@@ -157,16 +151,10 @@ export default function GeographicMap({
         <div className="map-header">
           <h3>{title}</h3>
           <div className="view-mode-toggle">
-            <button
-              className={viewMode === 'markers' ? 'active' : ''}
-              onClick={() => setViewMode('markers')}
-            >
+            <button type="button" onClick={() => setViewMode('markers')}>
               Marcadors
             </button>
-            <button
-              className={viewMode === 'heatmap' ? 'active' : ''}
-              onClick={() => setViewMode('heatmap')}
-            >
+            <button type="button" className="active" onClick={() => setViewMode('heatmap')}>
               Mapa de Calor
             </button>
           </div>

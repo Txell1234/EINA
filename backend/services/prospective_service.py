@@ -3,10 +3,8 @@ Prospective Analysis Service - MIC-MAC, MACTOR, morphological, scenario narrativ
 """
 import json
 import logging
-import os
 from typing import Any, AsyncGenerator, List, Optional
 
-import httpx
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,6 +19,7 @@ from models.prospective import (
     ProspectiveScenario,
     ProspectiveVariable,
 )
+from services.llm_service import LLMService, llm_config_error_message
 
 logger = logging.getLogger(__name__)
 
@@ -371,9 +370,9 @@ class ProspectiveService:
         return "\n".join(parts)
 
     async def stream_scenarios(self, project_id: int) -> AsyncGenerator[dict[str, Any], None]:
-        api_key = os.getenv("ANTHROPIC_API_KEY", "")
-        if not api_key:
-            yield {"event": "error", "message": "ANTHROPIC_API_KEY no configurada"}
+        llm = LLMService(mode="scenario")
+        if not llm.configured:
+            yield {"event": "error", "message": llm_config_error_message()}
             return
 
         context = await self._build_context(project_id)
@@ -407,39 +406,11 @@ Inclou 4-5 indicadors d'alerta primerenca observables."""
 
             narrative = ""
             try:
-                async with httpx.AsyncClient(timeout=120.0) as client:
-                    async with client.stream(
-                        "POST",
-                        "https://api.anthropic.com/v1/messages",
-                        headers={
-                            "x-api-key": api_key,
-                            "anthropic-version": "2023-06-01",
-                            "content-type": "application/json",
-                        },
-                        json={
-                            "model": "claude-sonnet-4-20250514",
-                            "max_tokens": 1200,
-                            "stream": True,
-                            "system": system_prompt,
-                            "messages": [{"role": "user", "content": user_prompt}],
-                        },
-                    ) as response:
-                        response.raise_for_status()
-                        async for line in response.aiter_lines():
-                            if not line.startswith("data: "):
-                                continue
-                            payload = line[6:].strip()
-                            if payload == "[DONE]":
-                                break
-                            try:
-                                data = json.loads(payload)
-                            except json.JSONDecodeError:
-                                continue
-                            if data.get("type") == "content_block_delta":
-                                text = data.get("delta", {}).get("text", "")
-                                if text:
-                                    narrative += text
-                                    yield {"event": "chunk", "index": idx, "text": text}
+                async for text in llm.stream(
+                    user_prompt, system_prompt=system_prompt, max_tokens=1200
+                ):
+                    narrative += text
+                    yield {"event": "chunk", "index": idx, "text": text}
             except Exception as e:
                 logger.error("Scenario stream error: %s", e)
                 yield {"event": "error", "index": idx, "message": str(e)}

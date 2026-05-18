@@ -370,7 +370,7 @@ export default function AdminPanel() {
         <FeedbackModal
           classificationId={selectedClassification}
           onClose={() => setSelectedClassification(null)}
-          onSave={(feedbackData) => {
+          onSave={(feedbackData: Record<string, unknown>) => {
             handleFeedback(selectedClassification, 'incorrect', feedbackData)
             setSelectedClassification(null)
           }}
@@ -385,7 +385,7 @@ export default function AdminPanel() {
             setShowCategoryModal(false)
             setEditingCategory(null)
           }}
-          onSave={(categoryData) => {
+          onSave={(categoryData: Record<string, unknown>) => {
             if (editingCategory) {
               updateCategoryMutation.mutate({ id: editingCategory.id, data: categoryData })
             } else {
@@ -476,7 +476,7 @@ function CategoryModal({ category, onClose, onSave }: any) {
       name,
       description,
       category_type: categoryType,
-      keywords: keywords.split('\n').filter(k => k.trim()),
+      keywords: keywords.split('\n').filter((k: string) => k.trim()),
       priority: parseInt(priority.toString()),
       is_active: isActive,
     })

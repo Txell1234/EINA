@@ -203,7 +203,12 @@ export default function VisualizationsDashboard({ caseId }: VisualizationsDashbo
               <div className="loading">Cargando mapa de relaciones...</div>
             ) : relationshipData ? (
               <RelationshipMap
-                relationships={relationshipData.relationships.map(r => ({
+                relationships={relationshipData.relationships.map((r: {
+                  from_entity: string
+                  to_entity: string
+                  type: string
+                  strength: number
+                }) => ({
                   from: r.from_entity,
                   to: r.to_entity,
                   type: r.type,
@@ -223,7 +228,15 @@ export default function VisualizationsDashboard({ caseId }: VisualizationsDashbo
               <div className="loading">Cargando mapa geográfico...</div>
             ) : geographicData && geographicData.locations && geographicData.locations.length > 0 ? (
               <GeographicMap
-                locations={geographicData.locations.map(loc => ({
+                locations={geographicData.locations.map((loc: {
+                  id: string
+                  name: string
+                  latitude: number
+                  longitude: number
+                  type: string
+                  data?: unknown
+                  count?: number
+                }) => ({
                   id: loc.id,
                   name: loc.name,
                   latitude: loc.latitude,

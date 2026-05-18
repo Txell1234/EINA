@@ -4,17 +4,16 @@ Pattern: github.com/pranaykotas/china-us-rhetoric
 """
 import json
 import logging
-import os
 import re
 from collections import Counter
 from typing import Any, AsyncGenerator
 
-import anthropic
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.extract import ExtractedStatement
 from models.osint import OSINTQuery, OSINTResult
+from services.llm_service import LLMService, llm_config_error_message
 
 logger = logging.getLogger(__name__)
 
@@ -135,12 +134,11 @@ def _text_from_osint_data(data: dict) -> str:
 class ExtractService:
     def __init__(self, db: AsyncSession):
         self.db = db
-        api_key = os.getenv("ANTHROPIC_API_KEY", "")
-        self.client = anthropic.Anthropic(api_key=api_key) if api_key else None
+        self.llm = LLMService(mode="extract")
 
     async def extract_from_case(self, case_id: int) -> AsyncGenerator[dict[str, Any], None]:
-        if not self.client:
-            yield {"event": "error", "message": "ANTHROPIC_API_KEY no configurada al servidor"}
+        if not self.llm.configured:
+            yield {"event": "error", "message": llm_config_error_message()}
             return
 
         queries_r = await self.db.execute(select(OSINTQuery).where(OSINTQuery.case_id == case_id))
@@ -203,16 +201,11 @@ class ExtractService:
         yield {"event": "done", "total_extracted": total_extracted}
 
     def _extract_from_text(self, text: str) -> list[dict]:
-        if not self.client or not text.strip():
+        if not self.llm.configured or not text.strip():
             return []
         raw_response = ""
         try:
-            message = self.client.messages.create(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=4096,
-                messages=[{"role": "user", "content": EXTRACTION_PROMPT + text}],
-            )
-            raw_response = message.content[0].text
+            raw_response = self.llm.complete(EXTRACTION_PROMPT + text, max_tokens=4096)
             raw = _clean_json(raw_response)
             result = json.loads(raw)
             return result if isinstance(result, list) else []
@@ -223,7 +216,7 @@ class ExtractService:
             return []
 
     async def cleanup_pass(self, case_id: int) -> dict[str, int]:
-        if not self.client:
+        if not self.llm.configured:
             return {"kept": 0, "removed": 0, "error": "no api key"}
 
         pending_r = await self.db.execute(
@@ -247,12 +240,8 @@ class ExtractService:
                 signals=str(stmt.relevance_signals),
             )
             try:
-                msg = self.client.messages.create(
-                    model="claude-haiku-4-5-20251001",
-                    max_tokens=80,
-                    messages=[{"role": "user", "content": prompt}],
-                )
-                result = json.loads(_clean_json(msg.content[0].text))
+                raw = self.llm.complete(prompt, max_tokens=80)
+                result = json.loads(_clean_json(raw))
                 stmt.cleanup_decision = result.get("decision", "KEEP")
                 stmt.cleanup_reason = result.get("reason", "")
                 if stmt.cleanup_decision == "KEEP":
@@ -267,7 +256,7 @@ class ExtractService:
         return {"kept": kept, "removed": removed}
 
     async def get_suggested_variables(self, case_id: int) -> list[dict]:
-        if not self.client:
+        if not self.llm.configured:
             return []
 
         stmts_r = await self.db.execute(
@@ -291,12 +280,8 @@ Retorna ÚNICAMENT un JSON array:
 type="I" si és intern (accionable), type="E" si és extern (contextual)."""
 
         try:
-            msg = self.client.messages.create(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=1500,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            result = json.loads(_clean_json(msg.content[0].text))
+            raw = self.llm.complete(prompt, max_tokens=1500)
+            result = json.loads(_clean_json(raw))
             return result if isinstance(result, list) else []
         except Exception as e:
             logger.error("Variable suggestion error: %s", e)

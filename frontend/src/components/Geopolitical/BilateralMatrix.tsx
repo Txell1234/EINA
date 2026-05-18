@@ -90,7 +90,7 @@ export default function BilateralMatrix({ caseId }: BilateralMatrixProps) {
             <thead>
               <tr>
                 <th className="matrix-corner"></th>
-                {countries.map(country => (
+                {countries.map((country: string) => (
                   <th key={country} className="matrix-header-cell">
                     {country}
                   </th>
@@ -98,10 +98,10 @@ export default function BilateralMatrix({ caseId }: BilateralMatrixProps) {
               </tr>
             </thead>
             <tbody>
-              {countries.map(country1 => (
+              {countries.map((country1: string) => (
                 <tr key={country1}>
                   <td className="matrix-row-header">{country1}</td>
-                  {countries.map(country2 => {
+                  {countries.map((country2: string) => {
                     const cellData = matrix[country1]?.[country2] || { score: null, status: 'unknown' }
                     const score = cellData.score
                     const status = cellData.status

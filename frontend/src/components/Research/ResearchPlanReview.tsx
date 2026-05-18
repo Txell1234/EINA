@@ -37,7 +37,9 @@ export default function ResearchPlanReview({
     if (researchPlan) {
       setPlan(researchPlan)
       // Expand all phases by default
-      const phases = new Set(researchPlan.research_phases?.map((p: ResearchPhase) => p.phase) || [])
+      const phases = new Set<string>(
+        researchPlan.research_phases?.map((p: ResearchPhase) => p.phase) || [],
+      )
       setExpandedPhases(phases)
     }
   }, [researchPlan])
