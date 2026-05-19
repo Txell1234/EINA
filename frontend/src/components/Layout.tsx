@@ -3,6 +3,7 @@ import {
   Bell,
   ChartScatter,
   Cpu,
+  FileText,
   FolderOpen,
   Grid3x3,
   Home,
@@ -26,6 +27,7 @@ import './Layout.css'
 
 type NavLabelKey =
   | 'nav.osintSources'
+  | 'nav.directAnalysis'
   | 'nav.extraction'
   | 'nav.project'
   | 'nav.retrospective'
@@ -59,6 +61,7 @@ const NAV_GROUPS: {
     labelKey: 'nav.group.recollida',
     items: [
       { path: '/osint-collection', labelKey: 'nav.osintSources', icon: Search },
+      { path: '/direct-analysis', labelKey: 'nav.directAnalysis', icon: FileText },
       { path: '/data-synchronization', labelKey: 'nav.extraction', icon: Cpu },
     ],
   },

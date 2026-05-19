@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useCase, type ActiveCase } from '../../contexts/CaseContext'
 import { casesService, extractService, prospectiveService } from '../../services/api'
 import { computeMicmacPreview } from '../../utils/micmac'
@@ -148,12 +149,19 @@ export interface ProspectiveAnalysisProps {
 export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalysisProps) {
   const queryClient = useQueryClient()
   const { activeCase, setActiveCase } = useCase()
+  const [searchParams] = useSearchParams()
   const [step, setStep] = useState(entryStep)
 
   useEffect(() => {
     setStep(entryStep)
   }, [entryStep])
-  const [projectId, setProjectId] = useState<number | null>(null)
+
+  const [projectId, setProjectId] = useState<number | null>(() => {
+    const pid = searchParams.get('project')
+    if (!pid) return null
+    const id = Number(pid)
+    return Number.isNaN(id) ? null : id
+  })
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   const [title, setTitle] = useState('')
@@ -276,6 +284,13 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
   useEffect(() => {
     if (!projectDetail) return
     const pd = projectDetail as {
+      title?: string
+      hypothesis?: string
+      context?: string
+      case_id?: number | null
+      variables?: { code: string; name: string; type: string; desc: string }[]
+      actors?: { code: string; name: string; force: number; fins: string }[]
+      objectives?: { id: string; name: string }[]
       incompatibilities?: IncompatRow[]
       morph_space?: typeof morphSpaceStats
       smic?: {
@@ -285,6 +300,39 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
         final_labels?: string[]
       }
       components?: { id: string; name: string; configs: { label: string }[] }[]
+    }
+    if (pd.title) setTitle(pd.title)
+    if (pd.hypothesis) setHypothesis(pd.hypothesis)
+    if (pd.context) setContext(pd.context)
+    if (pd.case_id) setCaseIdStr(String(pd.case_id))
+    if (pd.variables?.length) {
+      setVariables(
+        pd.variables.map((v) => ({
+          code: String(v.code ?? ''),
+          name: String(v.name ?? ''),
+          type: String(v.type ?? 'I'),
+          desc: String(v.desc ?? ''),
+        })),
+      )
+      setMicmacMatrix(emptyMatrix(pd.variables.length))
+    }
+    if (pd.actors?.length) {
+      setActors(
+        pd.actors.map((a) => ({
+          code: String(a.code ?? ''),
+          name: String(a.name ?? ''),
+          force: Number(a.force ?? 3),
+          fins: String(a.fins ?? ''),
+        })),
+      )
+    }
+    if (pd.objectives?.length) {
+      setObjectives(
+        pd.objectives.map((o) => ({
+          id: String(o.id ?? ''),
+          name: String(o.name ?? ''),
+        })),
+      )
     }
     if (pd.incompatibilities) setIncompatibilities(pd.incompatibilities)
     if (pd.morph_space) setMorphSpaceStats(pd.morph_space)

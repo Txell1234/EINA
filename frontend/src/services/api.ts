@@ -984,3 +984,26 @@ export const prospectiveService = {
   },
 }
 
+export const directAnalysisService = {
+  analyze: async (text: string, caseId?: number) => {
+    const response = await api.post('/api/analysis/direct', {
+      text,
+      case_id: caseId ?? null,
+    })
+    return response.data
+  },
+
+  applyToProject: async (
+    analysis: unknown,
+    projectTitle: string,
+    caseId?: number,
+  ) => {
+    const response = await api.post('/api/analysis/apply', {
+      analysis,
+      project_title: projectTitle,
+      case_id: caseId ?? null,
+    })
+    return response.data
+  },
+}
+

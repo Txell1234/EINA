@@ -31,6 +31,7 @@ const AlertMonitors = lazy(() => import('./components/AlertMonitors/AlertMonitor
 const ProspectiveAnalysis = lazy(
   () => import('./components/ProspectiveAnalysis/ProspectiveAnalysis'),
 )
+const DirectAnalysis = lazy(() => import('./components/DirectAnalysis/DirectAnalysis'))
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth()
@@ -60,6 +61,7 @@ function AppRoutes() {
           <Route path="qualitative-analysis" element={<QualitativeAnalysis />} />
           <Route path="investment-recommendations" element={<InvestmentRecommendations />} />
           <Route path="data-synchronization" element={<ProspectiveAnalysis entryStep={0} />} />
+          <Route path="direct-analysis" element={<DirectAnalysis />} />
           <Route path="admin" element={<AdminPanel />} />
           <Route path="reputation" element={<ReputationDashboard />} />
           <Route path="public-affairs" element={<PublicAffairsDashboard />} />

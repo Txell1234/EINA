@@ -97,20 +97,31 @@ class LLMService:
             return ""
         return _model_for(self.provider, self.mode)
 
+    def _resolve_model(self, prefer_model: Optional[str] = None) -> str:
+        if prefer_model == "sonnet":
+            if self.provider == "anthropic":
+                return "claude-sonnet-4-20250514"
+            if self.provider == "openai":
+                return "gpt-4o"
+        return self.model
+
     def complete(
         self,
         user_prompt: str,
         system_prompt: Optional[str] = None,
         max_tokens: int = 4096,
+        prefer_model: Optional[str] = None,
     ) -> str:
         if not self.provider:
             raise RuntimeError(llm_config_error_message())
 
+        model = self._resolve_model(prefer_model)
+
         if self.provider == "anthropic":
-            return self._complete_anthropic(user_prompt, system_prompt, max_tokens)
+            return self._complete_anthropic(user_prompt, system_prompt, max_tokens, model)
         if self.provider == "openai":
-            return self._complete_openai(user_prompt, system_prompt, max_tokens)
-        return self._complete_gemini(user_prompt, system_prompt, max_tokens)
+            return self._complete_openai(user_prompt, system_prompt, max_tokens, model)
+        return self._complete_gemini(user_prompt, system_prompt, max_tokens, model)
 
     async def stream(
         self,
@@ -132,13 +143,17 @@ class LLMService:
                 yield chunk
 
     def _complete_anthropic(
-        self, user_prompt: str, system_prompt: Optional[str], max_tokens: int
+        self,
+        user_prompt: str,
+        system_prompt: Optional[str],
+        max_tokens: int,
+        model: Optional[str] = None,
     ) -> str:
         import anthropic
 
         client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
         kwargs: dict = {
-            "model": self.model,
+            "model": model or self.model,
             "max_tokens": max_tokens,
             "messages": [{"role": "user", "content": user_prompt}],
         }
@@ -148,7 +163,11 @@ class LLMService:
         return message.content[0].text
 
     def _complete_openai(
-        self, user_prompt: str, system_prompt: Optional[str], max_tokens: int
+        self,
+        user_prompt: str,
+        system_prompt: Optional[str],
+        max_tokens: int,
+        model: Optional[str] = None,
     ) -> str:
         from openai import OpenAI
 
@@ -158,15 +177,20 @@ class LLMService:
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": user_prompt})
         response = client.chat.completions.create(
-            model=self.model,
+            model=model or self.model,
             max_tokens=max_tokens,
             messages=messages,
         )
         return response.choices[0].message.content or ""
 
     def _complete_gemini(
-        self, user_prompt: str, system_prompt: Optional[str], max_tokens: int
+        self,
+        user_prompt: str,
+        system_prompt: Optional[str],
+        max_tokens: int,
+        model: Optional[str] = None,
     ) -> str:
+        gemini_model = model or self.model
         body: dict = {
             "contents": [{"role": "user", "parts": [{"text": user_prompt}]}],
             "generationConfig": {"maxOutputTokens": max_tokens},
@@ -175,7 +199,7 @@ class LLMService:
             body["systemInstruction"] = {"parts": [{"text": system_prompt}]}
         url = (
             f"https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{self.model}:generateContent"
+            f"{gemini_model}:generateContent"
         )
         with httpx.Client(timeout=120.0) as client:
             resp = client.post(url, params={"key": settings.GEMINI_API_KEY}, json=body)

@@ -63,6 +63,7 @@ from routers import (
 from routers import geopolitical
 from routers import extract as extract_router
 from routers import prospective as prospective_router
+from routers import analysis as analysis_router
 
 # Create database tables
 def _run_alembic_upgrade() -> None:
@@ -267,6 +268,11 @@ app.include_router(investment_advanced.router, tags=["Investment Advanced"])
 app.include_router(integration.router, tags=["Integration"])
 app.include_router(extract_router.router, prefix="/api/extract", tags=["Extraction Pipeline"])
 app.include_router(prospective_router.router, prefix="/api/prospective", tags=["Prospective Analysis"])
+app.include_router(
+    analysis_router.router,
+    prefix="/api/analysis",
+    tags=["Direct Analysis"],
+)
 
 @app.get("/")
 async def root():

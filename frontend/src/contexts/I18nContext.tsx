@@ -60,6 +60,7 @@ type TranslationKeys =
   | 'nav.group.complementaries'
   | 'nav.group.sistema'
   | 'nav.osintSources'
+  | 'nav.directAnalysis'
   | 'nav.extraction'
   | 'nav.project'
   | 'nav.retrospective'
@@ -151,6 +152,7 @@ const translations: Record<SupportedLocale, Translations> = {
     'nav.group.complementaries': 'Complementary tools',
     'nav.group.sistema': 'System',
     'nav.osintSources': 'OSINT Sources',
+    'nav.directAnalysis': 'Direct Analysis',
     'nav.extraction': '0. Structured extraction',
     'nav.project': '1. Project',
     'nav.retrospective': '1.5 Retrospective',
@@ -239,6 +241,7 @@ const translations: Record<SupportedLocale, Translations> = {
     'nav.group.complementaries': 'Herramientas complementarias',
     'nav.group.sistema': 'Sistema',
     'nav.osintSources': 'Fuentes OSINT',
+    'nav.directAnalysis': 'Análisis directo',
     'nav.extraction': '0. Extracción estructurada',
     'nav.project': '1. Proyecto',
     'nav.retrospective': '1.5 Retrospectiva',
@@ -327,6 +330,7 @@ const translations: Record<SupportedLocale, Translations> = {
     'nav.group.complementaries': 'Eines complementàries',
     'nav.group.sistema': 'Sistema',
     'nav.osintSources': 'Fonts OSINT',
+    'nav.directAnalysis': 'Anàlisi directa',
     'nav.extraction': '0. Extracció estructurada',
     'nav.project': '1. Projecte',
     'nav.retrospective': '1.5 Retrospectiva',
@@ -415,6 +419,7 @@ const translations: Record<SupportedLocale, Translations> = {
     'nav.group.complementaries': 'Outils complémentaires',
     'nav.group.sistema': 'Système',
     'nav.osintSources': 'Sources OSINT',
+    'nav.directAnalysis': 'Analyse directe',
     'nav.extraction': '0. Extraction structurée',
     'nav.project': '1. Projet',
     'nav.retrospective': '1.5 Rétrospective',
