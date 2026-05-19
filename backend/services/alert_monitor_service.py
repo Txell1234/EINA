@@ -148,6 +148,34 @@ async def list_monitors(db: AsyncSession, project_id: int) -> list[dict]:
     ]
 
 
+async def list_triggered_summary(
+    db: AsyncSession,
+    user_id: int | None = None,
+    case_id: int | None = None,
+) -> dict[str, int]:
+    """Aggregate monitors with match_count > 0, optionally scoped to a case or user."""
+    from models.case import Case
+    from models.prospective import AlertMonitor, ProspectiveProject
+
+    query = select(AlertMonitor).join(
+        ProspectiveProject, AlertMonitor.project_id == ProspectiveProject.id
+    )
+    if case_id is not None:
+        query = query.where(ProspectiveProject.case_id == case_id)
+    elif user_id is not None:
+        query = query.join(Case, ProspectiveProject.case_id == Case.id).where(
+            Case.user_id == user_id
+        )
+
+    monitors = (await db.execute(query)).scalars().all()
+    triggered = [m for m in monitors if (m.match_count or 0) > 0]
+    return {
+        "triggered_count": len(triggered),
+        "total_matches": sum(m.match_count or 0 for m in triggered),
+        "total_monitors": len(monitors),
+    }
+
+
 async def run_all_active_monitors(db: AsyncSession) -> dict:
     """Run OSINT checks for every active monitor."""
     from models.prospective import AlertMonitor

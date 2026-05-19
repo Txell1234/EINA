@@ -121,3 +121,41 @@ async def test_run_monitor_check_skips_inactive(db_session, sample_case):
 
     result = await ams.run_monitor_check(db_session, monitor.id)
     assert result["status"] == "skipped"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_list_triggered_summary(db_session, sample_case):
+    project = ProspectiveProject(
+        case_id=sample_case.id,
+        title="Summary test",
+        hypothesis="H",
+        context="C",
+    )
+    db_session.add(project)
+    await db_session.flush()
+
+    db_session.add(
+        AlertMonitor(
+            project_id=project.id,
+            indicator="Monitor sense coincidències",
+            keywords=["quiet"],
+            is_active=1,
+            match_count=0,
+        )
+    )
+    db_session.add(
+        AlertMonitor(
+            project_id=project.id,
+            indicator="Monitor amb coincidències OSINT detectades",
+            keywords=["alerta"],
+            is_active=1,
+            match_count=5,
+        )
+    )
+    await db_session.commit()
+
+    summary = await ams.list_triggered_summary(db_session, case_id=sample_case.id)
+    assert summary["total_monitors"] == 2
+    assert summary["triggered_count"] == 1
+    assert summary["total_matches"] == 5

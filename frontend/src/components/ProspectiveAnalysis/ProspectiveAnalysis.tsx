@@ -7,6 +7,7 @@ import { computeMicmacPreview } from '../../utils/micmac'
 import WorkflowProgress from '../shared/WorkflowProgress'
 import MethodologyHint from './MethodologyHint'
 import MicmacScatterChart from './MicmacScatterChart'
+import MactorSociogram from './MactorSociogram'
 import RetroStep from './RetroStep'
 import './ProspectiveAnalysis.css'
 
@@ -1938,6 +1939,12 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
                     <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-gray-500)', marginTop: 4 }}>
                       Verd = alta convergència (aliança) · Groc = moderada · Gris = baixa (possible conflicte)
                     </p>
+                    <MactorSociogram
+                      actorCodes={aCodes}
+                      convergences={conv}
+                      postures={postures}
+                      mobilisation={mobA}
+                    />
                   </>
                 )}
               </div>

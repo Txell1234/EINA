@@ -1,4 +1,5 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import {
   Bell,
   ChartScatter,
@@ -23,6 +24,7 @@ import type { LucideIcon } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useCase } from '../contexts/CaseContext'
 import { useI18n } from '../contexts/I18nContext'
+import { prospectiveService } from '../services/api'
 import './Layout.css'
 
 type NavLabelKey =
@@ -38,6 +40,7 @@ type NavLabelKey =
   | 'nav.morph'
   | 'nav.scenarios'
   | 'nav.alertMonitors'
+  | 'nav.alertMonitorsTriggered'
   | 'nav.aiAnalysis'
   | 'nav.qualitativeAnalysis'
   | 'nav.investmentRecommendations'
@@ -117,6 +120,14 @@ export default function Layout() {
   const { logout } = useAuth()
   const { t, locale, setLocale } = useI18n()
 
+  const { data: monitorSummary } = useQuery({
+    queryKey: ['monitor-summary', activeCase?.id],
+    queryFn: () => prospectiveService.getMonitorSummary(activeCase?.id),
+    refetchInterval: 60_000,
+  })
+
+  const triggeredMonitors = monitorSummary?.triggered_count ?? 0
+
   const handleLogout = () => {
     logout()
     clearActiveCase()
@@ -155,6 +166,8 @@ export default function Layout() {
               {group.items.map((item) => {
                 const Icon = item.icon
                 const active = isNavActive(location.pathname, item.path, item.end)
+                const showAlertBadge =
+                  item.path === '/alert-monitors' && triggeredMonitors > 0
                 return (
                   <Link
                     key={item.path}
@@ -165,6 +178,15 @@ export default function Layout() {
                       <Icon size={18} strokeWidth={2} />
                     </span>
                     <span className="nav-label">{t(item.labelKey)}</span>
+                    {showAlertBadge && (
+                      <span
+                        className="nav-alert-badge"
+                        title={t('nav.alertMonitorsTriggered')}
+                        aria-label={t('nav.alertMonitorsTriggered')}
+                      >
+                        {triggeredMonitors > 9 ? '9+' : triggeredMonitors}
+                      </span>
+                    )}
                   </Link>
                 )
               })}

@@ -180,8 +180,28 @@
 }
 
 .nav-label {
+  flex: 1;
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
+}
+
+.nav-alert-badge {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: #dc3545;
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
+  box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.35);
+  flex-shrink: 0;
+}
+
+.nav-item.active .nav-alert-badge {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.4);
 }
 
 .sidebar-footer {

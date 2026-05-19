@@ -38,6 +38,8 @@ type TranslationKeys =
   | 'metrics.criticalAlertsChange'
   | 'metrics.trendingTopics'
   | 'metrics.trendingTopicsNote'
+  | 'metrics.triggeredMonitors'
+  | 'metrics.triggeredMonitorsNote'
   | 'panels.dataSources'
   | 'panels.dataSourcesNoData'
   | 'panels.trendingTopics'
@@ -72,6 +74,7 @@ type TranslationKeys =
   | 'nav.scenarios'
   | 'nav.alerts'
   | 'nav.alertMonitors'
+  | 'nav.alertMonitorsTriggered'
   | 'nav.exportReport'
   | 'nav.reputation'
   | 'nav.publicAffairs'
@@ -130,6 +133,8 @@ const translations: Record<SupportedLocale, Translations> = {
     'metrics.criticalAlertsChange': 'new alerts',
     'metrics.trendingTopics': 'Trending topics',
     'metrics.trendingTopicsNote': 'Top topics detected',
+    'metrics.triggeredMonitors': 'Triggered monitors',
+    'metrics.triggeredMonitorsNote': 'OSINT matches pending review',
     'panels.dataSources': 'Data Sources',
     'panels.dataSourcesNoData': 'No data sources available',
     'panels.trendingTopics': 'Trending Topics',
@@ -166,6 +171,7 @@ const translations: Record<SupportedLocale, Translations> = {
     'nav.publicAffairs': 'Public affairs',
     'nav.alerts': 'Active alerts',
     'nav.alertMonitors': 'Alert Monitors',
+    'nav.alertMonitorsTriggered': 'Monitors with OSINT matches',
     'nav.exportReport': 'Export report',
     'alerts.title': 'Active Alert Monitors',
     'alerts.noProject': 'Select a prospective project to see its monitors.',
@@ -219,6 +225,8 @@ const translations: Record<SupportedLocale, Translations> = {
     'metrics.criticalAlertsChange': 'alertas nuevas',
     'metrics.trendingTopics': 'Trending topics',
     'metrics.trendingTopicsNote': 'Top temas detectados',
+    'metrics.triggeredMonitors': 'Monitores disparados',
+    'metrics.triggeredMonitorsNote': 'Coincidencias OSINT pendientes',
     'panels.dataSources': 'Fuentes de datos',
     'panels.dataSourcesNoData': 'Sin fuentes disponibles',
     'panels.trendingTopics': 'Trending Topics',
@@ -255,6 +263,7 @@ const translations: Record<SupportedLocale, Translations> = {
     'nav.publicAffairs': 'Asuntos públicos',
     'nav.alerts': 'Alertas activas',
     'nav.alertMonitors': 'Monitores de alerta',
+    'nav.alertMonitorsTriggered': 'Monitores con coincidencias OSINT',
     'nav.exportReport': 'Exportar informe',
     'alerts.title': 'Monitores de alerta activos',
     'alerts.noProject': 'Selecciona un proyecto prospectivo para ver sus monitores.',
@@ -308,6 +317,8 @@ const translations: Record<SupportedLocale, Translations> = {
     'metrics.criticalAlertsChange': 'alertes noves',
     'metrics.trendingTopics': 'Trending topics',
     'metrics.trendingTopicsNote': 'Top temes detectats',
+    'metrics.triggeredMonitors': 'Monitors disparats',
+    'metrics.triggeredMonitorsNote': 'Coincidències OSINT pendents de revisió',
     'panels.dataSources': 'Fonts de dades',
     'panels.dataSourcesNoData': 'Sense dades de fonts disponibles',
     'panels.trendingTopics': 'Trending Topics',
@@ -344,6 +355,7 @@ const translations: Record<SupportedLocale, Translations> = {
     'nav.publicAffairs': 'Assumptes públics',
     'nav.alerts': 'Alertes actives',
     'nav.alertMonitors': 'Monitors d\'alerta',
+    'nav.alertMonitorsTriggered': 'Monitors amb coincidències OSINT',
     'nav.exportReport': 'Exportar informe',
     'alerts.title': 'Monitors d\'alerta actius',
     'alerts.noProject': 'Selecciona un projecte prospectiu per veure els seus monitors.',
@@ -397,6 +409,8 @@ const translations: Record<SupportedLocale, Translations> = {
     'metrics.criticalAlertsChange': 'nouvelles alertes',
     'metrics.trendingTopics': 'Trending topics',
     'metrics.trendingTopicsNote': 'Sujets principaux détectés',
+    'metrics.triggeredMonitors': 'Moniteurs déclenchés',
+    'metrics.triggeredMonitorsNote': 'Correspondances OSINT à examiner',
     'panels.dataSources': 'Sources de données',
     'panels.dataSourcesNoData': 'Aucune source disponible',
     'panels.trendingTopics': 'Trending Topics',
@@ -433,6 +447,7 @@ const translations: Record<SupportedLocale, Translations> = {
     'nav.publicAffairs': 'Affaires publiques',
     'nav.alerts': 'Alertes actives',
     'nav.alertMonitors': 'Moniteurs d\'alerte',
+    'nav.alertMonitorsTriggered': 'Moniteurs avec correspondances OSINT',
     'nav.exportReport': 'Exporter le rapport',
     'alerts.title': 'Moniteurs d\'alerte actifs',
     'alerts.noProject': 'Sélectionnez un projet prospectif pour voir ses moniteurs.',

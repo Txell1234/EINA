@@ -960,6 +960,16 @@ export const prospectiveService = {
     return response.data
   },
 
+  getMonitorSummary: async (caseId?: number) => {
+    const params = caseId != null ? `?case_id=${caseId}` : ''
+    const response = await api.get(`/api/prospective/monitors/summary${params}`)
+    return response.data as {
+      triggered_count: number
+      total_matches: number
+      total_monitors: number
+    }
+  },
+
   checkMonitor: async (monitorId: number) => {
     const response = await api.post(`/api/prospective/monitors/${monitorId}/check`)
     return response.data

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { casesService, dashboardService, geographicService, reportsService } from '../../services/api'
+import { casesService, dashboardService, geographicService, prospectiveService, reportsService } from '../../services/api'
 import GeographicMap from '../Visualizations/GeographicMap'
 import WorkflowProgress from '../shared/WorkflowProgress'
 import { useCase } from '../../contexts/CaseContext'
@@ -56,6 +57,13 @@ export default function OSINTIntelligenceDashboard() {
     queryKey: ['osint-dashboard-locations', selectedCaseId],
     queryFn: () => geographicService.getLocations(selectedCaseId as number),
     enabled: !!selectedCaseId,
+  })
+
+  const monitorCaseId = selectedCaseId ?? activeCase?.id
+  const { data: monitorSummary } = useQuery({
+    queryKey: ['monitor-summary-dashboard', monitorCaseId],
+    queryFn: () => prospectiveService.getMonitorSummary(monitorCaseId),
+    refetchInterval: 60_000,
   })
 
   const selectedCase = useMemo(
@@ -125,6 +133,8 @@ export default function OSINTIntelligenceDashboard() {
   const engagementRate = metrics?.engagement_rate?.engagement_rate ?? 0
   const criticalAlerts = metrics?.critical_alerts?.critical_alerts ?? 0
   const trendingTopicsCount = metrics?.trending_topics?.trending_topics ?? 0
+  const triggeredMonitors = monitorSummary?.triggered_count ?? 0
+  const totalMonitorMatches = monitorSummary?.total_matches ?? 0
 
   return (
     <div className="osint-intelligence-dashboard">
@@ -250,6 +260,22 @@ export default function OSINTIntelligenceDashboard() {
               {metrics?.critical_alerts?.change ?? 0} alertes noves
             </div>
             <div className="metric-label">{t('metrics.criticalAlerts')}</div>
+          </div>
+        </div>
+        <div className={`metric-card ${triggeredMonitors > 0 ? 'critical' : ''}`}>
+          <div className="metric-icon">🔔</div>
+          <div className="metric-content">
+            <div className="metric-value">{triggeredMonitors}</div>
+            <div className="metric-change">
+              {totalMonitorMatches > 0
+                ? `${totalMonitorMatches} coincidències OSINT`
+                : t('metrics.triggeredMonitorsNote')}
+            </div>
+            <div className="metric-label">
+              <Link to="/alert-monitors" style={{ color: 'inherit', textDecoration: 'none' }}>
+                {t('metrics.triggeredMonitors')}
+              </Link>
+            </div>
           </div>
         </div>
         <div className="metric-card">

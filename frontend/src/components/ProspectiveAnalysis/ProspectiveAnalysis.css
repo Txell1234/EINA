@@ -334,3 +334,25 @@
   background: transparent;
   color: var(--color-gray-400);
 }
+
+.mactor-sociogram-wrap {
+  margin-top: var(--spacing-lg);
+}
+.mactor-sociogram-title {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--color-gray-600);
+  margin-bottom: var(--spacing-sm);
+}
+.mactor-sociogram-svg {
+  width: 100%;
+  max-width: 420px;
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-md);
+  background: #fafbfc;
+}
+.mactor-sociogram-legend {
+  font-size: var(--font-size-xs);
+  color: var(--color-gray-500);
+  margin-top: var(--spacing-xs);
+}

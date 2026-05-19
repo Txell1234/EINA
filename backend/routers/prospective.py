@@ -604,6 +604,18 @@ async def create_scenario_monitors(
     return {"created": len(monitors), "monitors": monitors}
 
 
+@router.get("/monitors/summary")
+async def monitors_summary(
+    case_id: Optional[int] = Query(None),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Summary of alert monitors with OSINT matches (match_count > 0)."""
+    from services.alert_monitor_service import list_triggered_summary
+
+    return await list_triggered_summary(db, user_id=current_user.id, case_id=case_id)
+
+
 @router.get("/projects/{project_id}/monitors")
 async def list_project_monitors(project_id: int, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """List all alert monitors for a project."""
