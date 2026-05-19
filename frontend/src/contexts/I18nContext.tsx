@@ -57,16 +57,22 @@ type TranslationKeys =
   | 'nav.group.recollida'
   | 'nav.group.analisi'
   | 'nav.group.resultats'
+  | 'nav.group.complementaries'
   | 'nav.group.sistema'
   | 'nav.osintSources'
   | 'nav.extraction'
+  | 'nav.project'
   | 'nav.variables'
+  | 'nav.micmac'
+  | 'nav.actors'
   | 'nav.mactor'
   | 'nav.morph'
   | 'nav.scenarios'
   | 'nav.alerts'
   | 'nav.alertMonitors'
   | 'nav.exportReport'
+  | 'nav.reputation'
+  | 'nav.publicAffairs'
   | 'alerts.title'
   | 'alerts.noProject'
   | 'alerts.noMonitors'
@@ -139,15 +145,21 @@ const translations: Record<SupportedLocale, Translations> = {
     'layout.noCase': 'No case selected',
     'layout.logout': 'Log Out',
     'nav.group.recollida': 'Collection',
-    'nav.group.analisi': 'Analysis',
+    'nav.group.analisi': 'Godet prospective',
     'nav.group.resultats': 'Results',
+    'nav.group.complementaries': 'Complementary tools',
     'nav.group.sistema': 'System',
     'nav.osintSources': 'OSINT Sources',
-    'nav.extraction': 'Extraction',
-    'nav.variables': 'Variables · MIC-MAC',
-    'nav.mactor': 'Actors · MACTOR',
-    'nav.morph': 'Morphological',
-    'nav.scenarios': 'Scenarios',
+    'nav.extraction': '0. Structured extraction',
+    'nav.project': '1. Project',
+    'nav.variables': '2. Variables',
+    'nav.micmac': '3. MIC-MAC',
+    'nav.actors': '4. Actors',
+    'nav.mactor': '5. MACTOR',
+    'nav.morph': '6. Morphological',
+    'nav.scenarios': '7. Scenarios & export',
+    'nav.reputation': 'Reputation',
+    'nav.publicAffairs': 'Public affairs',
     'nav.alerts': 'Active alerts',
     'nav.alertMonitors': 'Alert Monitors',
     'nav.exportReport': 'Export report',
@@ -220,15 +232,21 @@ const translations: Record<SupportedLocale, Translations> = {
     'layout.noCase': 'Ningún caso seleccionado',
     'layout.logout': 'Cerrar sesión',
     'nav.group.recollida': 'Recopilación',
-    'nav.group.analisi': 'Análisis',
+    'nav.group.analisi': 'Prospectiva Godet',
     'nav.group.resultats': 'Resultados',
+    'nav.group.complementaries': 'Herramientas complementarias',
     'nav.group.sistema': 'Sistema',
     'nav.osintSources': 'Fuentes OSINT',
-    'nav.extraction': 'Extracción',
-    'nav.variables': 'Variables · MIC-MAC',
-    'nav.mactor': 'Actores · MACTOR',
-    'nav.morph': 'Morfológico',
-    'nav.scenarios': 'Escenarios',
+    'nav.extraction': '0. Extracción estructurada',
+    'nav.project': '1. Proyecto',
+    'nav.variables': '2. Variables',
+    'nav.micmac': '3. MIC-MAC',
+    'nav.actors': '4. Actores',
+    'nav.mactor': '5. MACTOR',
+    'nav.morph': '6. Morfológico',
+    'nav.scenarios': '7. Escenarios y exportación',
+    'nav.reputation': 'Reputación',
+    'nav.publicAffairs': 'Asuntos públicos',
     'nav.alerts': 'Alertas activas',
     'nav.alertMonitors': 'Monitores de alerta',
     'nav.exportReport': 'Exportar informe',
@@ -301,15 +319,21 @@ const translations: Record<SupportedLocale, Translations> = {
     'layout.noCase': 'Cap cas seleccionat',
     'layout.logout': 'Tancar sessió',
     'nav.group.recollida': 'Recollida',
-    'nav.group.analisi': 'Anàlisi',
+    'nav.group.analisi': 'Prospectiva Godet',
     'nav.group.resultats': 'Resultats',
+    'nav.group.complementaries': 'Eines complementàries',
     'nav.group.sistema': 'Sistema',
     'nav.osintSources': 'Fonts OSINT',
-    'nav.extraction': 'Extracció',
-    'nav.variables': 'Variables · MIC-MAC',
-    'nav.mactor': 'Actors · MACTOR',
-    'nav.morph': 'Morfològic',
-    'nav.scenarios': 'Escenaris',
+    'nav.extraction': '0. Extracció estructurada',
+    'nav.project': '1. Projecte',
+    'nav.variables': '2. Variables',
+    'nav.micmac': '3. MIC-MAC',
+    'nav.actors': '4. Actors',
+    'nav.mactor': '5. MACTOR',
+    'nav.morph': '6. Morfològic',
+    'nav.scenarios': '7. Escenaris i exportació',
+    'nav.reputation': 'Reputació',
+    'nav.publicAffairs': 'Assumptes públics',
     'nav.alerts': 'Alertes actives',
     'nav.alertMonitors': 'Monitors d\'alerta',
     'nav.exportReport': 'Exportar informe',
@@ -382,15 +406,21 @@ const translations: Record<SupportedLocale, Translations> = {
     'layout.noCase': 'Aucun cas sélectionné',
     'layout.logout': 'Se déconnecter',
     'nav.group.recollida': 'Collecte',
-    'nav.group.analisi': 'Analyse',
+    'nav.group.analisi': 'Prospective Godet',
     'nav.group.resultats': 'Résultats',
+    'nav.group.complementaries': 'Outils complémentaires',
     'nav.group.sistema': 'Système',
     'nav.osintSources': 'Sources OSINT',
-    'nav.extraction': 'Extraction',
-    'nav.variables': 'Variables · MIC-MAC',
-    'nav.mactor': 'Acteurs · MACTOR',
-    'nav.morph': 'Morphologique',
-    'nav.scenarios': 'Scénarios',
+    'nav.extraction': '0. Extraction structurée',
+    'nav.project': '1. Projet',
+    'nav.variables': '2. Variables',
+    'nav.micmac': '3. MIC-MAC',
+    'nav.actors': '4. Acteurs',
+    'nav.mactor': '5. MACTOR',
+    'nav.morph': '6. Morphologique',
+    'nav.scenarios': '7. Scénarios et export',
+    'nav.reputation': 'Réputation',
+    'nav.publicAffairs': 'Affaires publiques',
     'nav.alerts': 'Alertes actives',
     'nav.alertMonitors': 'Moniteurs d\'alerte',
     'nav.exportReport': 'Exporter le rapport',

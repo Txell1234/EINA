@@ -67,10 +67,14 @@ function AppRoutes() {
           <Route path="geopolitical-advanced" element={<AdvancedVisualizations />} />
           <Route path="investment-advanced" element={<InvestmentAdvancedDashboard />} />
           <Route path="alert-monitors" element={<AlertMonitors />} />
-          <Route path="prospective-analysis" element={<ProspectiveAnalysis entryStep={7} />} />
+          <Route path="prospective/project" element={<ProspectiveAnalysis entryStep={1} />} />
           <Route path="prospective/variables" element={<ProspectiveAnalysis entryStep={2} />} />
+          <Route path="prospective/micmac" element={<ProspectiveAnalysis entryStep={3} />} />
+          <Route path="prospective/actors" element={<ProspectiveAnalysis entryStep={4} />} />
           <Route path="prospective/mactor" element={<ProspectiveAnalysis entryStep={5} />} />
           <Route path="prospective/morph" element={<ProspectiveAnalysis entryStep={6} />} />
+          <Route path="prospective-analysis" element={<ProspectiveAnalysis entryStep={7} />} />
+          <Route path="prospective" element={<Navigate to="/prospective/project" replace />} />
         </Route>
       </Routes>
     </Suspense>

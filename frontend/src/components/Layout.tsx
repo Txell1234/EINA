@@ -1,15 +1,22 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   Bell,
+  ChartScatter,
   Cpu,
-  FileDown,
+  FolderOpen,
+  Grid3x3,
   Home,
+  Landmark,
   LayoutGrid,
+  MessageSquareText,
+  Network,
   Search,
   Settings,
+  Shield,
+  Sparkles,
   Telescope,
+  TrendingUp,
   Users,
-  ChartScatter,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
@@ -20,12 +27,19 @@ import './Layout.css'
 type NavLabelKey =
   | 'nav.osintSources'
   | 'nav.extraction'
+  | 'nav.project'
   | 'nav.variables'
+  | 'nav.micmac'
+  | 'nav.actors'
   | 'nav.mactor'
   | 'nav.morph'
   | 'nav.scenarios'
   | 'nav.alertMonitors'
-  | 'nav.exportReport'
+  | 'nav.aiAnalysis'
+  | 'nav.qualitativeAnalysis'
+  | 'nav.investmentRecommendations'
+  | 'nav.reputation'
+  | 'nav.publicAffairs'
   | 'nav.dashboard'
   | 'nav.admin'
 
@@ -33,6 +47,7 @@ type GroupLabelKey =
   | 'nav.group.recollida'
   | 'nav.group.analisi'
   | 'nav.group.resultats'
+  | 'nav.group.complementaries'
   | 'nav.group.sistema'
 
 const NAV_GROUPS: {
@@ -49,8 +64,11 @@ const NAV_GROUPS: {
   {
     labelKey: 'nav.group.analisi',
     items: [
+      { path: '/prospective/project', labelKey: 'nav.project', icon: FolderOpen },
       { path: '/prospective/variables', labelKey: 'nav.variables', icon: ChartScatter },
-      { path: '/prospective/mactor', labelKey: 'nav.mactor', icon: Users },
+      { path: '/prospective/micmac', labelKey: 'nav.micmac', icon: Grid3x3 },
+      { path: '/prospective/actors', labelKey: 'nav.actors', icon: Users },
+      { path: '/prospective/mactor', labelKey: 'nav.mactor', icon: Network },
       { path: '/prospective/morph', labelKey: 'nav.morph', icon: LayoutGrid },
     ],
   },
@@ -59,7 +77,16 @@ const NAV_GROUPS: {
     items: [
       { path: '/prospective-analysis', labelKey: 'nav.scenarios', icon: Telescope },
       { path: '/alert-monitors', labelKey: 'nav.alertMonitors', icon: Bell },
-      { path: '/investment-recommendations', labelKey: 'nav.exportReport', icon: FileDown },
+    ],
+  },
+  {
+    labelKey: 'nav.group.complementaries',
+    items: [
+      { path: '/ai-analysis', labelKey: 'nav.aiAnalysis', icon: Sparkles },
+      { path: '/qualitative-analysis', labelKey: 'nav.qualitativeAnalysis', icon: MessageSquareText },
+      { path: '/investment-recommendations', labelKey: 'nav.investmentRecommendations', icon: TrendingUp },
+      { path: '/reputation', labelKey: 'nav.reputation', icon: Shield },
+      { path: '/public-affairs', labelKey: 'nav.publicAffairs', icon: Landmark },
     ],
   },
   {
@@ -75,7 +102,7 @@ function isNavActive(pathname: string, path: string, end?: boolean): boolean {
   if (end || path === '/') {
     return pathname === path
   }
-  return pathname === path || pathname.startsWith(`${path}/`)
+  return pathname === path
 }
 
 export default function Layout() {
