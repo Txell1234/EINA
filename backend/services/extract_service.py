@@ -35,6 +35,7 @@ Per cada declaració, retorna JSON array amb objectes:
   "framing": "ofensiu|defensiu|constructiu|amenaçador|conciliador|neutral",
   "posture_toward": "Actor objectiu",
   "posture_value": -2 a +2,
+  "date": "Data aproximada de la declaració (YYYY-MM o YYYY-MM-DD si és coneguda)",
   "tone": "confrontational|assertive|cautious|neutral|cooperative|conciliatory",
   "tone_intensity": 1-5,
   "relevance_signals": ["senyal1","senyal2"]
@@ -159,7 +160,19 @@ class ExtractService:
                     date = ""
                     if isinstance(r.data, dict):
                         url = str(r.data.get("url", "") or "")
-                        date = str(r.data.get("date", "") or r.data.get("publishedAt", "") or "")
+                        date = str(
+                            r.data.get("seendate", "")
+                            or r.data.get("date", "")
+                            or r.data.get("publishedAt", "")
+                            or r.data.get("published", "")
+                            or r.data.get("created_utc", "")
+                            or ""
+                        )
+                        if date and date.isdigit():
+                            from datetime import datetime, timezone
+                            date = datetime.fromtimestamp(
+                                int(date), tz=timezone.utc
+                            ).strftime("%Y-%m-%dT%H:%M:%SZ")
                     items.append({"id": r.id, "text": text[:6000], "url": url, "date": date})
 
         total = len(items)
@@ -171,6 +184,8 @@ class ExtractService:
             stmts = self._extract_from_text(item["text"])
             for stmt in stmts:
                 score = _grounding_score(stmt.get("statement", ""), item["text"])
+                stmt_date = stmt.get("date", "")
+                source_date = stmt_date if stmt_date else item.get("date", "")
                 obj = ExtractedStatement(
                     case_id=case_id,
                     osint_result_id=item["id"],
@@ -189,7 +204,7 @@ class ExtractService:
                     grounding_score=score,
                     cleanup_decision="NEEDS_REVIEW" if score < 0.08 else "PENDING",
                     source_url=item.get("url", ""),
-                    source_date=item.get("date", ""),
+                    source_date=source_date,
                     source_text_excerpt=item["text"][:500],
                 )
                 self.db.add(obj)

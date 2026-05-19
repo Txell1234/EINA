@@ -34,7 +34,7 @@ async def create_case(
         case_type=case_data.case_type,
         description=case_data.description,
         status="pending",
-        user_id=None,  # Autenticació eliminada
+        user_id=current_user.id,
     )
     db.add(new_case)
     await db.commit()
@@ -516,9 +516,8 @@ async def list_cases(
     logger = logging.getLogger(__name__)
     
     try:
-        # Query sense filtres per user_id - mostrar tots els casos
-        query = select(Case)
-        
+        query = select(Case).where(Case.user_id == current_user.id)
+
         if status_filter:
             query = query.where(Case.status == status_filter)
         
@@ -703,16 +702,18 @@ async def get_case(
     from sqlalchemy import select
     
     result = await db.execute(
-        select(Case).where(Case.id == case_id)
+        select(Case)
+        .where(Case.id == case_id)
+        .where(Case.user_id == current_user.id)
     )
     case = result.scalar_one_or_none()
-    
+
     if not case:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Case not found"
         )
-    
+
     return CaseResponse.model_validate(case)
 
 @router.post("/{case_id}/analyze", response_model=CaseResponse)
@@ -757,15 +758,19 @@ async def update_case(
     """Update case - Autenticació eliminada"""
     from sqlalchemy import select
     
-    case_result = await db.execute(select(Case).where(Case.id == case_id))
+    case_result = await db.execute(
+        select(Case)
+        .where(Case.id == case_id)
+        .where(Case.user_id == current_user.id)
+    )
     case = case_result.scalar_one_or_none()
-    
+
     if not case:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Case not found"
         )
-    
+
     # Update fields
     update_data = case_data.dict(exclude_unset=True)
     for key, value in update_data.items():
@@ -826,21 +831,21 @@ async def delete_case(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Delete case - Autenticació eliminada"""
+    """Delete case"""
     result = await db.execute(
-        Case.__table__.select().where(Case.id == case_id)
+        select(Case)
+        .where(Case.id == case_id)
+        .where(Case.user_id == current_user.id)
     )
-    case = result.first()
-    
+    case = result.scalar_one_or_none()
+
     if not case:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Case not found"
         )
-    
-    await db.execute(
-        Case.__table__.delete().where(Case.id == case_id)
-    )
+
+    await db.delete(case)
     await db.commit()
 
     return None

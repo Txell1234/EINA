@@ -837,13 +837,10 @@ export const prospectiveService = {
     return response.data
   },
 
-  getRetrospective: async (
-    projectId: number,
-    variables: Array<{ code: string; name: string; desc: string }>,
-  ) => {
-    const response = await api.post(`/api/prospective/projects/${projectId}/retrospective`, {
-      variables,
-    })
+  getRetrospective: async (projectId: number) => {
+    const response = await api.get(
+      `/api/prospective/projects/${projectId}/retrospective`,
+    )
     return response.data
   },
 

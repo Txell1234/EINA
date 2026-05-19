@@ -86,33 +86,37 @@ class MICMACPreviewRequest(BaseModel):
     matrix: List[List[int]]
 
 
-class RetrospectiveRequest(BaseModel):
-    variables: List[dict]
-
-
 class GeopoliticalEnrichRequest(BaseModel):
     variables: List[dict]
     case_id: Optional[int] = None
 
 
-@router.post("/projects/{project_id}/retrospective")
+@router.get("/projects/{project_id}/retrospective")
 async def get_retrospective(
     project_id: int,
-    data: RetrospectiveRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Godet retrospectiva: tendències OSINT dels darrers 10 anys per variable."""
+    """
+    Build Godet retrospective for a project's case.
+    Analyses temporal evolution of actor postures from OSINT extractions.
+    """
     from services.retrospective_service import RetrospectiveService
 
     svc = ProspectiveService(db)
     project = await svc.get_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Projecte no trobat")
-    case_id = project.case_id
-    if not case_id:
-        raise HTTPException(status_code=400, detail="El projecte no té cas OSINT enllaçat")
-    return await RetrospectiveService(db).get_trends(case_id, data.variables)
+
+    if not project.case_id:
+        return {
+            "has_data": False,
+            "message": "El projecte no té cap cas associat. "
+                       "Crea el projecte des d'un cas OSINT.",
+        }
+
+    retro_svc = RetrospectiveService(db)
+    return await retro_svc.build_retrospective(project.case_id, project_id)
 
 
 @router.post("/projects/{project_id}/geopolitical/micmac-suggestions")

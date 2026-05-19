@@ -6,6 +6,7 @@ import { computeMicmacPreview } from '../../utils/micmac'
 import WorkflowProgress from '../shared/WorkflowProgress'
 import MethodologyHint from './MethodologyHint'
 import MicmacScatterChart from './MicmacScatterChart'
+import RetroStep from './RetroStep'
 import './ProspectiveAnalysis.css'
 
 const STEP_LABELS = [
@@ -86,6 +87,23 @@ function emptyMatrix(n: number): number[][] {
 
 function emptySmicCross(): number[][] {
   return Array.from({ length: 4 }, () => Array.from({ length: 4 }, () => 0))
+}
+
+function getEvidenceColor(
+  topicA: string | undefined,
+  topicB: string | undefined,
+  pairs: Array<{ from_topic: string; to_topic: string; confidence: number }>,
+): string {
+  if (!topicA || !topicB) return 'var(--color-gray-200)'
+  const pair = pairs.find(
+    (p) =>
+      p.from_topic.toLowerCase().includes(topicA.toLowerCase()) ||
+      p.to_topic.toLowerCase().includes(topicB.toLowerCase()),
+  )
+  if (!pair) return 'var(--color-gray-200)'
+  if (pair.confidence > 0.6) return 'var(--color-success)'
+  if (pair.confidence > 0.3) return '#e6a817'
+  return 'var(--color-danger)'
 }
 
 interface IncompatRow {
@@ -219,17 +237,7 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
     value: number
     reason: string
   }> | null>(null)
-  const [retrospectiveData, setRetrospectiveData] = useState<{
-    period: string
-    osint_articles: number
-    variables: Array<{
-      code: string
-      name: string
-      trend: string
-      total_mentions: number
-      yearly: Array<{ year: number; mentions: number }>
-    }>
-  } | null>(null)
+  const [showEvidenceOverlay, setShowEvidenceOverlay] = useState(false)
   const [expertName, setExpertName] = useState('')
   const [panelConsensus, setPanelConsensus] = useState<Record<string, unknown> | null>(null)
 
@@ -248,6 +256,16 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
     queryKey: ['prospective-projects'],
     queryFn: () => prospectiveService.listProjects(),
   })
+
+  const { data: retroEvidence } = useQuery({
+    queryKey: ['retrospective', projectId],
+    queryFn: () => prospectiveService.getRetrospective(projectId!),
+    enabled: projectId !== null && projectId > 0,
+  })
+
+  const evidencePairs = retroEvidence?.has_data
+    ? (retroEvidence.micmac_evidence?.pairs ?? [])
+    : null
 
   const { data: projectDetail } = useQuery({
     queryKey: ['prospective-project-detail', projectId],
@@ -997,97 +1015,11 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
       )}
 
       {step === 2 && projectId !== null && (
-        <>
-          <h2 style={{ color: 'var(--color-primary)' }}>Retrospectiva d&apos;actors</h2>
-          <MethodologyHint title="Metodologia Godet — Retrospectiva" defaultOpen>
-            <p>
-              Abans de definir el MIC-MAC, analitza com han evolucionat les variables clau
-              en el passat. EINA agrega mencions OSINT dels darrers 10 anys per ancorar
-              el judici de l&apos;analista en dades empíriques.
-            </p>
-          </MethodologyHint>
-          <div className="prospective-actions" style={{ marginBottom: 'var(--spacing-md)' }}>
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={async () => {
-                if (!projectId) return
-                try {
-                  const data = await prospectiveService.getRetrospective(
-                    projectId,
-                    variables.map((v) => ({
-                      code: v.code,
-                      name: v.name,
-                      desc: v.desc,
-                    })),
-                  )
-                  setRetrospectiveData(data)
-                  setErrorMsg(null)
-                } catch {
-                  setErrorMsg('No s\'han pogut carregar tendències OSINT. Comprova que el cas té dades.')
-                }
-              }}
-            >
-              Carregar tendències OSINT (10 anys)
-            </button>
-          </div>
-          {retrospectiveData && (
-            <div className="card" style={{ marginBottom: 'var(--spacing-md)' }}>
-              <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-gray-600)' }}>
-                Període {retrospectiveData.period} · {retrospectiveData.osint_articles} articles OSINT
-              </p>
-              {retrospectiveData.variables.map((v) => (
-                <div
-                  key={v.code}
-                  style={{
-                    padding: 'var(--spacing-sm) 0',
-                    borderBottom: '1px solid var(--color-gray-100)',
-                  }}
-                >
-                  <strong>{v.code}</strong> — {v.name}{' '}
-                  <span
-                    style={{
-                      marginLeft: 8,
-                      fontSize: 'var(--font-size-xs)',
-                      color:
-                        v.trend === 'pujant'
-                          ? 'var(--color-danger)'
-                          : v.trend === 'baixant'
-                            ? 'var(--color-success)'
-                            : 'var(--color-gray-500)',
-                    }}
-                  >
-                    {v.trend} ({v.total_mentions} mencions)
-                  </span>
-                  <div
-                    style={{
-                      display: 'flex',
-                      gap: 4,
-                      marginTop: 6,
-                      flexWrap: 'wrap',
-                      fontSize: '10px',
-                      color: 'var(--color-gray-500)',
-                    }}
-                  >
-                    {v.yearly.map((y) => (
-                      <span key={y.year} title={`${y.year}: ${y.mentions}`}>
-                        {y.year}:{y.mentions}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          <div className="prospective-actions">
-            <button type="button" className="btn" onClick={() => setStep(1)}>
-              Enrere
-            </button>
-            <button type="button" className="btn btn-accent" onClick={() => setStep(3)}>
-              Continuar a Variables
-            </button>
-          </div>
-        </>
+        <RetroStep
+          projectId={projectId}
+          onNext={() => setStep(3)}
+          onBack={() => setStep(1)}
+        />
       )}
 
       {step === 3 && projectId !== null && (
@@ -1270,6 +1202,16 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
               {'VR (Variable de Risc) = punt d\'inestabilitat'}
             </code>
           </MethodologyHint>
+          {projectId && (
+            <button
+              type="button"
+              className="btn"
+              style={{ fontSize: 'var(--font-size-xs)', marginBottom: 'var(--spacing-sm)' }}
+              onClick={() => setShowEvidenceOverlay((v) => !v)}
+            >
+              {showEvidenceOverlay ? 'Amagar' : 'Mostrar'} confiança OSINT per cel·la
+            </button>
+          )}
           <div className="prospective-matrix-wrap">
             <table className="prospective-matrix">
               <thead>
@@ -1285,17 +1227,36 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
                   <tr key={i}>
                     <th>{variables[i]?.code ?? i}</th>
                     {row.map((cell, j) => (
-                      <td key={j}>
+                      <td key={j} style={{ position: 'relative' }}>
                         {i === j ? (
                           0
                         ) : (
-                          <input
-                            type="number"
-                            min={0}
-                            max={3}
-                            value={cell}
-                            onChange={(e) => updateMatrixCell(i, j, Number(e.target.value))}
-                          />
+                          <>
+                            <input
+                              type="number"
+                              min={0}
+                              max={3}
+                              value={cell}
+                              onChange={(e) => updateMatrixCell(i, j, Number(e.target.value))}
+                            />
+                            {showEvidenceOverlay && evidencePairs && (
+                              <div
+                                style={{
+                                  width: 6,
+                                  height: 6,
+                                  borderRadius: '50%',
+                                  background: getEvidenceColor(
+                                    variables[i]?.code,
+                                    variables[j]?.code,
+                                    evidencePairs,
+                                  ),
+                                  position: 'absolute',
+                                  top: 2,
+                                  right: 2,
+                                }}
+                              />
+                            )}
+                          </>
                         )}
                       </td>
                     ))}

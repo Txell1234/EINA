@@ -1,9 +1,11 @@
 """Unit tests for retrospective and geopolitical prospective bridges."""
+from datetime import datetime
+
 from services.prospective_geopolitical_service import (
     variable_matches_country,
     _relation_influence,
 )
-from services.retrospective_service import _keywords, _trend_label
+from services.retrospective_service import _parse_date, _quarter_label, _quarter_sort_key
 
 
 class TestGeopoliticalBridge:
@@ -23,9 +25,20 @@ class TestGeopoliticalBridge:
 
 
 class TestRetrospective:
-    def test_keywords_from_variable(self):
-        kws = _keywords({"name": "Cohesió QUAD", "desc": "grau de coordinació"})
-        assert any("quad" in k or "cohesió" in k for k in kws)
+    def test_parse_gdelt_date(self):
+        dt = _parse_date("20241115T120000Z")
+        assert dt is not None
+        assert dt.year == 2024
+        assert dt.month == 11
 
-    def test_trend_rising(self):
-        assert _trend_label([1, 1, 2, 2, 5, 6, 8, 9]) == "pujant"
+    def test_parse_iso_date(self):
+        dt = _parse_date("2024-06-15T10:30:00Z")
+        assert dt is not None
+        assert dt.day == 15
+
+    def test_quarter_label(self):
+        assert _quarter_label(datetime(2024, 5, 1)) == "Q2 2024"
+
+    def test_quarter_sort_key(self):
+        labels = ["Q3 2023", "Q1 2024", "Q2 2023"]
+        assert sorted(labels, key=_quarter_sort_key) == ["Q2 2023", "Q3 2023", "Q1 2024"]
