@@ -4,7 +4,7 @@ Prospective Analysis Router - MIC-MAC, MACTOR, morphological, scenarios
 import json
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -20,6 +20,7 @@ from models.prospective import (
 from services.prospective_service import ProspectiveService
 
 from app.dependencies import get_current_user
+from app.limiter import limiter
 from models.user import User
 
 router = APIRouter()
@@ -64,15 +65,26 @@ async def list_projects(
 ):
     svc = ProspectiveService(db)
     projects = await svc.list_projects(case_id)
-    return [
-        {
-            "id": p.id,
-            "title": p.title,
-            "case_id": p.case_id,
-            "created_at": p.created_at.isoformat() if p.created_at else None,
-        }
-        for p in projects
-    ]
+    result = []
+    for p in projects:
+        actors_r = await db.execute(
+            select(ProspectiveActor)
+            .where(ProspectiveActor.project_id == p.id)
+            .order_by(ProspectiveActor.order_index)
+        )
+        result.append(
+            {
+                "id": p.id,
+                "title": p.title,
+                "case_id": p.case_id,
+                "created_at": p.created_at.isoformat() if p.created_at else None,
+                "actors": [
+                    {"code": a.code, "name": a.name}
+                    for a in actors_r.scalars().all()
+                ],
+            }
+        )
+    return result
 
 
 @router.post("/projects")
@@ -244,7 +256,13 @@ async def get_scenarios(project_id: int, current_user: User = Depends(get_curren
 
 
 @router.get("/projects/{project_id}/scenarios/stream")
-async def stream_scenarios(project_id: int, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+@limiter.limit("10/minute")
+async def stream_scenarios(
+    request: Request,
+    project_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     svc = ProspectiveService(db)
     if not await svc.get_project(project_id):
         raise HTTPException(status_code=404, detail="Projecte no trobat")

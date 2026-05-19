@@ -4,7 +4,7 @@ Extraction pipeline router - OSINT → structured statements
 import json
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,13 +15,20 @@ from services.extract_service import ExtractService
 from services.prospective_service import ProspectiveService
 
 from app.dependencies import get_current_user
+from app.limiter import limiter
 from models.user import User
 
 router = APIRouter()
 
 
 @router.post("/run/{case_id}")
-async def run_extraction(case_id: int, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+@limiter.limit("5/minute")
+async def run_extraction(
+    request: Request,
+    case_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     svc = ExtractService(db)
 
     async def event_generator():

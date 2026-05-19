@@ -407,20 +407,29 @@ export const investmentsService = {
 }
 
 export const publicAffairsService = {
-  getPolicies: async () => {
-    const response = await api.get('/api/public-affairs/policies')
+  getPolicies: async (caseId?: number) => {
+    const response = await api.get('/api/public-affairs/policies', {
+      params: caseId !== undefined ? { case_id: caseId } : {},
+    })
     return response.data
   },
-  getStakeholders: async () => {
-    const response = await api.get('/api/public-affairs/stakeholders')
+
+  getStakeholders: async (caseId?: number) => {
+    const response = await api.get('/api/public-affairs/stakeholders', {
+      params: caseId !== undefined ? { case_id: caseId } : {},
+    })
     return response.data
   },
+
   analyzeImpact: async (data: { policy_id: number; case_id?: number }) => {
     const response = await api.post('/api/public-affairs/analyze-impact', data)
     return response.data
   },
-  getAdvocacyOpportunities: async () => {
-    const response = await api.get('/api/public-affairs/advocacy-opportunities')
+
+  getAdvocacyOpportunities: async (caseId?: number) => {
+    const response = await api.get('/api/public-affairs/advocacy-opportunities', {
+      params: caseId !== undefined ? { case_id: caseId } : {},
+    })
     return response.data
   },
 }

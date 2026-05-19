@@ -1,56 +1,74 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { reputationService } from '../../services/api'
+import { useCase } from '../../contexts/CaseContext'
+import { casesService, prospectiveService, reputationService } from '../../services/api'
 import './ReputationDashboard.css'
+
+interface ReputationProfile {
+  id: number
+  entity_name: string
+  entity_type: string
+  reputation_score: number
+  sentiment_trend: string
+}
 
 interface ReputationDashboardProps {
   caseId?: number
   entityName?: string
 }
 
-export default function ReputationDashboard({ caseId }: ReputationDashboardProps) {
-  const [selectedEntityId, setSelectedEntityId] = useState<number | null>(null)
+export default function ReputationDashboard({ caseId: caseIdProp }: ReputationDashboardProps) {
+  const [selectedEntityId, setSelectedEntityId] = useState<string | number | null>(null)
   const [days, setDays] = useState<number>(30)
+  const { activeCase, setActiveCase } = useCase()
 
-  // Fetch reputation profiles
-  const { data: profiles, isLoading: profilesLoading } = useQuery({
-    queryKey: ['reputation-profiles', caseId],
-    queryFn: () => reputationService.getProfiles(caseId),
-    enabled: true
+  const effectiveCaseId = activeCase?.id ?? caseIdProp
+
+  const { data: cases } = useQuery({
+    queryKey: ['cases-for-reputation'],
+    queryFn: () => casesService.list(),
   })
 
-  // Fetch reputation score
+  const { data: projects = [] } = useQuery({
+    queryKey: ['prospective-projects-for-reputation', effectiveCaseId],
+    queryFn: () => prospectiveService.listProjects(effectiveCaseId),
+    enabled: effectiveCaseId !== undefined,
+  })
+
+  const { data: profiles, isLoading: profilesLoading } = useQuery({
+    queryKey: ['reputation-profiles', effectiveCaseId],
+    queryFn: () => reputationService.getProfiles(effectiveCaseId),
+    enabled: true,
+  })
+
   const { data: scoreData, isLoading: scoreLoading } = useQuery({
     queryKey: ['reputation-score', selectedEntityId],
     queryFn: () => reputationService.getScore(selectedEntityId!),
-    enabled: selectedEntityId !== null
+    enabled: selectedEntityId !== null,
   })
 
-  // Fetch reputation history
   const { data: history, isLoading: historyLoading } = useQuery({
     queryKey: ['reputation-history', selectedEntityId, days],
     queryFn: () => reputationService.getHistory(selectedEntityId!, days),
-    enabled: selectedEntityId !== null
+    enabled: selectedEntityId !== null,
   })
 
-  // Fetch crisis indicators
   const { data: crisisData, isLoading: crisisLoading } = useQuery({
     queryKey: ['crisis-indicators', selectedEntityId],
-    queryFn: () => reputationService.getCrisisIndicators(selectedEntityId!),
-    enabled: selectedEntityId !== null
+    queryFn: () => reputationService.getCrisisIndicators(selectedEntityId!, effectiveCaseId),
+    enabled: selectedEntityId !== null,
   })
 
-  // Fetch stakeholders
   const { data: stakeholders, isLoading: stakeholdersLoading } = useQuery({
-    queryKey: ['stakeholders', caseId],
-    queryFn: () => reputationService.getStakeholders(caseId),
-    enabled: !!caseId
+    queryKey: ['stakeholders', effectiveCaseId],
+    queryFn: () => reputationService.getStakeholders(effectiveCaseId),
+    enabled: effectiveCaseId !== undefined,
   })
 
   const getScoreColor = (score: number): string => {
-    if (score >= 70) return '#28a745' // Green
-    if (score >= 50) return '#ffc107' // Yellow
-    return '#dc3545' // Red
+    if (score >= 70) return '#28a745'
+    if (score >= 50) return '#ffc107'
+    return '#dc3545'
   }
 
   const getCrisisLevelColor = (level: string): string => {
@@ -62,17 +80,113 @@ export default function ReputationDashboard({ caseId }: ReputationDashboardProps
     }
   }
 
+  const mactorActors = (
+    projects as { id: number; title: string; actors?: { code: string; name: string }[] }[]
+  )
+    .flatMap((p) => p.actors ?? [])
+    .filter((a, i, arr) => arr.findIndex((x) => x.name === a.name) === i)
+
   if (profilesLoading) {
     return <div className="reputation-dashboard-loading">Cargando datos de reputación...</div>
   }
 
   return (
     <div className="reputation-dashboard">
+      <div style={{
+        background: 'var(--color-gray-50)',
+        border: '1px solid var(--color-gray-200)',
+        borderRadius: 'var(--radius-md)',
+        padding: 'var(--spacing-md) var(--spacing-lg)',
+        marginBottom: 'var(--spacing-lg)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 'var(--spacing-md)',
+        flexWrap: 'wrap',
+      }}>
+        <label style={{
+          fontSize: 'var(--font-size-sm)', fontWeight: 600,
+          color: 'var(--color-gray-600)', flexShrink: 0,
+        }}>
+          Cas actiu:
+        </label>
+        <select
+          style={{
+            padding: '6px 12px', border: '1px solid var(--color-gray-300)',
+            borderRadius: 'var(--radius-sm)', fontSize: 'var(--font-size-sm)',
+            minWidth: 220,
+          }}
+          value={activeCase?.id ?? ''}
+          onChange={(e) => {
+            const id = Number(e.target.value)
+            const c = (cases as { id: number; name: string }[] | undefined)
+              ?.find((x) => x.id === id)
+            if (c) setActiveCase({ id: c.id, name: c.name, case_type: '', status: 'actiu' })
+          }}
+        >
+          <option value="">— Selecciona un cas —</option>
+          {((cases as { id: number; name: string }[]) ?? []).map((c) => (
+            <option key={c.id} value={c.id}>#{c.id} — {c.name}</option>
+          ))}
+        </select>
+        {activeCase && (
+          <span style={{
+            fontSize: 'var(--font-size-xs)', color: 'var(--color-primary)',
+            fontWeight: 500,
+          }}>
+            {activeCase.name}
+          </span>
+        )}
+      </div>
+
+      {effectiveCaseId !== undefined && mactorActors.length > 0 && (
+        <div style={{
+          background: 'rgba(30,58,95,0.04)',
+          border: '1px solid rgba(30,58,95,0.15)',
+          borderLeft: '3px solid var(--color-primary)',
+          borderRadius: 'var(--radius-md)',
+          padding: 'var(--spacing-md) var(--spacing-lg)',
+          marginBottom: 'var(--spacing-lg)',
+        }}>
+          <p style={{
+            fontSize: 'var(--font-size-xs)', fontWeight: 600,
+            color: 'var(--color-primary)', marginBottom: 'var(--spacing-sm)',
+            textTransform: 'uppercase', letterSpacing: '0.5px',
+          }}>
+            Actors del MACTOR — fes clic per veure el seu perfil de reputació
+          </p>
+          <div style={{ display: 'flex', gap: 'var(--spacing-sm)', flexWrap: 'wrap' }}>
+            {mactorActors.map((actor) => {
+              const selected = String(selectedEntityId) === actor.name
+              return (
+                <button
+                  key={actor.code}
+                  type="button"
+                  style={{
+                    padding: '4px 12px',
+                    borderRadius: '999px',
+                    border: '1px solid var(--color-primary)',
+                    background: selected ? 'var(--color-primary)' : 'transparent',
+                    color: selected ? 'white' : 'var(--color-primary)',
+                    fontSize: 'var(--font-size-xs)',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all .15s',
+                  }}
+                  onClick={() => setSelectedEntityId(actor.name)}
+                >
+                  {actor.code} — {actor.name}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="dashboard-header">
         <h2>Dashboard de Reputación</h2>
         <div className="header-controls">
-          <select 
-            value={days} 
+          <select
+            value={days}
             onChange={(e) => setDays(Number(e.target.value))}
             className="time-range-select"
           >
@@ -83,20 +197,22 @@ export default function ReputationDashboard({ caseId }: ReputationDashboardProps
         </div>
       </div>
 
-      {/* Entity Selection */}
       <div className="entity-selection">
         <h3>Seleccionar Entidad</h3>
         <div className="profiles-grid">
-          {profiles && profiles.length > 0 ? (
-            profiles.map((profile: any) => (
+          {profiles && (profiles as ReputationProfile[]).length > 0 ? (
+            (profiles as ReputationProfile[]).map((profile) => (
               <div
                 key={profile.id}
                 className={`profile-card ${selectedEntityId === profile.id ? 'selected' : ''}`}
                 onClick={() => setSelectedEntityId(profile.id)}
+                onKeyDown={(e) => e.key === 'Enter' && setSelectedEntityId(profile.id)}
+                role="button"
+                tabIndex={0}
               >
                 <div className="profile-name">{profile.entity_name}</div>
                 <div className="profile-type">{profile.entity_type}</div>
-                <div 
+                <div
                   className="profile-score"
                   style={{ color: getScoreColor(profile.reputation_score) }}
                 >
@@ -111,16 +227,15 @@ export default function ReputationDashboard({ caseId }: ReputationDashboardProps
         </div>
       </div>
 
-      {selectedEntityId && (
+      {selectedEntityId !== null && (
         <>
-          {/* Reputation Score */}
           <div className="score-section">
             <h3>Score de Reputación</h3>
             {scoreLoading ? (
               <div className="loading">Cargando score...</div>
             ) : scoreData ? (
               <div className="score-display">
-                <div 
+                <div
                   className="score-circle"
                   style={{ borderColor: getScoreColor(scoreData.reputation_score) }}
                 >
@@ -143,14 +258,13 @@ export default function ReputationDashboard({ caseId }: ReputationDashboardProps
             ) : null}
           </div>
 
-          {/* Crisis Indicators */}
           <div className="crisis-section">
             <h3>Indicadores de Crisis</h3>
             {crisisLoading ? (
               <div className="loading">Cargando indicadores...</div>
             ) : crisisData ? (
               <div className="crisis-display">
-                <div 
+                <div
                   className="crisis-level"
                   style={{ backgroundColor: getCrisisLevelColor(crisisData.crisis_level) }}
                 >
@@ -183,7 +297,6 @@ export default function ReputationDashboard({ caseId }: ReputationDashboardProps
             ) : null}
           </div>
 
-          {/* Reputation History */}
           <div className="history-section">
             <h3>Histórico de Reputación</h3>
             {historyLoading ? (
@@ -191,7 +304,7 @@ export default function ReputationDashboard({ caseId }: ReputationDashboardProps
             ) : history && history.length > 0 ? (
               <div className="history-chart">
                 <div className="history-timeline">
-                  {history.map((entry: any, idx: number) => (
+                  {history.map((entry: { score: number; timestamp: string; change_reason?: string }, idx: number) => (
                     <div key={idx} className="history-point">
                       <div className="point-value" style={{ color: getScoreColor(entry.score) }}>
                         {entry.score.toFixed(1)}
@@ -211,14 +324,20 @@ export default function ReputationDashboard({ caseId }: ReputationDashboardProps
             )}
           </div>
 
-          {/* Stakeholders */}
           <div className="stakeholders-section">
             <h3>Análisis de Stakeholders</h3>
             {stakeholdersLoading ? (
               <div className="loading">Cargando stakeholders...</div>
             ) : stakeholders && stakeholders.length > 0 ? (
               <div className="stakeholders-grid">
-                {stakeholders.map((stakeholder: any) => (
+                {stakeholders.map((stakeholder: {
+                  id: number
+                  stakeholder_name: string
+                  stakeholder_type: string
+                  influence_score: number
+                  sentiment: number
+                  engagement_level: string
+                }) => (
                   <div key={stakeholder.id} className="stakeholder-card">
                     <div className="stakeholder-name">{stakeholder.stakeholder_name}</div>
                     <div className="stakeholder-type">{stakeholder.stakeholder_type}</div>
@@ -229,8 +348,8 @@ export default function ReputationDashboard({ caseId }: ReputationDashboardProps
                       </div>
                       <div className="metric">
                         <span className="metric-label">Sentimiento:</span>
-                        <span className="metric-value" style={{ 
-                          color: stakeholder.sentiment > 0 ? '#28a745' : '#dc3545' 
+                        <span className="metric-value" style={{
+                          color: stakeholder.sentiment > 0 ? '#28a745' : '#dc3545',
                         }}>
                           {stakeholder.sentiment > 0 ? '+' : ''}{stakeholder.sentiment.toFixed(2)}
                         </span>
@@ -252,4 +371,3 @@ export default function ReputationDashboard({ caseId }: ReputationDashboardProps
     </div>
   )
 }
-
