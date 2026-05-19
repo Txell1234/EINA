@@ -70,15 +70,29 @@ async def db_session(db_engine) -> AsyncGenerator[AsyncSession, None]:
 
 @pytest.fixture(scope="function")
 def test_client(db_session: AsyncSession) -> TestClient:
-    """Create a test client with database override."""
+    """Create a test client with database and auth overrides."""
+    from app.dependencies import get_current_user
+    from models.user import User
+
     def override_get_db():
         yield db_session
-    
+
+    async def override_get_current_user():
+        return User(
+            id=1,
+            email="test@eina.cat",
+            hashed_password="hashed",
+            full_name="Test User",
+            is_active=True,
+            is_superuser=False,
+        )
+
     app.dependency_overrides[get_db] = override_get_db
-    
+    app.dependency_overrides[get_current_user] = override_get_current_user
+
     with TestClient(app) as client:
         yield client
-    
+
     app.dependency_overrides.clear()
 
 

@@ -17,11 +17,15 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+from app.dependencies import get_current_user
+from models.user import User
+
 router = APIRouter()
 
 @router.post("/", response_model=CaseResponse, status_code=status.HTTP_201_CREATED)
 async def create_case(
     case_data: CaseCreate,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Create new case"""
@@ -345,6 +349,7 @@ async def create_case_from_prompt(
 async def create_case_auto(
     prompt_data: CaseAutoCreateRequest,
     background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Create case from AI prompt - IA analiza el prompt y determina qué hacer"""
@@ -501,6 +506,7 @@ async def list_cases(
     skip: int = 0,
     limit: int = 100,
     status_filter: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """List all cases - Autenticació eliminada"""
@@ -571,6 +577,7 @@ async def list_cases(
 
 @router.get("/metrics")
 async def get_dashboard_metrics(
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Get dashboard metrics - aggregated counts"""
@@ -618,6 +625,7 @@ async def get_filtered_cases(
     case_type: Optional[str] = None,
     skip: int = 0,
     limit: int = 100,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Get filtered cases - Autenticació eliminada"""
@@ -640,6 +648,7 @@ async def search_cases(
     q: str,
     skip: int = 0,
     limit: int = 100,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Search cases by name or description - Autenticació eliminada"""
@@ -661,6 +670,7 @@ async def search_cases(
 @router.get("/{case_id}/full", response_model=dict)
 async def get_full_case(
     case_id: int,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Get full case with all related data - Autenticació eliminada"""
@@ -686,6 +696,7 @@ async def get_full_case(
 @router.get("/{case_id}", response_model=CaseResponse)
 async def get_case(
     case_id: int,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Get case by ID - Autenticació eliminada"""
@@ -708,6 +719,7 @@ async def get_case(
 async def analyze_case(
     case_id: int,
     background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Execute complete analysis for a case - Autenticació eliminada"""
@@ -739,6 +751,7 @@ async def analyze_case(
 async def update_case(
     case_id: int,
     case_data: CaseUpdate,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Update case - Autenticació eliminada"""
@@ -767,6 +780,7 @@ async def update_case(
 async def rerun_case_analysis(
     case_id: int,
     background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Rerun case analysis - Re-execute analysis for an existing case"""
@@ -809,6 +823,7 @@ async def rerun_case_analysis(
 @router.delete("/{case_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_case(
     case_id: int,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Delete case - Autenticació eliminada"""

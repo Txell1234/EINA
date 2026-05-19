@@ -15,11 +15,15 @@ from schemas.qualitative import (
 from models.qualitative import Premise, ReasoningFramework, KPI, QualitativeAnalysis
 from services.qualitative_service import QualitativeService
 
+from app.dependencies import get_current_user
+from models.user import User
+
 router = APIRouter()
 
 @router.post("/premise", response_model=PremiseResponse, status_code=status.HTTP_201_CREATED)
 async def create_premise(
     premise_data: PremiseCreate,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Create premise for analysis"""
@@ -37,6 +41,7 @@ async def create_premise(
 @router.post("/kpi", response_model=KPIResponse, status_code=status.HTTP_201_CREATED)
 async def create_kpi(
     kpi_data: KPICreate,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Create KPI"""
@@ -54,6 +59,7 @@ async def create_kpi(
 
 @router.get("/frameworks", response_model=List[ReasoningFrameworkResponse])
 async def list_frameworks(
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """List all reasoning frameworks"""
@@ -70,6 +76,7 @@ async def list_frameworks(
 @router.post("/analyze", response_model=QualitativeAnalysisResponse)
 async def run_qualitative_analysis(
     request: QualitativeAnalysisRequest,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Run qualitative/quantitative analysis"""
@@ -129,6 +136,7 @@ async def run_qualitative_analysis(
 async def list_kpis(
     skip: int = 0,
     limit: int = 100,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """List all KPIs"""

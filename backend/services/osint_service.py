@@ -1,6 +1,8 @@
 """
 OSINT Service - Integration with OSINT tools
 """
+from datetime import datetime, timezone
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Dict, Any
 
@@ -204,7 +206,7 @@ class OSINTService:
 
         except Exception as e:
             query.status = QueryStatus.FAILED
-            query.completed_at = datetime.utcnow()
+            query.completed_at = datetime.now(timezone.utc)
             await self.db.commit()
             return {
                 "query_id": query.id,

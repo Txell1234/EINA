@@ -11,12 +11,16 @@ from schemas.reports import ReportRequest, ReportResponse
 from models.reports import Report, ReportStatus, ReportFormat
 from services.report_service import ReportService
 
+from app.dependencies import get_current_user
+from models.user import User
+
 router = APIRouter()
 
 @router.post("/generate", response_model=ReportResponse)
 async def generate_report(
     request: ReportRequest,
     background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Generate comprehensive report"""
@@ -44,6 +48,7 @@ async def generate_report(
 @router.get("/{report_id}", response_model=ReportResponse)
 async def get_report(
     report_id: int,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Get report by ID"""
@@ -63,6 +68,7 @@ async def get_report(
 @router.get("/{report_id}/export")
 async def export_report(
     report_id: int,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Export report file"""

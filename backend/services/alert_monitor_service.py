@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy import select
@@ -107,9 +107,9 @@ async def run_monitor_check(db: AsyncSession, monitor_id: int) -> dict[str, Any]
             logger.warning("Monitor %d / src %s: %s", monitor_id, src, exc)
             sources.append({"source": src, "error": str(exc)})
 
-    monitor.last_checked = datetime.utcnow()
+    monitor.last_checked = datetime.now(timezone.utc)
     if matches > 0:
-        monitor.last_match = datetime.utcnow()
+        monitor.last_match = datetime.now(timezone.utc)
         monitor.match_count = (monitor.match_count or 0) + matches
     await db.commit()
 

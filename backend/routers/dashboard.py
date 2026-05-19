@@ -10,12 +10,16 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+from app.dependencies import get_current_user
+from models.user import User
+
 router = APIRouter(prefix="/api/dashboard", tags=["Dashboard"])
 
 @router.get("/metrics")
 async def get_dashboard_metrics(
     days: int = Query(7, ge=1, le=365),
     case_id: Optional[int] = Query(None),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Get all dashboard metrics"""
@@ -34,6 +38,7 @@ async def get_dashboard_metrics(
 async def get_total_mentions(
     days: int = Query(7, ge=1, le=365),
     case_id: Optional[int] = Query(None),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Get total mentions count"""
@@ -51,6 +56,7 @@ async def get_total_mentions(
 async def get_sentiment_score(
     days: int = Query(7, ge=1, le=365),
     case_id: Optional[int] = Query(None),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Get sentiment score"""
@@ -68,6 +74,7 @@ async def get_sentiment_score(
 async def get_estimated_reach(
     days: int = Query(7, ge=1, le=365),
     case_id: Optional[int] = Query(None),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Get estimated reach"""
@@ -85,6 +92,7 @@ async def get_estimated_reach(
 async def get_engagement_rate(
     days: int = Query(7, ge=1, le=365),
     case_id: Optional[int] = Query(None),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Get engagement rate"""
@@ -102,6 +110,7 @@ async def get_engagement_rate(
 async def get_critical_alerts(
     days: int = Query(7, ge=1, le=365),
     case_id: Optional[int] = Query(None),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Get critical alerts count"""
@@ -119,6 +128,7 @@ async def get_critical_alerts(
 async def get_trending_topics(
     days: int = Query(7, ge=1, le=365),
     case_id: Optional[int] = Query(None),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Get trending topics count"""
@@ -135,6 +145,7 @@ async def get_trending_topics(
 @router.get("/sources")
 async def get_data_sources(
     case_id: Optional[int] = Query(None),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Get data sources with mention counts"""
@@ -153,6 +164,7 @@ async def get_alerts_feed(
     days: int = Query(7, ge=1, le=365),
     case_id: Optional[int] = Query(None),
     limit: int = Query(5, ge=1, le=50),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Get recent critical alerts with details"""
@@ -171,6 +183,7 @@ async def get_trending_topics_list(
     days: int = Query(7, ge=1, le=365),
     case_id: Optional[int] = Query(None),
     limit: int = Query(5, ge=1, le=50),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Get list of trending topics with counts and change"""

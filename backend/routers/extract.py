@@ -14,11 +14,14 @@ from models.extract import ExtractedStatement
 from services.extract_service import ExtractService
 from services.prospective_service import ProspectiveService
 
+from app.dependencies import get_current_user
+from models.user import User
+
 router = APIRouter()
 
 
 @router.post("/run/{case_id}")
-async def run_extraction(case_id: int, db: AsyncSession = Depends(get_db)):
+async def run_extraction(case_id: int, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     svc = ExtractService(db)
 
     async def event_generator():
@@ -35,6 +38,7 @@ async def run_extraction(case_id: int, db: AsyncSession = Depends(get_db)):
 async def list_statements(
     case_id: int,
     decision: Optional[str] = Query(None),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     q = select(ExtractedStatement).where(ExtractedStatement.case_id == case_id)
@@ -69,13 +73,13 @@ async def list_statements(
 
 
 @router.post("/cleanup/{case_id}")
-async def run_cleanup(case_id: int, db: AsyncSession = Depends(get_db)):
+async def run_cleanup(case_id: int, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     svc = ExtractService(db)
     return await svc.cleanup_pass(case_id)
 
 
 @router.get("/preview/{case_id}")
-async def preview_suggestions(case_id: int, db: AsyncSession = Depends(get_db)):
+async def preview_suggestions(case_id: int, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     svc = ExtractService(db)
     variables = await svc.get_suggested_variables(case_id)
     actors = await svc.get_suggested_actors(case_id)
@@ -86,6 +90,7 @@ async def preview_suggestions(case_id: int, db: AsyncSession = Depends(get_db)):
 async def apply_to_project(
     project_id: int,
     case_id: int = Query(..., description="Cas OSINT font"),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     extract_svc = ExtractService(db)

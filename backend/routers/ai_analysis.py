@@ -10,12 +10,16 @@ from schemas.ai_analysis import AIAnalysisRequest, AIAnalysisResponse, ConceptRe
 from models.ai_analysis import AIAnalysis, Concept, Trend, Sentiment
 from services.ai_service import AIService
 
+from app.dependencies import get_current_user
+from models.user import User
+
 router = APIRouter()
 
 @router.post("/taranis/analyze", response_model=AIAnalysisResponse)
 async def analyze_taranis(
     request: AIAnalysisRequest,
     background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Taranis AI analysis - Situational analysis and predictions"""
@@ -46,6 +50,7 @@ async def analyze_taranis(
 async def analyze_osintgpt(
     request: AIAnalysisRequest,
     background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """OSINTGPT analysis - Concept extraction and embeddings"""
@@ -77,6 +82,7 @@ async def analyze_osintgpt(
 async def analyze_ominis(
     request: AIAnalysisRequest,
     background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Ominis-OSINT analysis - Predictive risk analysis"""
@@ -106,6 +112,7 @@ async def analyze_ominis(
 @router.get("/concepts", response_model=List[ConceptResponse])
 async def get_concepts(
     case_id: int,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Get concepts for a case"""
@@ -124,6 +131,7 @@ async def get_concepts(
 @router.get("/trends", response_model=List[TrendResponse])
 async def get_trends(
     case_id: int,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Get trends for a case"""
@@ -142,6 +150,7 @@ async def get_trends(
 @router.get("/sentiment", response_model=List[SentimentResponse])
 async def get_sentiment(
     case_id: int,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Get sentiment analysis for a case"""
@@ -161,6 +170,7 @@ async def get_sentiment(
 async def analyze_with_ai(
     case_id: int,
     analysis_type: str = "osintgpt",
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Analyze case with AI"""
@@ -189,6 +199,7 @@ async def analyze_with_ai(
 async def analyze_as_reputation_manager(
     case_id: int,
     entity_name: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Análisis experto de reputación"""
@@ -216,6 +227,7 @@ async def analyze_as_reputation_manager(
 async def analyze_as_public_affairs_consultant(
     case_id: int,
     policy_topic: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Análisis experto de asuntos públicos"""
@@ -241,6 +253,7 @@ async def analyze_as_public_affairs_consultant(
 @router.post("/expert/geopolitical-analyst/{case_id}")
 async def analyze_as_geopolitical_analyst(
     case_id: int,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Análisis experto geopolítico"""
@@ -266,6 +279,7 @@ async def analyze_as_geopolitical_analyst(
 @router.post("/expert/investment-advisor/{case_id}")
 async def analyze_as_investment_advisor(
     case_id: int,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Análisis experto de inversiones"""
@@ -290,6 +304,7 @@ async def analyze_as_investment_advisor(
 @router.post("/analyze-concepts/{case_id}", response_model=List[ConceptResponse])
 async def analyze_concepts(
     case_id: int,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Analyze and extract concepts"""
@@ -343,6 +358,7 @@ async def analyze_concepts(
 @router.post("/analyze-trends/{case_id}", response_model=List[TrendResponse])
 async def analyze_trends(
     case_id: int,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Analyze trends for a case"""
@@ -386,6 +402,7 @@ async def analyze_trends(
 @router.post("/analyze-sentiment/{case_id}", response_model=List[SentimentResponse])
 async def analyze_sentiment_endpoint(
     case_id: int,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Analyze sentiment for a case"""

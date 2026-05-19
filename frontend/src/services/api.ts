@@ -277,6 +277,13 @@ export const osintService = {
     const response = await api.post(`/api/osint/${endpoint}`, null, { params: clean })
     return response.data
   },
+
+  getRecentSearches: async (limit = 10): Promise<unknown[]> => {
+    const response = await api.get('/api/osint/recent-searches', {
+      params: { limit },
+    })
+    return response.data
+  },
 }
 
 export const aiAnalysisService = {

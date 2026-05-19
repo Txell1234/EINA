@@ -11,6 +11,9 @@ from models.osint import OSINTQuery, OSINTResult
 from services.osint_service import OSINTService
 import logging
 
+from app.dependencies import get_current_user
+from models.user import User
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
@@ -19,6 +22,7 @@ async def search_google_news(
     query: str,
     language: str = "es",
     case_id: Optional[int] = None,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Search Google News"""
@@ -38,6 +42,7 @@ async def search_reddit(
     query: str,
     subreddit: Optional[str] = None,
     case_id: Optional[int] = None,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Search Reddit"""
@@ -57,6 +62,7 @@ async def search_github(
     query: str,
     type: str = "repositories",
     case_id: Optional[int] = None,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Search GitHub"""
@@ -77,6 +83,7 @@ async def search_shodan(
     facets: str = None,
     page: int = 1,
     case_id: Optional[int] = None,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Search Shodan"""
@@ -93,6 +100,7 @@ async def search_shodan(
 @router.post("/shodan/host", response_model=OSINTResultResponse)
 async def shodan_host_info(
     ip: str,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Get Shodan host information"""
@@ -113,6 +121,7 @@ async def search_wayback(
     from_date: str = None,
     to_date: str = None,
     case_id: Optional[int] = None,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Search Wayback Machine"""
@@ -131,6 +140,7 @@ async def dns_lookup(
     domain: str,
     record_types: str = None,
     case_id: Optional[int] = None,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """DNS lookup"""
@@ -150,6 +160,7 @@ async def dns_lookup(
 async def whois_lookup(
     domain: str,
     case_id: Optional[int] = None,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """WHOIS lookup"""
@@ -166,6 +177,7 @@ async def whois_lookup(
 @router.post("/reverse-dns", response_model=OSINTResultResponse)
 async def reverse_dns_lookup(
     ip: str,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Reverse DNS lookup"""
@@ -185,6 +197,7 @@ async def search_gdelt(
     days: int = 7,
     max_results: int = 50,
     case_id: Optional[int] = None,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Search GDELT global events and news (no API key required)"""
@@ -201,6 +214,7 @@ async def fetch_rss_feed(
     source: str = "cfr",
     max_items: int = 20,
     case_id: Optional[int] = None,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Fetch a single RSS feed (iiss, cfr, csis, brookings, elcano, etc.)"""
@@ -216,6 +230,7 @@ async def fetch_rss_feed(
 async def fetch_all_rss_feeds(
     max_items: int = 10,
     case_id: Optional[int] = None,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Fetch all configured think-tank and policy RSS feeds"""
@@ -231,6 +246,7 @@ async def fetch_all_rss_feeds(
 async def search_opensanctions(
     query: str,
     case_id: Optional[int] = None,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Check entity against OpenSanctions database"""
@@ -247,6 +263,7 @@ async def list_queries(
     skip: int = 0,
     limit: int = 100,
     case_id: Optional[int] = None,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """List OSINT queries"""
@@ -267,6 +284,7 @@ async def list_queries(
 @router.get("/results/{result_id}", response_model=OSINTResultResponse)
 async def get_result(
     result_id: int,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Get OSINT result by ID"""
@@ -291,6 +309,7 @@ async def ip_geolocation(
     hostname: bool = True,
     security: bool = True,
     case_id: Optional[int] = None,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Get geolocation information for an IP address using ipstack"""
@@ -335,6 +354,7 @@ async def ip_geolocation_bulk(
     ip_addresses: List[str],
     hostname: bool = True,
     security: bool = True,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Get geolocation information for multiple IP addresses"""
@@ -364,6 +384,7 @@ async def ip_geolocation_bulk(
 
 @router.get("/tools", response_model=List[dict])
 async def get_osint_tools(
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Get available OSINT tools"""
@@ -405,6 +426,7 @@ async def get_osint_tools(
 @router.post("/collect", response_model=OSINTResultResponse)
 async def collect_osint(
     request: OSINTQueryRequest,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Collect OSINT data"""
@@ -421,6 +443,7 @@ async def collect_osint(
 @router.get("/recent-searches", response_model=List[OSINTQueryResponse])
 async def get_recent_searches(
     limit: int = 10,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Get recent OSINT searches"""

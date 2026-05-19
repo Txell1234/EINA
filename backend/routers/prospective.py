@@ -19,6 +19,9 @@ from models.prospective import (
 )
 from services.prospective_service import ProspectiveService
 
+from app.dependencies import get_current_user
+from models.user import User
+
 router = APIRouter()
 
 
@@ -56,6 +59,7 @@ class SaveComponentsRequest(BaseModel):
 @router.get("/projects")
 async def list_projects(
     case_id: Optional[int] = Query(None),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     svc = ProspectiveService(db)
@@ -72,7 +76,7 @@ async def list_projects(
 
 
 @router.post("/projects")
-async def create_project(data: ProjectCreate, db: AsyncSession = Depends(get_db)):
+async def create_project(data: ProjectCreate, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     svc = ProspectiveService(db)
     project = await svc.create_project(
         case_id=data.case_id,
@@ -84,7 +88,7 @@ async def create_project(data: ProjectCreate, db: AsyncSession = Depends(get_db)
 
 
 @router.get("/projects/{project_id}")
-async def get_project(project_id: int, db: AsyncSession = Depends(get_db)):
+async def get_project(project_id: int, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     svc = ProspectiveService(db)
     project = await svc.get_project(project_id)
     if not project:
@@ -153,6 +157,7 @@ async def get_project(project_id: int, db: AsyncSession = Depends(get_db)):
 async def save_variables(
     project_id: int,
     data: SaveVariablesRequest,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     svc = ProspectiveService(db)
@@ -166,6 +171,7 @@ async def save_variables(
 async def compute_micmac(
     project_id: int,
     data: MICMACRequest,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     svc = ProspectiveService(db)
@@ -178,6 +184,7 @@ async def compute_micmac(
 async def save_actors(
     project_id: int,
     data: SaveActorsRequest,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     svc = ProspectiveService(db)
@@ -191,6 +198,7 @@ async def save_actors(
 async def save_objectives(
     project_id: int,
     data: SaveObjectivesRequest,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     svc = ProspectiveService(db)
@@ -204,6 +212,7 @@ async def save_objectives(
 async def compute_mactor(
     project_id: int,
     data: MACTORRequest,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     svc = ProspectiveService(db)
@@ -216,6 +225,7 @@ async def compute_mactor(
 async def save_components(
     project_id: int,
     data: SaveComponentsRequest,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     svc = ProspectiveService(db)
@@ -226,7 +236,7 @@ async def save_components(
 
 
 @router.get("/projects/{project_id}/scenarios")
-async def get_scenarios(project_id: int, db: AsyncSession = Depends(get_db)):
+async def get_scenarios(project_id: int, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     svc = ProspectiveService(db)
     if not await svc.get_project(project_id):
         raise HTTPException(status_code=404, detail="Projecte no trobat")
@@ -234,7 +244,7 @@ async def get_scenarios(project_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/projects/{project_id}/scenarios/stream")
-async def stream_scenarios(project_id: int, db: AsyncSession = Depends(get_db)):
+async def stream_scenarios(project_id: int, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     svc = ProspectiveService(db)
     if not await svc.get_project(project_id):
         raise HTTPException(status_code=404, detail="Projecte no trobat")
@@ -259,6 +269,7 @@ class ExpertVoteRequest(BaseModel):
 async def submit_expert_vote(
     project_id: int,
     data: ExpertVoteRequest,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Submit expert votes for MIC-MAC matrix (Delphi panel mode)."""
@@ -269,21 +280,21 @@ async def submit_expert_vote(
 
 
 @router.get("/projects/{project_id}/panel/consensus")
-async def get_panel_consensus(project_id: int, db: AsyncSession = Depends(get_db)):
+async def get_panel_consensus(project_id: int, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Get consensus matrix and disagreement analysis from all expert votes."""
     svc = ProspectiveService(db)
     return await svc.get_panel_consensus(project_id)
 
 
 @router.post("/projects/{project_id}/panel/apply")
-async def apply_consensus(project_id: int, db: AsyncSession = Depends(get_db)):
+async def apply_consensus(project_id: int, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Apply consensus matrix as the official MIC-MAC result."""
     svc = ProspectiveService(db)
     return await svc.apply_consensus(project_id)
 
 
 @router.get("/projects/{project_id}/export/pdf")
-async def export_project_pdf(project_id: int, db: AsyncSession = Depends(get_db)):
+async def export_project_pdf(project_id: int, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Export prospective project as PDF. Requires weasyprint + libpango."""
     from pathlib import Path
 
@@ -307,7 +318,7 @@ async def export_project_pdf(project_id: int, db: AsyncSession = Depends(get_db)
 
 
 @router.get("/projects/{project_id}/export/docx")
-async def export_project_docx(project_id: int, db: AsyncSession = Depends(get_db)):
+async def export_project_docx(project_id: int, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Export prospective project as DOCX."""
     from pathlib import Path
 
@@ -334,6 +345,7 @@ async def export_project_docx(project_id: int, db: AsyncSession = Depends(get_db
 async def create_scenario_monitors(
     project_id: int,
     scenario_id: int,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Extract early warning indicators from scenario and create OSINT monitors."""
@@ -357,7 +369,7 @@ async def create_scenario_monitors(
 
 
 @router.get("/projects/{project_id}/monitors")
-async def list_project_monitors(project_id: int, db: AsyncSession = Depends(get_db)):
+async def list_project_monitors(project_id: int, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """List all alert monitors for a project."""
     from services.alert_monitor_service import list_monitors
 
@@ -365,7 +377,7 @@ async def list_project_monitors(project_id: int, db: AsyncSession = Depends(get_
 
 
 @router.post("/monitors/{monitor_id}/check")
-async def check_monitor(monitor_id: int, db: AsyncSession = Depends(get_db)):
+async def check_monitor(monitor_id: int, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Manually run an OSINT check for a monitor."""
     from services.alert_monitor_service import run_monitor_check
 
@@ -380,6 +392,7 @@ class ToggleMonitorRequest(BaseModel):
 async def toggle_monitor(
     monitor_id: int,
     data: ToggleMonitorRequest,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Activate or pause an alert monitor."""
@@ -404,6 +417,7 @@ class ManualMonitorRequest(BaseModel):
 async def add_manual_monitor(
     project_id: int,
     data: ManualMonitorRequest,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Add a manually defined alert monitor to a project."""

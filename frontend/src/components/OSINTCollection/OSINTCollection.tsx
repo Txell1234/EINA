@@ -199,6 +199,12 @@ export default function OSINTCollection() {
     queryFn: () => casesService.list(),
   })
 
+  const { data: recentSearches, refetch: refetchHistory } = useQuery({
+    queryKey: ['osint-recent-searches'],
+    queryFn: () => osintService.getRecentSearches(8),
+    staleTime: 30_000,
+  })
+
   const searchMutation = useMutation({
     mutationFn: async () => {
       setResultError(null)
@@ -207,6 +213,7 @@ export default function OSINTCollection() {
     },
     onSuccess: (data) => {
       setResults((prev) => [data as OSINTResult, ...prev].slice(0, 50))
+      refetchHistory()
     },
     onError: (err: Error) => {
       setResultError(err.message)
@@ -373,6 +380,36 @@ export default function OSINTCollection() {
                 Selecciona una font OSINT, omple els camps i executa la cerca.
               </p>
             </div>
+          </div>
+        )}
+
+        {Array.isArray(recentSearches) && recentSearches.length > 0 && (
+          <div className="card osint-history-card">
+            <h3 className="osint-history-title">Cerques recents</h3>
+            <ul className="osint-history-list">
+              {(recentSearches as Array<{
+                id: number
+                query_type: string
+                query_text: string
+                created_at: string
+                status?: string
+              }>).map((q) => (
+                <li key={q.id} className="osint-history-item">
+                  <span className="status-badge neutral osint-history-type">{q.query_type}</span>
+                  <span className="osint-history-text">{q.query_text || '—'}</span>
+                  <span className="osint-history-date">
+                    {q.created_at
+                      ? new Date(q.created_at).toLocaleDateString('ca-ES', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
+                      : ''}
+                  </span>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
       </main>
