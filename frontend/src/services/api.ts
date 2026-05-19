@@ -605,6 +605,27 @@ export const adminService = {
     const response = await api.get('/api/admin/stats/categories')
     return response.data
   },
+  listUsers: async (): Promise<unknown[]> => {
+    const response = await api.get('/api/admin/users')
+    return response.data
+  },
+  createUser: async (data: {
+    email: string
+    full_name: string
+    password: string
+    is_superuser?: boolean
+  }) => {
+    const response = await api.post('/api/admin/users', data)
+    return response.data
+  },
+  toggleUserActive: async (userId: number) => {
+    const response = await api.patch(`/api/admin/users/${userId}/toggle-active`)
+    return response.data
+  },
+  makeSuperuser: async (userId: number) => {
+    const response = await api.patch(`/api/admin/users/${userId}/make-superuser`)
+    return response.data
+  },
 }
 
 export const geopoliticalService = {

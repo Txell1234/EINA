@@ -15,9 +15,14 @@ from models.ai_classification import (
 from models.case import Case
 from services.ai_classification_service import AIClassificationService
 from pydantic import BaseModel
+from passlib.context import CryptContext
+from app.dependencies import get_current_user
+from models.user import User
 import logging
 
 logger = logging.getLogger(__name__)
+
+_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
 
@@ -91,6 +96,13 @@ class FeedbackResponse(BaseModel):
     feedback_notes: Optional[str]
     is_used_for_training: bool
     created_at: str
+
+
+class CreateUserRequest(BaseModel):
+    email: str
+    full_name: str
+    password: str
+    is_superuser: bool = False
 
 # ========== Classification Management ==========
 
@@ -548,4 +560,108 @@ async def get_category_stats(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error getting category stats: {str(e)}"
         )
+
+
+# ── User management ───────────────────────────────────────────────────────
+
+@router.get("/users")
+async def list_users(
+    skip: int = 0,
+    limit: int = 50,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """List all users. Requires superuser."""
+    if not current_user.is_superuser:
+        raise HTTPException(status_code=403, detail="Requereix permisos d'administrador")
+    result = await db.execute(
+        select(User).order_by(User.created_at.desc()).offset(skip).limit(limit)
+    )
+    users = result.scalars().all()
+    return [
+        {
+            "id": u.id,
+            "email": u.email,
+            "full_name": u.full_name,
+            "is_active": u.is_active,
+            "is_superuser": u.is_superuser,
+            "created_at": u.created_at.isoformat() if u.created_at else None,
+        }
+        for u in users
+    ]
+
+
+@router.post("/users")
+async def create_user(
+    data: CreateUserRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Create a new user. Requires superuser."""
+    if not current_user.is_superuser:
+        raise HTTPException(status_code=403, detail="Requereix permisos d'administrador")
+
+    existing = (
+        await db.execute(select(User).where(User.email == data.email))
+    ).scalar_one_or_none()
+    if existing:
+        raise HTTPException(status_code=400, detail="L'email ja existeix")
+
+    user = User(
+        email=data.email,
+        full_name=data.full_name,
+        hashed_password=_pwd_context.hash(data.password),
+        is_active=True,
+        is_superuser=data.is_superuser,
+    )
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+    return {
+        "id": user.id,
+        "email": user.email,
+        "full_name": user.full_name,
+        "is_active": user.is_active,
+        "is_superuser": user.is_superuser,
+    }
+
+
+@router.patch("/users/{user_id}/toggle-active")
+async def toggle_user_active(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Activate or deactivate a user. Requires superuser. Cannot deactivate yourself."""
+    if not current_user.is_superuser:
+        raise HTTPException(status_code=403, detail="Requereix permisos d'administrador")
+    if user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="No pots desactivar el teu propi compte")
+
+    user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuari no trobat")
+
+    user.is_active = not user.is_active
+    await db.commit()
+    return {"id": user.id, "email": user.email, "is_active": user.is_active}
+
+
+@router.patch("/users/{user_id}/make-superuser")
+async def make_superuser(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Grant superuser privileges to a user. Requires superuser."""
+    if not current_user.is_superuser:
+        raise HTTPException(status_code=403, detail="Requereix permisos d'administrador")
+
+    user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuari no trobat")
+
+    user.is_superuser = True
+    await db.commit()
+    return {"id": user.id, "email": user.email, "is_superuser": user.is_superuser}
 

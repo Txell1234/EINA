@@ -4,11 +4,18 @@ import { adminService, casesService } from '../../services/api'
 import './AdminPanel.css'
 
 export default function AdminPanel() {
-  const [activeTab, setActiveTab] = useState<'classifications' | 'categories' | 'feedback' | 'stats'>('classifications')
+  const [activeTab, setActiveTab] = useState<
+    'classifications' | 'categories' | 'feedback' | 'stats' | 'users'
+  >('classifications')
   const [selectedCaseId, setSelectedCaseId] = useState<number | null>(null)
   const [selectedClassification, setSelectedClassification] = useState<number | null>(null)
   const [showCategoryModal, setShowCategoryModal] = useState(false)
   const [editingCategory, setEditingCategory] = useState<any>(null)
+  const [showCreateForm, setShowCreateForm] = useState(false)
+  const [newEmail, setNewEmail] = useState('')
+  const [newFullName, setNewFullName] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [newIsSuperuser, setNewIsSuperuser] = useState(false)
   const queryClient = useQueryClient()
 
   // Get all cases for selector
@@ -33,6 +40,35 @@ export default function AdminPanel() {
   const { data: stats } = useQuery({
     queryKey: ['admin-stats', selectedCaseId],
     queryFn: () => adminService.getClassificationStats(selectedCaseId || undefined),
+  })
+
+  const { data: users = [] } = useQuery({
+    queryKey: ['admin-users'],
+    queryFn: () => adminService.listUsers(),
+    enabled: activeTab === 'users',
+  })
+
+  const createUserMutation = useMutation({
+    mutationFn: () =>
+      adminService.createUser({
+        email: newEmail,
+        full_name: newFullName,
+        password: newPassword,
+        is_superuser: newIsSuperuser,
+      }),
+    onSuccess: () => {
+      setShowCreateForm(false)
+      setNewEmail('')
+      setNewFullName('')
+      setNewPassword('')
+      setNewIsSuperuser(false)
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] })
+    },
+  })
+
+  const toggleActiveMutation = useMutation({
+    mutationFn: (userId: number) => adminService.toggleUserActive(userId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-users'] }),
   })
 
   // Feedback mutation
@@ -137,6 +173,12 @@ export default function AdminPanel() {
           onClick={() => setActiveTab('stats')}
         >
           Estadístiques
+        </button>
+        <button
+          className={activeTab === 'users' ? 'active' : ''}
+          onClick={() => setActiveTab('users')}
+        >
+          Usuaris
         </button>
       </div>
 
@@ -361,6 +403,213 @@ export default function AdminPanel() {
             ) : (
               <p>Carregant estadístiques...</p>
             )}
+          </div>
+        )}
+
+        {activeTab === 'users' && (
+          <div className="admin-section">
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: 'var(--spacing-lg)',
+              }}
+            >
+              <h3 style={{ margin: 0 }}>Gestió d&apos;usuaris</h3>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => setShowCreateForm((v) => !v)}
+              >
+                {showCreateForm ? 'Cancel·lar' : '+ Nou usuari'}
+              </button>
+            </div>
+
+            {showCreateForm && (
+              <div
+                style={{
+                  background: 'var(--color-gray-50)',
+                  border: '1px solid var(--color-gray-200)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: 'var(--spacing-lg)',
+                  marginBottom: 'var(--spacing-lg)',
+                }}
+              >
+                <h4 style={{ margin: '0 0 var(--spacing-md)', fontSize: 'var(--font-size-sm)' }}>
+                  Crear usuari nou
+                </h4>
+                {[
+                  {
+                    label: 'Email',
+                    val: newEmail,
+                    set: setNewEmail,
+                    type: 'email',
+                    placeholder: 'usuari@domini.cat',
+                  },
+                  {
+                    label: 'Nom complet',
+                    val: newFullName,
+                    set: setNewFullName,
+                    type: 'text',
+                    placeholder: 'Nom Cognoms',
+                  },
+                  {
+                    label: 'Contrasenya',
+                    val: newPassword,
+                    set: setNewPassword,
+                    type: 'password',
+                    placeholder: 'Mínim 8 caràcters',
+                  },
+                ].map(({ label, val, set, type, placeholder }) => (
+                  <div key={label} style={{ marginBottom: 'var(--spacing-sm)' }}>
+                    <label
+                      style={{
+                        display: 'block',
+                        fontSize: 'var(--font-size-xs)',
+                        fontWeight: 600,
+                        color: 'var(--color-gray-600)',
+                        marginBottom: 4,
+                      }}
+                    >
+                      {label}
+                    </label>
+                    <input
+                      type={type}
+                      value={val}
+                      placeholder={placeholder}
+                      onChange={(e) => set(e.target.value)}
+                      style={{
+                        width: '100%',
+                        maxWidth: 360,
+                        padding: '8px 12px',
+                        border: '1px solid var(--color-gray-300)',
+                        borderRadius: 'var(--radius-sm)',
+                        fontSize: 'var(--font-size-sm)',
+                      }}
+                    />
+                  </div>
+                ))}
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    fontSize: 'var(--font-size-sm)',
+                    marginBottom: 'var(--spacing-md)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={newIsSuperuser}
+                    onChange={(e) => setNewIsSuperuser(e.target.checked)}
+                  />
+                  Superusuari (accés al panel admin)
+                </label>
+                <button
+                  type="button"
+                  className="btn btn-accent"
+                  disabled={
+                    !newEmail ||
+                    !newFullName ||
+                    !newPassword ||
+                    createUserMutation.isPending
+                  }
+                  onClick={() => createUserMutation.mutate()}
+                >
+                  {createUserMutation.isPending ? 'Creant...' : 'Crear usuari'}
+                </button>
+                {createUserMutation.isError && (
+                  <p
+                    style={{
+                      color: 'var(--color-danger)',
+                      fontSize: 'var(--font-size-xs)',
+                      marginTop: 'var(--spacing-sm)',
+                    }}
+                  >
+                    {(createUserMutation.error as Error)?.message ?? 'Error creant usuari'}
+                  </p>
+                )}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-sm)' }}>
+              {(
+                users as {
+                  id: number
+                  email: string
+                  full_name: string
+                  is_active: boolean
+                  is_superuser: boolean
+                  created_at: string | null
+                }[]
+              ).map((user) => (
+                <div
+                  key={user.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 'var(--spacing-md)',
+                    padding: 'var(--spacing-sm) var(--spacing-md)',
+                    border: '1px solid var(--color-gray-200)',
+                    borderRadius: 'var(--radius-sm)',
+                    opacity: user.is_active ? 1 : 0.55,
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 180 }}>
+                    <p
+                      style={{
+                        margin: 0,
+                        fontWeight: 500,
+                        fontSize: 'var(--font-size-sm)',
+                        color: 'var(--color-gray-800)',
+                      }}
+                    >
+                      {user.full_name}
+                    </p>
+                    <p
+                      style={{
+                        margin: '2px 0 0',
+                        fontSize: 'var(--font-size-xs)',
+                        color: 'var(--color-gray-500)',
+                      }}
+                    >
+                      {user.email}
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', gap: 'var(--spacing-xs)', flexWrap: 'wrap' }}>
+                    {user.is_superuser && (
+                      <span className="status-badge user-badge-admin">Admin</span>
+                    )}
+                    <span
+                      className={`status-badge ${user.is_active ? 'user-badge-active' : 'user-badge-inactive'}`}
+                    >
+                      {user.is_active ? 'Actiu' : 'Inactiu'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn"
+                    style={{ fontSize: 'var(--font-size-xs)', padding: '4px 10px' }}
+                    disabled={toggleActiveMutation.isPending}
+                    onClick={() => toggleActiveMutation.mutate(user.id)}
+                  >
+                    {user.is_active ? 'Desactivar' : 'Activar'}
+                  </button>
+                </div>
+              ))}
+              {(users as unknown[]).length === 0 && (
+                <div className="empty-state">
+                  <div className="empty-state-icon">◉</div>
+                  <h3 className="empty-state-title">Cap usuari</h3>
+                  <p className="empty-state-desc">
+                    Crea el primer usuari amb el botó &quot;Nou usuari&quot;.
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

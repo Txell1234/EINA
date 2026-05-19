@@ -434,6 +434,21 @@
   color: #721c24;
 }
 
+.status-badge.user-badge-admin {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.status-badge.user-badge-active {
+  background: #d4edda;
+  color: #155724;
+}
+
+.status-badge.user-badge-inactive {
+  background: #e9ecef;
+  color: #6c757d;
+}
+
 .category-details {
   margin: 1rem 0;
   display: grid;
