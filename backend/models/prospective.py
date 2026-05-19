@@ -99,6 +99,33 @@ class MorphComponent(Base):
     order_index = Column(Integer, default=0)
 
 
+class MorphIncompatibility(Base):
+    """Zwicky: incompatible configuration pairs across morphological components."""
+
+    __tablename__ = "morph_incompatibilities"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("prospective_projects.id"), index=True)
+    component_a = Column(String(8), nullable=False)
+    config_a = Column(String(256), nullable=False)
+    component_b = Column(String(8), nullable=False)
+    config_b = Column(String(256), nullable=False)
+
+
+class SMICResult(Base):
+    """SMIC cross-impact matrix and computed scenario probabilities."""
+
+    __tablename__ = "smic_results"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("prospective_projects.id"), unique=True)
+    initial_probs = Column(JSON, default=list)
+    cross_matrix = Column(JSON, default=list)
+    final_probs = Column(JSON, default=list)
+    final_labels = Column(JSON, default=list)
+    calculated_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class ProspectiveScenario(Base):
     __tablename__ = "prospective_scenarios"
 

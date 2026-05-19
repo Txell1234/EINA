@@ -13,53 +13,36 @@ from models.prospective import (
     MACTORResult,
     MICMACResult,
     MorphComponent,
+    MorphIncompatibility,
     ProspectiveActor,
     ProspectiveProject,
     ProspectiveScenario,
     ProspectiveVariable,
+    SMICResult,
 )
 from services.llm_service import LLMService, llm_config_error_message
+from services.micmac_math import compute_micmac_pure, matrix_multiply
+from services.morph_space import (
+    DEFAULT_SMIC_CROSS,
+    DEFAULT_SMIC_INITIAL,
+    SCENARIO_TEMPLATES,
+    build_scenario_specs,
+    compute_smic_bayesian,
+    compute_smic_final,
+    filter_valid_combinations,
+    format_morph_config,
+    morph_space_stats,
+)
 
 logger = logging.getLogger(__name__)
 
-SCENARIO_DEFINITIONS = [
-    {
-        "index": 0,
-        "name": "Escenari Infern",
-        "scenario_type": "infern",
-        "probability": "BAIXA-MITJA",
-        "config": "Màxima expansió adversari + resposta fragmentada",
-    },
-    {
-        "index": 1,
-        "name": "Escenari Tensió Crònica",
-        "scenario_type": "tensio",
-        "probability": "ALTA",
-        "config": "Estancament parcial + divisió interna",
-    },
-    {
-        "index": 2,
-        "name": "Escenari Equilibri Dinàmic",
-        "scenario_type": "equilibri",
-        "probability": "MITJA",
-        "config": "Alternativa en construcció + cohesió moderada",
-    },
-    {
-        "index": 3,
-        "name": "Escenari Cel",
-        "scenario_type": "cel",
-        "probability": "BAIXA",
-        "config": "Retrocés expansió + alternativa consolidada",
-    },
-]
-
-
-def matrix_multiply(a: List[List[int]], b: List[List[int]]) -> List[List[int]]:
-    n = len(a)
-    return [
-        [sum(a[i][k] * b[k][j] for k in range(n)) for j in range(n)]
-        for i in range(n)
-    ]
+PROB_MAP = {
+    "ALTA": 0.65,
+    "MITJA-ALTA": 0.55,
+    "MITJA": 0.35,
+    "BAIXA-MITJA": 0.20,
+    "BAIXA": 0.10,
+}
 
 
 class ProspectiveService:
@@ -191,69 +174,233 @@ class ProspectiveService:
             )
         await self.db.commit()
 
-    async def compute_micmac(self, project_id: int, matrix: List[List[int]]) -> dict[str, Any]:
-        n = len(matrix)
-        mot_d = [sum(matrix[i]) for i in range(n)]
-        dep_d = [sum(matrix[i][j] for i in range(n)) for j in range(n)]
-        avg_mot = sum(mot_d) / n if n else 0
-        avg_dep = sum(dep_d) / n if n else 0
-
-        indirect = matrix_multiply(matrix, matrix)
-        mot_i = [sum(indirect[i]) for i in range(n)]
-        dep_i = [sum(indirect[i][j] for i in range(n)) for j in range(n)]
-
+    async def preview_micmac(
+        self, project_id: int, matrix: List[List[int]]
+    ) -> dict[str, Any]:
         vars_r = await self.db.execute(
             select(ProspectiveVariable)
             .where(ProspectiveVariable.project_id == project_id)
             .order_by(ProspectiveVariable.order_index)
         )
         variables = list(vars_r.scalars().all())
+        codes = [v.code for v in variables]
+        return compute_micmac_pure(matrix, codes)
 
-        sectors = []
-        for i in range(n):
-            mot = mot_d[i]
-            dep = dep_d[i]
-            if mot >= avg_mot and dep >= avg_dep:
-                sector = "Clau/Conflicte"
-            elif mot >= avg_mot:
-                sector = "Motriu"
-            elif dep >= avg_dep:
-                sector = "Resultant"
-            else:
-                sector = "Excluyent"
-            label = variables[i].code if i < len(variables) else str(i)
-            sectors.append({"index": i, "code": label, "sector": sector, "motricitat": mot, "dependencia": dep})
-
-        key_sector = [s["index"] for s in sectors if s["sector"] == "Clau/Conflicte"]
-        vb_idx = max(key_sector, key=lambda i: dep_d[i]) if key_sector else 0
-        vr_idx = min(range(n), key=lambda i: abs(mot_d[i] - dep_d[i])) if n else 0
-
+    async def compute_micmac(self, project_id: int, matrix: List[List[int]]) -> dict[str, Any]:
+        result = await self.preview_micmac(project_id, matrix)
         await self.db.execute(delete(MICMACResult).where(MICMACResult.project_id == project_id))
         self.db.add(
             MICMACResult(
                 project_id=project_id,
-                matrix_direct=matrix,
-                matrix_indirect=indirect,
-                motricite_direct=mot_d,
-                dependence_direct=dep_d,
-                sectors=sectors,
-                vb_index=vb_idx,
-                vr_index=vr_idx,
+                matrix_direct=result["matrix_direct"],
+                matrix_indirect=result["matrix_indirect"],
+                motricite_direct=result["motricitat_direct"],
+                dependence_direct=result["dependencia_direct"],
+                sectors=result["sectors"],
+                vb_index=result["vb_index"],
+                vr_index=result["vr_index"],
             )
         )
         await self.db.commit()
+        return result
 
+    async def _load_morph_components(self, project_id: int) -> List[dict]:
+        morph_r = await self.db.execute(
+            select(MorphComponent)
+            .where(MorphComponent.project_id == project_id)
+            .order_by(MorphComponent.order_index)
+        )
+        return [
+            {
+                "code": m.code,
+                "name": m.name,
+                "configs": m.configurations or [],
+            }
+            for m in morph_r.scalars().all()
+        ]
+
+    async def get_incompatibilities(self, project_id: int) -> List[dict]:
+        result = await self.db.execute(
+            select(MorphIncompatibility).where(
+                MorphIncompatibility.project_id == project_id
+            )
+        )
+        return [
+            {
+                "component_a": r.component_a,
+                "config_a": r.config_a,
+                "component_b": r.component_b,
+                "config_b": r.config_b,
+            }
+            for r in result.scalars().all()
+        ]
+
+    async def save_incompatibilities(
+        self, project_id: int, incompatibilities: List[dict]
+    ) -> dict[str, Any]:
+        await self.db.execute(
+            delete(MorphIncompatibility).where(
+                MorphIncompatibility.project_id == project_id
+            )
+        )
+        for inc in incompatibilities:
+            self.db.add(
+                MorphIncompatibility(
+                    project_id=project_id,
+                    component_a=str(inc.get("component_a", "")),
+                    config_a=str(inc.get("config_a", "")),
+                    component_b=str(inc.get("component_b", "")),
+                    config_b=str(inc.get("config_b", "")),
+                )
+            )
+        await self.db.commit()
+        components = await self._load_morph_components(project_id)
+        return morph_space_stats(components, incompatibilities)
+
+    async def save_compatibility(self, project_id: int, pairs: List[dict]) -> dict[str, Any]:
+        """Zwicky pairs API: [{comp_a, cfg_a, comp_b, cfg_b, compatible}]."""
+        incompat = [
+            {
+                "component_a": p["comp_a"],
+                "config_a": p["cfg_a"],
+                "component_b": p["comp_b"],
+                "config_b": p["cfg_b"],
+            }
+            for p in pairs
+            if not p.get("compatible", True)
+        ]
+        await self.save_incompatibilities(project_id, incompat)
+        return {"saved": len(pairs)}
+
+    async def get_compatibility(self, project_id: int) -> List[dict]:
+        rows = await self.get_incompatibilities(project_id)
+        return [
+            {
+                "comp_a": r["component_a"],
+                "cfg_a": r["config_a"],
+                "comp_b": r["component_b"],
+                "cfg_b": r["config_b"],
+                "compatible": False,
+            }
+            for r in rows
+        ]
+
+    async def get_morphological_space(self, project_id: int) -> dict[str, Any]:
+        components = await self._load_morph_components(project_id)
+        incompatibilities = await self.get_incompatibilities(project_id)
+        stats = morph_space_stats(components, incompatibilities)
+        valid = filter_valid_combinations(components, incompatibilities)
+        if not valid:
+            valid = filter_valid_combinations(components, [])
         return {
-            "matrix_direct": matrix,
-            "matrix_indirect": indirect,
-            "motricitat_direct": mot_d,
-            "dependencia_direct": dep_d,
-            "motricitat_indirect": mot_i,
-            "dependencia_indirect": dep_i,
-            "sectors": sectors,
-            "variable_blanc": {"index": vb_idx, "code": sectors[vb_idx]["code"] if vb_idx < len(sectors) else ""},
-            "variable_risc": {"index": vr_idx, "code": sectors[vr_idx]["code"] if vr_idx < len(sectors) else ""},
+            "total": stats["total_combinations"],
+            "valid": stats["valid_combinations"],
+            "excluded": stats["filtered_out"],
+            "combos": [format_morph_config(c) for c in valid[:20]],
         }
+
+    async def get_morph_space(self, project_id: int) -> dict[str, Any]:
+        components = await self._load_morph_components(project_id)
+        incompatibilities = await self.get_incompatibilities(project_id)
+        stats = morph_space_stats(components, incompatibilities)
+        specs = build_scenario_specs(components, incompatibilities)
+        stats["scenario_configs"] = [
+            {"scenario_type": s["scenario_type"], "config": s["config"]} for s in specs
+        ]
+        return stats
+
+    async def get_smic(self, project_id: int) -> dict[str, Any]:
+        result = await self.db.execute(
+            select(SMICResult).where(SMICResult.project_id == project_id)
+        )
+        row = result.scalar_one_or_none()
+        if not row:
+            return {
+                "initial_probs": DEFAULT_SMIC_INITIAL,
+                "cross_matrix": DEFAULT_SMIC_CROSS,
+                "final_probs": None,
+                "final_labels": None,
+            }
+        return {
+            "initial_probs": row.initial_probs or DEFAULT_SMIC_INITIAL,
+            "cross_matrix": row.cross_matrix or DEFAULT_SMIC_CROSS,
+            "final_probs": row.final_probs,
+            "final_labels": row.final_labels,
+        }
+
+    async def save_and_compute_smic(
+        self,
+        project_id: int,
+        initial_probs: List[float],
+        cross_matrix: List[List[float]],
+    ) -> dict[str, Any]:
+        final_probs, final_labels = compute_smic_final(initial_probs, cross_matrix)
+        result = await self.db.execute(
+            select(SMICResult).where(SMICResult.project_id == project_id)
+        )
+        row = result.scalar_one_or_none()
+        if row:
+            row.initial_probs = initial_probs
+            row.cross_matrix = cross_matrix
+            row.final_probs = final_probs
+            row.final_labels = final_labels
+        else:
+            self.db.add(
+                SMICResult(
+                    project_id=project_id,
+                    initial_probs=initial_probs,
+                    cross_matrix=cross_matrix,
+                    final_probs=final_probs,
+                    final_labels=final_labels,
+                )
+            )
+        await self.db.commit()
+        return {
+            "initial_probs": initial_probs,
+            "cross_matrix": cross_matrix,
+            "final_probs": final_probs,
+            "final_labels": final_labels,
+        }
+
+    async def compute_smic(
+        self, project_id: int, conditional_matrix: List[List[float]]
+    ) -> dict[str, Any]:
+        """SMIC Bayesian: conditional_matrix[i][j] = P(j | i), updates scenario probabilities."""
+        n = len(conditional_matrix)
+        if n < 2:
+            return {"error": "Cal almenys 2 escenaris"}
+
+        scens_r = await self.db.execute(
+            select(ProspectiveScenario)
+            .where(ProspectiveScenario.project_id == project_id)
+            .order_by(ProspectiveScenario.id)
+        )
+        scens = list(scens_r.scalars().all())
+
+        prior = []
+        for s in scens[:n]:
+            key = (s.probability or "MITJA").upper().replace(" ", "_").replace("-", "_")
+            prior.append(PROB_MAP.get(key, 0.35))
+        if len(prior) < n:
+            prior += [0.35] * (n - len(prior))
+
+        adjusted, labels = compute_smic_bayesian(prior, conditional_matrix)
+
+        results = []
+        for i, (s, adj, lbl) in enumerate(zip(scens[:n], adjusted, labels)):
+            results.append(
+                {
+                    "scenario_id": s.id,
+                    "name": s.name,
+                    "prior_probability": prior[i],
+                    "adjusted_probability": adj,
+                    "label": lbl,
+                }
+            )
+            s.probability = lbl
+
+        await self.db.commit()
+        return {"results": results, "prior": prior, "adjusted": adjusted}
 
     async def compute_mactor(self, project_id: int, postures: List[List[int]]) -> dict[str, Any]:
         actors_r = await self.db.execute(
@@ -426,15 +573,24 @@ class ProspectiveService:
 
         if morph:
             parts += ["", "COMPONENTS MORFOLÒGICS:"]
-            total = 1
-            for m in morph:
-                cfgs = m.configurations or []
-                total *= len(cfgs) if cfgs else 1
+            incompatibilities = await self.get_incompatibilities(project_id)
+            components_dict = [
+                {"code": m.code, "name": m.name, "configs": m.configurations or []}
+                for m in morph
+            ]
+            stats = morph_space_stats(components_dict, incompatibilities)
+            for comp in stats["components"]:
                 parts.append(
-                    f"  {m.code}: {m.name} → "
-                    + " | ".join(c.get("label", "?") for c in cfgs)
+                    f"  {comp['code']}: {comp['name']} → "
+                    + " | ".join(comp["configs"])
                 )
-            parts.append(f"Espai morfològic: {total} combinacions.")
+            parts.append(
+                f"Espai morfològic: {stats['valid_combinations']} combinacions vàlides "
+                f"(de {stats['total_combinations']} totals, Zwicky)."
+            )
+            for sc in build_scenario_specs(components_dict, incompatibilities):
+                if sc.get("config"):
+                    parts.append(f"  → {sc['scenario_type']}: {sc['config']}")
 
         return "\n".join(parts)
 
@@ -445,12 +601,29 @@ class ProspectiveService:
             return
 
         context = await self._build_context(project_id)
+        components = await self._load_morph_components(project_id)
+        incompatibilities = await self.get_incompatibilities(project_id)
+        smic = await self.get_smic(project_id)
+        prob_labels = smic.get("final_labels")
+
+        specs = build_scenario_specs(components, incompatibilities, prob_labels)
+        if not any(s.get("config") for s in specs):
+            generic = {
+                "infern": "Condicions màximament desfavorables",
+                "tensio": "Tendència actual extrapolada sense ruptures",
+                "equilibri": "Equilibri inestable amb dinàmiques positives emergents",
+                "cel": "Condicions màximament favorables",
+            }
+            for s in specs:
+                if not s.get("config"):
+                    s["config"] = generic.get(s["scenario_type"], s["config"])
+
         await self.db.execute(
             delete(ProspectiveScenario).where(ProspectiveScenario.project_id == project_id)
         )
         await self.db.commit()
 
-        for spec in SCENARIO_DEFINITIONS:
+        for spec in specs:
             idx = spec["index"]
             yield {
                 "event": "scenario_start",

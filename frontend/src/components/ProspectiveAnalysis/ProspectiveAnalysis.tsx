@@ -1,9 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useCase, type ActiveCase } from '../../contexts/CaseContext'
 import { casesService, extractService, prospectiveService } from '../../services/api'
+import { computeMicmacPreview } from '../../utils/micmac'
 import WorkflowProgress from '../shared/WorkflowProgress'
 import MethodologyHint from './MethodologyHint'
+import MicmacScatterChart from './MicmacScatterChart'
 import './ProspectiveAnalysis.css'
 
 const STEP_LABELS = [
@@ -70,8 +72,53 @@ interface ExtractProgressPayload {
   message?: string
 }
 
+const SCENARIO_NAMES = [
+  'Escenari Infern',
+  'Escenari Tensió Crònica',
+  'Escenari Equilibri Dinàmic',
+  'Escenari Cel',
+]
+
 function emptyMatrix(n: number): number[][] {
   return Array.from({ length: n }, () => Array.from({ length: n }, () => 0))
+}
+
+function emptySmicCross(): number[][] {
+  return Array.from({ length: 4 }, () => Array.from({ length: 4 }, () => 0))
+}
+
+interface IncompatRow {
+  component_a: string
+  config_a: string
+  component_b: string
+  config_b: string
+}
+
+function morphConfigsFromText(text: string): string[] {
+  return text
+    .split('\n')
+    .map((s) => s.trim())
+    .filter(Boolean)
+}
+
+function isPairIncompatible(
+  list: IncompatRow[],
+  compA: string,
+  cfgA: string,
+  compB: string,
+  cfgB: string,
+): boolean {
+  return list.some(
+    (inc) =>
+      (inc.component_a === compA &&
+        inc.config_a === cfgA &&
+        inc.component_b === compB &&
+        inc.config_b === cfgB) ||
+      (inc.component_a === compB &&
+        inc.config_a === cfgB &&
+        inc.component_b === compA &&
+        inc.config_b === cfgA),
+  )
 }
 
 export interface ProspectiveAnalysisProps {
@@ -120,6 +167,33 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
     { id: 'C1', name: '', configsText: 'Opció A\nOpció B' },
     { id: 'C2', name: '', configsText: 'Opció A\nOpció B' },
   ])
+  const [incompatibilities, setIncompatibilities] = useState<IncompatRow[]>([])
+  const [morphSpaceStats, setMorphSpaceStats] = useState<{
+    total_combinations: number
+    valid_combinations: number
+    filtered_out: number
+    scenario_configs?: { scenario_type: string; config: string }[]
+  } | null>(null)
+
+  const [smicInitial, setSmicInitial] = useState<number[]>([0.2, 0.35, 0.3, 0.15])
+  const [smicCross, setSmicCross] = useState<number[][]>(emptySmicCross)
+  const [smicResult, setSmicResult] = useState<{
+    final_probs: number[]
+    final_labels: string[]
+  } | null>(null)
+  const [smicMatrix, setSmicMatrix] = useState<number[][]>(
+    Array.from({ length: 4 }, (_, i) =>
+      Array.from({ length: 4 }, (_, j) => (i === j ? 0 : 0.5)),
+    ),
+  )
+  const [smicBayesianResult, setSmicBayesianResult] = useState<{
+    results: Array<{
+      name: string
+      prior_probability: number
+      adjusted_probability: number
+      label: string
+    }>
+  } | null>(null)
 
   const [streamTexts, setStreamTexts] = useState<Record<number, string>>({})
   const [streamMeta, setStreamMeta] = useState<Record<number, string>>({})
@@ -156,6 +230,45 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
     queryKey: ['prospective-projects'],
     queryFn: () => prospectiveService.listProjects(),
   })
+
+  const { data: projectDetail } = useQuery({
+    queryKey: ['prospective-project-detail', projectId],
+    queryFn: () => prospectiveService.getProject(projectId!),
+    enabled: projectId !== null,
+  })
+
+  useEffect(() => {
+    if (!projectDetail) return
+    const pd = projectDetail as {
+      incompatibilities?: IncompatRow[]
+      morph_space?: typeof morphSpaceStats
+      smic?: {
+        initial_probs: number[]
+        cross_matrix: number[][]
+        final_probs?: number[]
+        final_labels?: string[]
+      }
+      components?: { id: string; name: string; configs: { label: string }[] }[]
+    }
+    if (pd.incompatibilities) setIncompatibilities(pd.incompatibilities)
+    if (pd.morph_space) setMorphSpaceStats(pd.morph_space)
+    if (pd.smic) {
+      setSmicInitial(pd.smic.initial_probs ?? [0.2, 0.35, 0.3, 0.15])
+      setSmicCross(pd.smic.cross_matrix ?? emptySmicCross())
+      if (pd.smic.final_probs && pd.smic.final_labels) {
+        setSmicResult({ final_probs: pd.smic.final_probs, final_labels: pd.smic.final_labels })
+      }
+    }
+    if (pd.components?.length) {
+      setMorphRows(
+        pd.components.map((c) => ({
+          id: c.id,
+          name: c.name,
+          configsText: (c.configs ?? []).map((cfg) => cfg.label).join('\n'),
+        })),
+      )
+    }
+  }, [projectDetail])
 
   const createMutation = useMutation({
     mutationFn: () =>
@@ -282,25 +395,74 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
   })
 
   const saveMorphMutation = useMutation({
-    mutationFn: () =>
-      prospectiveService.saveComponents(
+    mutationFn: async () => {
+      await prospectiveService.saveComponents(
         projectId!,
         morphRows.map((m) => ({
           id: m.id,
           name: m.name,
-          configs: m.configsText
-            .split('\n')
-            .map((s) => s.trim())
-            .filter(Boolean)
-            .map((label) => ({ label, desc: '' })),
+          configs: morphConfigsFromText(m.configsText).map((label) => ({ label, desc: '' })),
         })),
-      ),
-    onSuccess: () => {
+      )
+      const stats = await prospectiveService.saveCompatibilities(projectId!, incompatibilities)
+      return stats
+    },
+    onSuccess: (stats) => {
+      setMorphSpaceStats(stats)
       setErrorMsg(null)
       setStep(7)
     },
     onError: () => setErrorMsg('Error guardant components morfològics.'),
   })
+
+  const smicMutation = useMutation({
+    mutationFn: () => prospectiveService.computeSmic(projectId!, smicInitial, smicCross),
+    onSuccess: (data: { final_probs: number[]; final_labels: string[] }) => {
+      setSmicResult(data)
+      setErrorMsg(null)
+    },
+    onError: () => setErrorMsg('Error calculant SMIC.'),
+  })
+
+  const liveMicmacPreview = useMemo(
+    () => computeMicmacPreview(micmacMatrix, variables.map((v) => v.code)),
+    [micmacMatrix, variables],
+  )
+
+  const toggleMorphCompatibility = (
+    compA: string,
+    cfgA: string,
+    compB: string,
+    cfgB: string,
+    compatible: boolean,
+  ) => {
+    setIncompatibilities((prev) => {
+      if (compatible) {
+        return prev.filter(
+          (inc) =>
+            !(
+              (inc.component_a === compA &&
+                inc.config_a === cfgA &&
+                inc.component_b === compB &&
+                inc.config_b === cfgB) ||
+              (inc.component_a === compB &&
+                inc.config_a === cfgB &&
+                inc.component_b === compA &&
+                inc.config_b === cfgA)
+            ),
+        )
+      }
+      return [...prev, { component_a: compA, config_a: cfgA, component_b: compB, config_b: cfgB }]
+    })
+  }
+
+  const liveMorphTotal = useMemo(() => {
+    let total = 1
+    for (const m of morphRows) {
+      total *= Math.max(morphConfigsFromText(m.configsText).length, 1)
+    }
+    return total
+  }, [morphRows])
 
   const cleanupMutation = useMutation({
     mutationFn: () => extractService.runCleanup(extractionCaseId!),
@@ -977,181 +1139,144 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
               </tbody>
             </table>
           </div>
-          {micmacResult && (() => {
-            const sectors = (micmacResult.sectors as Array<{
-              index: number
-              code: string
-              sector: string
-              motricitat: number
-              dependencia: number
-            }>) ?? []
-            const vbFromKey = micmacResult.vb_index as number | undefined
-            const vrFromKey = micmacResult.vr_index as number | undefined
-            const vbFromObj = (micmacResult.variable_blanc as { index: number } | undefined)?.index
-            const vrFromObj = (micmacResult.variable_risc as { index: number } | undefined)?.index
-            const vbIdx = vbFromKey ?? vbFromObj ?? -1
-            const vrIdx = vrFromKey ?? vrFromObj ?? -1
-
-            if (sectors.length === 0) {
-              return (
-                <div className="prospective-alert prospective-alert--success">
-                  MIC-MAC calculat. VB={vbIdx} VR={vrIdx}
-                </div>
-              )
-            }
-
-            const allMot = sectors.map((s) => s.motricitat)
-            const allDep = sectors.map((s) => s.dependencia)
-            const maxMot = Math.max(...allMot, 1)
-            const maxDep = Math.max(...allDep, 1)
-            const avgMot = allMot.reduce((a, b) => a + b, 0) / allMot.length
-            const avgDep = allDep.reduce((a, b) => a + b, 0) / allDep.length
-
-            const W = 480
-            const H = 380
-            const PAD = 52
-            const toX = (dep: number) => PAD + (dep / maxDep) * (W - PAD * 2)
-            const toY = (mot: number) => H - PAD - (mot / maxMot) * (H - PAD * 2)
-            const avgX = toX(avgDep)
-            const avgY = toY(avgMot)
-
-            const COLORS: Record<string, string> = {
-              Motriu: '#1e3a5f',
-              'Clau/Conflicte': '#dc3545',
-              Resultant: '#28a745',
-              Excluyent: '#6c757d',
-              Autònom: '#6c757d',
-            }
-
+          <MicmacScatterChart result={liveMicmacPreview} live />
+          {(() => {
+            const sectors = liveMicmacPreview.sectors
+            const vbIdx = liveMicmacPreview.vb_index
+            const vrIdx = liveMicmacPreview.vr_index
+            if (vbIdx < 0 && vrIdx < 0) return null
             return (
-              <div className="micmac-chart-wrap">
-                <p className="micmac-chart-title">Gràfic motricitat / dependència — Sectors Godet</p>
-                <svg
-                  viewBox={`0 0 ${W} ${H}`}
-                  style={{
-                    width: '100%',
-                    maxWidth: W,
-                    border: '1px solid var(--color-gray-200)',
-                    borderRadius: 'var(--radius-md)',
-                    background: '#fafbfc',
-                  }}
-                  aria-label="Gràfic MIC-MAC"
-                >
-                  <rect x={PAD} y={PAD} width={avgX - PAD} height={avgY - PAD} fill="rgba(30,58,95,0.07)" />
-                  <rect x={avgX} y={PAD} width={W - PAD - avgX} height={avgY - PAD} fill="rgba(220,53,69,0.08)" />
-                  <rect x={avgX} y={avgY} width={W - PAD - avgX} height={H - PAD - avgY} fill="rgba(40,167,69,0.07)" />
-                  <rect x={PAD} y={avgY} width={avgX - PAD} height={H - PAD - avgY} fill="rgba(108,117,125,0.05)" />
-
-                  <text x={PAD + 6} y={PAD + 16} fontSize="10" fill="#1e3a5f" fontWeight="600">Motriu</text>
-                  <text x={avgX + 4} y={PAD + 16} fontSize="10" fill="#dc3545" fontWeight="600">Clau/Conflicte</text>
-                  <text x={avgX + 4} y={H - PAD - 6} fontSize="10" fill="#28a745" fontWeight="600">Resultant</text>
-                  <text x={PAD + 6} y={H - PAD - 6} fontSize="10" fill="#6c757d" fontWeight="600">Autònom</text>
-
-                  <line x1={avgX} y1={PAD} x2={avgX} y2={H - PAD} stroke="#bbb" strokeWidth="1" strokeDasharray="4 3" />
-                  <line x1={PAD} y1={avgY} x2={W - PAD} y2={avgY} stroke="#bbb" strokeWidth="1" strokeDasharray="4 3" />
-
-                  <line x1={PAD} y1={PAD} x2={PAD} y2={H - PAD} stroke="#999" strokeWidth="1.5" />
-                  <line x1={PAD} y1={H - PAD} x2={W - PAD} y2={H - PAD} stroke="#999" strokeWidth="1.5" />
-                  <text x={W / 2} y={H - 8} fontSize="11" fill="#6c757d" textAnchor="middle">Dependència →</text>
-                  <text
-                    x={14}
-                    y={H / 2}
-                    fontSize="11"
-                    fill="#6c757d"
-                    textAnchor="middle"
-                    transform={`rotate(-90,14,${H / 2})`}
+              <div style={{ display: 'flex', gap: 'var(--spacing-md)', marginTop: 'var(--spacing-md)', flexWrap: 'wrap' }}>
+                {vbIdx >= 0 && sectors[vbIdx] && (
+                  <div
+                    style={{
+                      background: 'rgba(212,168,67,0.1)',
+                      border: '1px solid rgba(212,168,67,0.4)',
+                      borderRadius: 'var(--radius-sm)',
+                      padding: 'var(--spacing-sm) var(--spacing-md)',
+                      fontSize: 'var(--font-size-sm)',
+                      flex: 1,
+                      minWidth: 200,
+                    }}
                   >
-                    Motricitat →
-                  </text>
-
-                  {sectors.map((s) => {
-                    const cx = toX(s.dependencia)
-                    const cy = toY(s.motricitat)
-                    const col = COLORS[s.sector] ?? '#6c757d'
-                    const isVB = s.index === vbIdx
-                    const isVR = s.index === vrIdx && s.index !== vbIdx
-                    const r = isVB || isVR ? 11 : 8
-                    return (
-                      <g key={s.index}>
-                        <circle
-                          cx={cx}
-                          cy={cy}
-                          r={r}
-                          fill={col}
-                          opacity={0.85}
-                          stroke={isVB ? '#d4a843' : isVR ? '#ff4444' : 'white'}
-                          strokeWidth={isVB || isVR ? 2.5 : 1.5}
-                        />
-                        <text x={cx + r + 3} y={cy + 4} fontSize="11" fontWeight="600" fill={col}>
-                          {s.code}
-                          {isVB ? ' VB' : isVR ? ' VR' : ''}
-                        </text>
-                      </g>
-                    )
-                  })}
-                </svg>
-
-                <div className="micmac-sectors-legend">
-                  {([
-                    { l: 'Motriu', c: '#1e3a5f', d: 'Alta mot, baixa dep' },
-                    { l: 'Clau/Conflicte', c: '#dc3545', d: 'Alta mot, alta dep' },
-                    { l: 'Resultant', c: '#28a745', d: 'Baixa mot, alta dep' },
-                    { l: 'Autònom', c: '#6c757d', d: 'Baixa mot, baixa dep' },
-                  ] as const).map(({ l, c, d }) => (
-                    <span key={l} className="micmac-sector-badge" style={{ background: `${c}18`, color: c }}>
-                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: c, display: 'inline-block' }} />
-                      {l} — {d}
-                    </span>
-                  ))}
-                </div>
-
-                {(vbIdx >= 0 || vrIdx >= 0) && (
-                  <div style={{ display: 'flex', gap: 'var(--spacing-md)', marginTop: 'var(--spacing-md)', flexWrap: 'wrap' }}>
-                    {vbIdx >= 0 && sectors[vbIdx] && (
-                      <div
-                        style={{
-                          background: 'rgba(212,168,67,0.1)',
-                          border: '1px solid rgba(212,168,67,0.4)',
-                          borderRadius: 'var(--radius-sm)',
-                          padding: 'var(--spacing-sm) var(--spacing-md)',
-                          fontSize: 'var(--font-size-sm)',
-                          flex: 1,
-                          minWidth: 200,
-                        }}
-                      >
-                        <strong style={{ color: '#9a7320' }}>VB — Variable Blanc:</strong>{' '}
-                        <strong>{sectors[vbIdx].code}</strong>
-                        <br />
-                        <span style={{ color: 'var(--color-gray-600)', fontSize: 'var(--font-size-xs)' }}>
-                          La palanca estratègica del sistema. Actua sobre ella per canviar el futur.
-                        </span>
-                      </div>
-                    )}
-                    {vrIdx >= 0 && sectors[vrIdx] && (
-                      <div
-                        style={{
-                          background: 'rgba(220,53,69,0.07)',
-                          border: '1px solid rgba(220,53,69,0.3)',
-                          borderRadius: 'var(--radius-sm)',
-                          padding: 'var(--spacing-sm) var(--spacing-md)',
-                          fontSize: 'var(--font-size-sm)',
-                          flex: 1,
-                          minWidth: 200,
-                        }}
-                      >
-                        <strong style={{ color: 'var(--color-danger)' }}>VR — Variable de Risc:</strong>{' '}
-                        <strong>{sectors[vrIdx].code}</strong>
-                        <br />
-                        <span style={{ color: 'var(--color-gray-600)', fontSize: 'var(--font-size-xs)' }}>
-                          Punt d&apos;inestabilitat: petits canvis, efectes imprevisibles.
-                        </span>
-                      </div>
-                    )}
+                    <strong style={{ color: '#9a7320' }}>VB — Variable Blanc:</strong>{' '}
+                    <strong>{sectors[vbIdx].code}</strong>
+                  </div>
+                )}
+                {vrIdx >= 0 && sectors[vrIdx] && (
+                  <div
+                    style={{
+                      background: 'rgba(220,53,69,0.07)',
+                      border: '1px solid rgba(220,53,69,0.3)',
+                      borderRadius: 'var(--radius-sm)',
+                      padding: 'var(--spacing-sm) var(--spacing-md)',
+                      fontSize: 'var(--font-size-sm)',
+                      flex: 1,
+                      minWidth: 200,
+                    }}
+                  >
+                    <strong style={{ color: 'var(--color-danger)' }}>VR — Variable de Risc:</strong>{' '}
+                    <strong>{sectors[vrIdx].code}</strong>
                   </div>
                 )}
               </div>
             )
           })()}
+          {micmacResult && (
+            <div className="prospective-alert prospective-alert--success" style={{ marginTop: 'var(--spacing-md)' }}>
+              Resultat MIC-MAC desat al servidor.
+            </div>
+          )}
+
+          {micmacResult && (
+            <details style={{ marginTop: 'var(--spacing-lg)' }}>
+              <summary
+                style={{
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  color: 'var(--color-primary)',
+                  fontSize: 'var(--font-size-sm)',
+                  padding: 'var(--spacing-sm) 0',
+                }}
+              >
+                Anàlisi de sensibilitat (What-if)
+              </summary>
+              <div
+                style={{
+                  marginTop: 'var(--spacing-md)',
+                  padding: 'var(--spacing-md)',
+                  background: 'rgba(30,58,95,0.03)',
+                  border: '1px solid rgba(30,58,95,0.15)',
+                  borderRadius: 'var(--radius-md)',
+                }}
+              >
+                <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-gray-600)', marginBottom: 'var(--spacing-md)' }}>
+                  Modifica la matriu principal per explorar l&apos;impacte sobre sectors, VB i VR{' '}
+                  <strong>sense guardar</strong>. El gràfic superior s&apos;actualitza en viu.
+                </p>
+                {(() => {
+                  const prevSectors =
+                    (micmacResult.sectors as Array<{ index: number; code: string; sector: string }>) ?? []
+                  const newSectors = liveMicmacPreview.sectors
+                  const changed = newSectors.filter((ns) => {
+                    const old = prevSectors.find((os) => os.index === ns.index)
+                    return old && old.sector !== ns.sector
+                  })
+                  const oldVB =
+                    (micmacResult.vb_index as number | undefined) ??
+                    (micmacResult.variable_blanc as { index: number } | undefined)?.index ??
+                    -1
+                  const oldVR =
+                    (micmacResult.vr_index as number | undefined) ??
+                    (micmacResult.variable_risc as { index: number } | undefined)?.index ??
+                    -1
+                  const newVB = liveMicmacPreview.vb_index
+                  const newVR = liveMicmacPreview.vr_index
+                  if (changed.length === 0 && newVB === oldVB && newVR === oldVR) {
+                    return (
+                      <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-success)' }}>
+                        Cap canvi respecte al resultat desat.
+                      </p>
+                    )
+                  }
+                  return (
+                    <div style={{ fontSize: 'var(--font-size-xs)' }}>
+                      {changed.map((ns) => {
+                        const old = prevSectors.find((os) => os.index === ns.index)
+                        return (
+                          <div
+                            key={ns.index}
+                            style={{
+                              padding: '4px 8px',
+                              marginBottom: 4,
+                              background: 'rgba(220,53,69,0.08)',
+                              borderRadius: '4px',
+                              color: 'var(--color-danger)',
+                            }}
+                          >
+                            <strong>{ns.code}</strong>: {old?.sector} → <strong>{ns.sector}</strong>
+                          </div>
+                        )
+                      })}
+                      {newVB !== oldVB && (
+                        <div style={{ color: '#9a7320', fontWeight: 600, marginTop: 4 }}>
+                          VB: {prevSectors[oldVB]?.code ?? oldVB} →{' '}
+                          <strong>{newSectors[newVB]?.code ?? newVB}</strong>
+                        </div>
+                      )}
+                      {newVR !== oldVR && newVB !== oldVR && (
+                        <div style={{ color: 'var(--color-danger)', fontWeight: 600, marginTop: 4 }}>
+                          VR: {prevSectors[oldVR]?.code ?? oldVR} →{' '}
+                          <strong>{newSectors[newVR]?.code ?? newVR}</strong>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
+              </div>
+            </details>
+          )}
+
           <div className="prospective-actions">
             <button type="button" className="btn" onClick={() => setStep(2)}>
               Enrere
@@ -1719,6 +1844,107 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
           >
             Afegir component
           </button>
+
+          <div className="card" style={{ marginTop: 'var(--spacing-lg)' }}>
+            <h3 style={{ color: 'var(--color-primary)', marginBottom: 'var(--spacing-sm)' }}>
+              Matriu de compatibilitat Zwicky
+            </h3>
+            <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-gray-600)' }}>
+              Desmarca les parelles de configuracions <strong>incompatibles</strong> entre components
+              diferents. L&apos;espai combinatori es filtra abans de seleccionar els 4 escenaris.
+            </p>
+            <p style={{ fontSize: 'var(--font-size-sm)', marginTop: 'var(--spacing-sm)' }}>
+              Combinacions totals: <strong>{liveMorphTotal}</strong>
+              {morphSpaceStats && (
+                <>
+                  {' · '}
+                  Vàlides després del filtre: <strong>{morphSpaceStats.valid_combinations}</strong>
+                  {morphSpaceStats.filtered_out > 0 && (
+                    <span> ({morphSpaceStats.filtered_out} excloses)</span>
+                  )}
+                </>
+              )}
+              {!morphSpaceStats && incompatibilities.length > 0 && (
+                <span> · {incompatibilities.length} parelles marcades com a incompatibles</span>
+              )}
+            </p>
+            {morphRows.flatMap((rowA, i) =>
+              morphRows.slice(i + 1).map((rowB, jOff) => {
+                const j = i + 1 + jOff
+                const cfgsA = morphConfigsFromText(rowA.configsText)
+                const cfgsB = morphConfigsFromText(rowB.configsText)
+                if (cfgsA.length === 0 || cfgsB.length === 0) return null
+                return (
+                  <div key={`${rowA.id}-${rowB.id}`} style={{ marginTop: 'var(--spacing-md)' }}>
+                    <h4 style={{ fontSize: 'var(--font-size-sm)', marginBottom: 4 }}>
+                      {rowA.id || `C${i + 1}`} × {rowB.id || `C${j + 1}`}
+                    </h4>
+                    <div style={{ overflowX: 'auto' }}>
+                      <table className="prospective-matrix morph-compat-table">
+                        <thead>
+                          <tr>
+                            <th />
+                            {cfgsB.map((cb) => (
+                              <th key={cb} style={{ fontSize: 'var(--font-size-xs)' }}>
+                                {cb}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {cfgsA.map((ca) => (
+                            <tr key={ca}>
+                              <th style={{ fontSize: 'var(--font-size-xs)', textAlign: 'left' }}>{ca}</th>
+                              {cfgsB.map((cb) => {
+                                const compatible = !isPairIncompatible(
+                                  incompatibilities,
+                                  rowA.id,
+                                  ca,
+                                  rowB.id,
+                                  cb,
+                                )
+                                return (
+                                  <td key={cb} style={{ textAlign: 'center' }}>
+                                    <input
+                                      type="checkbox"
+                                      checked={compatible}
+                                      title={compatible ? 'Compatible' : 'Incompatible'}
+                                      onChange={(e) =>
+                                        toggleMorphCompatibility(
+                                          rowA.id,
+                                          ca,
+                                          rowB.id,
+                                          cb,
+                                          e.target.checked,
+                                        )
+                                      }
+                                    />
+                                  </td>
+                                )
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )
+              }),
+            )}
+            {morphSpaceStats?.scenario_configs && (
+              <div style={{ marginTop: 'var(--spacing-md)' }}>
+                <h4 style={{ fontSize: 'var(--font-size-sm)' }}>Configuracions d&apos;escenari seleccionades</h4>
+                <ul style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-gray-700)' }}>
+                  {morphSpaceStats.scenario_configs.map((s) => (
+                    <li key={s.scenario_type}>
+                      <strong>{s.scenario_type}</strong>: {s.config || '—'}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+
           <div className="prospective-actions">
             <button type="button" className="btn" onClick={() => setStep(5)}>
               Enrere
@@ -1738,6 +1964,100 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
       {step === 7 && projectId !== null && (
         <>
           <h2 style={{ color: 'var(--color-primary)' }}>Escenaris narratius (SSE + Claude)</h2>
+
+          <div className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
+            <h3 style={{ color: 'var(--color-primary)' }}>SMIC — Probabilitats creuades</h3>
+            <MethodologyHint title="Metodologia Godet — SMIC" defaultOpen={false}>
+              <p>
+                Matriu d&apos;impacte creuat 4×4: com cada escenari condiciona la probabilitat dels
+                altres. Valors de <strong>-2</strong> (inhibeix) a <strong>+2</strong> (reforça).
+              </p>
+            </MethodologyHint>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 12 }}>
+              {SCENARIO_NAMES.map((name, i) => (
+                <div key={name} className="prospective-field">
+                  <label style={{ fontSize: 'var(--font-size-xs)' }}>{name}</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    value={smicInitial[i]}
+                    onChange={(e) => {
+                      const v = Number(e.target.value)
+                      setSmicInitial((prev) => prev.map((p, j) => (j === i ? v : p)))
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table className="prospective-matrix">
+                <thead>
+                  <tr>
+                    <th>Impacte →</th>
+                    {SCENARIO_NAMES.map((n) => (
+                      <th key={n} style={{ fontSize: 'var(--font-size-xs)' }}>
+                        {n.split(' ').slice(-1)[0]}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {SCENARIO_NAMES.map((rowName, i) => (
+                    <tr key={rowName}>
+                      <th style={{ fontSize: 'var(--font-size-xs)', textAlign: 'left' }}>
+                        {rowName.split(' ').slice(-1)[0]}
+                      </th>
+                      {SCENARIO_NAMES.map((_, j) => (
+                        <td key={j}>
+                          <input
+                            type="number"
+                            min={-2}
+                            max={2}
+                            step={0.5}
+                            value={smicCross[i][j]}
+                            disabled={i === j}
+                            onChange={(e) => {
+                              const v = Number(e.target.value)
+                              setSmicCross((prev) =>
+                                prev.map((row, ri) =>
+                                  ri === i ? row.map((cell, ci) => (ci === j ? v : cell)) : row,
+                                ),
+                              )
+                            }}
+                          />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="prospective-actions" style={{ marginTop: 'var(--spacing-md)' }}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={smicMutation.isPending}
+                onClick={() => smicMutation.mutate()}
+              >
+                Calcular probabilitats SMIC
+              </button>
+            </div>
+            {smicResult && (
+              <div className="prospective-alert prospective-alert--success" style={{ marginTop: 'var(--spacing-md)' }}>
+                Probabilitats finals:{' '}
+                {SCENARIO_NAMES.map((name, i) => (
+                  <span key={name}>
+                    {name.split(' ').slice(-1)[0]}={smicResult.final_labels[i]} (
+                    {(smicResult.final_probs[i] * 100).toFixed(0)}%)
+                    {i < 3 ? ' · ' : ''}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="prospective-actions">
             <button type="button" className="btn" onClick={() => setStep(6)}>
               Enrere
@@ -1786,6 +2106,136 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
               </li>
             ))}
           </ul>
+
+          {savedScenarios.length >= 2 && (
+            <details style={{ marginTop: 'var(--spacing-xl)' }}>
+              <summary
+                style={{
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  color: 'var(--color-primary)',
+                  fontSize: 'var(--font-size-sm)',
+                  padding: 'var(--spacing-sm) 0',
+                }}
+              >
+                SMIC — Probabilitats creuades entre escenaris
+              </summary>
+              <div
+                style={{
+                  marginTop: 'var(--spacing-md)',
+                  padding: 'var(--spacing-md)',
+                  background: 'var(--color-gray-50)',
+                  border: '1px solid var(--color-gray-200)',
+                  borderRadius: 'var(--radius-md)',
+                }}
+              >
+                <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-gray-600)', marginBottom: 'var(--spacing-md)' }}>
+                  Si l&apos;escenari de la <strong>fila</strong> ocorre, quina probabilitat té el de la{' '}
+                  <strong>columna</strong>? (0.0 = impossibilita · 1.0 = garanteix · 0.5 = independent)
+                </p>
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="prospective-matrix">
+                    <thead>
+                      <tr>
+                        <th>Si ocorre ↓ / Prob de →</th>
+                        {(savedScenarios as { id: number; name: string }[]).slice(0, 4).map((s) => (
+                          <th key={s.id} style={{ fontSize: '10px' }}>
+                            {s.name.replace('Escenari ', '')}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(savedScenarios as { id: number; name: string }[]).slice(0, 4).map((s, i) => (
+                        <tr key={s.id}>
+                          <th style={{ fontSize: '10px', textAlign: 'left' }}>
+                            {s.name.replace('Escenari ', '')}
+                          </th>
+                          {Array.from({ length: Math.min(4, savedScenarios.length) }, (_, j) => (
+                            <td key={j} style={{ textAlign: 'center' }}>
+                              {i === j ? (
+                                '—'
+                              ) : (
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={1}
+                                  step={0.1}
+                                  value={smicMatrix[i]?.[j] ?? 0.5}
+                                  style={{ width: 52, textAlign: 'center' }}
+                                  onChange={(e) => {
+                                    const val = Math.max(0, Math.min(1, parseFloat(e.target.value) || 0))
+                                    setSmicMatrix((prev) => {
+                                      const next = prev.map((r) => [...r])
+                                      if (!next[i]) next[i] = []
+                                      next[i][j] = val
+                                      return next
+                                    })
+                                  }}
+                                />
+                              )}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  style={{ marginTop: 'var(--spacing-md)' }}
+                  disabled={!projectId}
+                  onClick={async () => {
+                    if (!projectId) return
+                    const result = await prospectiveService.computeSmicBayesian(projectId, smicMatrix)
+                    setSmicBayesianResult(result)
+                    void queryClient.invalidateQueries({ queryKey: ['prospective-scenarios', projectId] })
+                  }}
+                >
+                  Calcular probabilitats ajustades (SMIC)
+                </button>
+                {smicBayesianResult && (
+                  <div style={{ marginTop: 'var(--spacing-md)' }}>
+                    <p style={{ fontWeight: 600, fontSize: 'var(--font-size-sm)', color: 'var(--color-primary)' }}>
+                      Probabilitats ajustades:
+                    </p>
+                    {smicBayesianResult.results.map((r) => (
+                      <div
+                        key={r.name}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 'var(--spacing-md)',
+                          padding: '6px 0',
+                          borderBottom: '1px solid var(--color-gray-100)',
+                          fontSize: 'var(--font-size-xs)',
+                        }}
+                      >
+                        <span style={{ flex: 1, fontWeight: 500 }}>{r.name}</span>
+                        <span style={{ color: 'var(--color-gray-500)' }}>
+                          P(prior)={Math.round(r.prior_probability * 100)}%
+                        </span>
+                        <span
+                          style={{
+                            fontWeight: 700,
+                            color:
+                              r.adjusted_probability > 0.45
+                                ? 'var(--color-danger)'
+                                : r.adjusted_probability > 0.25
+                                  ? '#856404'
+                                  : 'var(--color-success)',
+                          }}
+                        >
+                          → P(SMIC)={Math.round(r.adjusted_probability * 100)}% [{r.label}]
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </details>
+          )}
 
           {projectId !== null && savedScenarios.length > 0 && (
             <div

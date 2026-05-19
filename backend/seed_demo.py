@@ -28,12 +28,50 @@ async def seed() -> None:
     from models.prospective import (
         ProspectiveProject, ProspectiveVariable,
         ProspectiveActor, MACTORObjective, MorphComponent,
-        ProspectiveScenario,
+        ProspectiveScenario, MICMACResult,
     )
+    from services.micmac_math import compute_micmac_pure
     from passlib.context import CryptContext
     from sqlalchemy import select
 
     pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+    # Matriu MIC-MAC 5×5 coherent amb el cas Indo-Pacífic (diagonal = 0)
+    # Files/columnes: A=Expansió BRI, B=Índia, C=QUAD, D=Corredors, E=UE
+    DEMO_MICMAC_MATRIX = [
+        [0, 1, 2, 3, 1],
+        [2, 0, 2, 3, 2],
+        [3, 1, 0, 2, 2],
+        [2, 2, 2, 0, 2],
+        [1, 1, 2, 2, 0],
+    ]
+    DEMO_VAR_CODES = ["A", "B", "C", "D", "E"]
+
+    async def ensure_micmac_result(db_session, project_id: int) -> None:
+        existing_micmac = (
+            await db_session.execute(
+                select(MICMACResult).where(MICMACResult.project_id == project_id)
+            )
+        ).scalar_one_or_none()
+        if existing_micmac and existing_micmac.matrix_direct:
+            return
+        if existing_micmac:
+            await db_session.delete(existing_micmac)
+            await db_session.flush()
+        micmac = compute_micmac_pure(DEMO_MICMAC_MATRIX, DEMO_VAR_CODES)
+        db_session.add(
+            MICMACResult(
+                project_id=project_id,
+                matrix_direct=micmac["matrix_direct"],
+                matrix_indirect=micmac["matrix_indirect"],
+                motricite_direct=micmac["motricitat_direct"],
+                dependence_direct=micmac["dependencia_direct"],
+                sectors=micmac["sectors"],
+                vb_index=micmac["vb_index"],
+                vr_index=micmac["vr_index"],
+            )
+        )
+        print("[OK] Matriu MIC-MAC 5x5 demo creada (gràfic de sectors actiu)")
 
     # Ensure tables exist
     async with engine.begin() as conn:
@@ -148,6 +186,7 @@ async def seed() -> None:
 
         if existing_proj:
             print("[i] Demo prospective project already exists")
+            project = existing_proj
         else:
             project = ProspectiveProject(
                 case_id=case.id,
@@ -322,6 +361,14 @@ Probabilitat BAIXA: Requereix una crisi xinesa interna i una execució occidenta
                 ))
             print(f"[OK] {len(scenarios)} escenaris prospectius pre-generats")
 
+        demo_project = (
+            await db.execute(
+                select(ProspectiveProject).where(ProspectiveProject.case_id == case.id)
+            )
+        ).scalar_one_or_none()
+        if demo_project:
+            await ensure_micmac_result(db, demo_project.id)
+
         await db.commit()
 
     print("\n" + "=" * 60)
@@ -333,6 +380,7 @@ Probabilitat BAIXA: Requereix una crisi xinesa interna i una execució occidenta
     print("\n  El cas 'Indo-Pacífic 2030' ja conté:")
     print("  - 3 articles OSINT de mostra")
     print("  - Projecte prospectiu complet (5 variables, 4 actors, 3 components)")
+    print("  - Matriu MIC-MAC 5x5 preomplerta (gràfic de sectors)")
     print("  - 4 escenaris narratius pre-generats")
     print("\n  IMPORTANT: Canvia la contrasenya al primer ús!")
     print("=" * 60)

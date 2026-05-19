@@ -5,7 +5,8 @@ DB-dependent methods use the db_session fixture from conftest.
 """
 import pytest
 
-from services.prospective_service import matrix_multiply
+from services.micmac_math import compute_micmac_pure
+from services.micmac_math import matrix_multiply
 
 
 class TestMatrixMultiply:
@@ -48,36 +49,14 @@ class TestMicMacMath:
 
     def _micmac_pure(self, matrix):
         """Replica la lògica de compute_micmac sense accedir a la BD."""
-        n = len(matrix)
-        mot_d = [sum(matrix[i]) for i in range(n)]
-        dep_d = [sum(matrix[i][j] for i in range(n)) for j in range(n)]
-        avg_mot = sum(mot_d) / n if n else 0
-        avg_dep = sum(dep_d) / n if n else 0
-
-        sectors = []
-        for i in range(n):
-            mot = mot_d[i]
-            dep = dep_d[i]
-            if mot >= avg_mot and dep >= avg_dep:
-                sector = "Clau/Conflicte"
-            elif mot >= avg_mot:
-                sector = "Motriu"
-            elif dep >= avg_dep:
-                sector = "Resultant"
-            else:
-                sector = "Excluyent"
-            sectors.append({
-                "index": i,
-                "sector": sector,
-                "motricitat": mot,
-                "dependencia": dep,
-            })
-
-        key_sector = [s["index"] for s in sectors if s["sector"] == "Clau/Conflicte"]
-        vb_idx = max(key_sector, key=lambda i: dep_d[i]) if key_sector else 0
-        vr_idx = min(range(n), key=lambda i: abs(mot_d[i] - dep_d[i])) if n else 0
-
-        return mot_d, dep_d, sectors, vb_idx, vr_idx
+        result = compute_micmac_pure(matrix)
+        return (
+            result["motricitat_direct"],
+            result["dependencia_direct"],
+            result["sectors"],
+            result["vb_index"],
+            result["vr_index"],
+        )
 
     def test_motricitat_is_row_sum(self):
         matrix = [

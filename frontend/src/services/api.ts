@@ -766,6 +766,76 @@ export const prospectiveService = {
     })
     return response.data
   },
+  saveCompatibilities: async (
+    projectId: number,
+    incompatibilities: Array<{
+      component_a: string
+      config_a: string
+      component_b: string
+      config_b: string
+    }>,
+  ) => {
+    const response = await api.put(`/api/prospective/projects/${projectId}/compatibilities`, {
+      incompatibilities,
+    })
+    return response.data
+  },
+  saveCompatibility: async (
+    projectId: number,
+    pairs: Array<{
+      comp_a: string
+      cfg_a: string
+      comp_b: string
+      cfg_b: string
+      compatible: boolean
+    }>,
+  ) => {
+    const response = await api.put(`/api/prospective/projects/${projectId}/compatibility`, {
+      pairs,
+    })
+    return response.data
+  },
+  getCompatibility: async (projectId: number) => {
+    const response = await api.get(`/api/prospective/projects/${projectId}/compatibility`)
+    return response.data
+  },
+  getMorphologicalSpace: async (projectId: number) => {
+    const response = await api.get(
+      `/api/prospective/projects/${projectId}/morphological-space`,
+    )
+    return response.data
+  },
+  getMorphSpace: async (projectId: number) => {
+    const response = await api.get(`/api/prospective/projects/${projectId}/morph-space`)
+    return response.data
+  },
+  previewMicmac: async (projectId: number, matrix: number[][]) => {
+    const response = await api.post(`/api/prospective/projects/${projectId}/micmac/preview`, {
+      matrix,
+    })
+    return response.data
+  },
+  getSmic: async (projectId: number) => {
+    const response = await api.get(`/api/prospective/projects/${projectId}/smic`)
+    return response.data
+  },
+  computeSmic: async (
+    projectId: number,
+    initial_probs: number[],
+    cross_matrix: number[][],
+  ) => {
+    const response = await api.post(`/api/prospective/projects/${projectId}/smic/compute`, {
+      initial_probs,
+      cross_matrix,
+    })
+    return response.data
+  },
+  computeSmicBayesian: async (projectId: number, conditionalMatrix: number[][]) => {
+    const response = await api.post(`/api/prospective/projects/${projectId}/smic`, {
+      conditional_matrix: conditionalMatrix,
+    })
+    return response.data
+  },
   getScenarios: async (projectId: number) => {
     const response = await api.get(`/api/prospective/projects/${projectId}/scenarios`)
     return response.data

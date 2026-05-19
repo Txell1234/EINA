@@ -57,6 +57,35 @@ class SaveComponentsRequest(BaseModel):
     components: List[dict]
 
 
+class IncompatibilitiesRequest(BaseModel):
+    incompatibilities: List[dict]
+
+
+class SMICRequest(BaseModel):
+    initial_probs: List[float]
+    cross_matrix: List[List[float]]
+
+
+class ConditionalSMICRequest(BaseModel):
+    conditional_matrix: List[List[float]]
+
+
+class CompatibilityPair(BaseModel):
+    comp_a: str
+    cfg_a: str
+    comp_b: str
+    cfg_b: str
+    compatible: bool = True
+
+
+class SaveCompatibilityRequest(BaseModel):
+    pairs: List[CompatibilityPair]
+
+
+class MICMACPreviewRequest(BaseModel):
+    matrix: List[List[int]]
+
+
 @router.get("/projects")
 async def list_projects(
     case_id: Optional[int] = Query(None),
@@ -127,6 +156,10 @@ async def get_project(project_id: int, current_user: User = Depends(get_current_
         .order_by(MorphComponent.order_index)
     )
 
+    incompatibilities = await svc.get_incompatibilities(project_id)
+    morph_space = await svc.get_morph_space(project_id)
+    smic = await svc.get_smic(project_id)
+
     return {
         "id": project.id,
         "title": project.title,
@@ -162,6 +195,9 @@ async def get_project(project_id: int, current_user: User = Depends(get_current_
             }
             for m in morph_r.scalars().all()
         ],
+        "incompatibilities": incompatibilities,
+        "morph_space": morph_space,
+        "smic": smic,
     }
 
 
@@ -231,6 +267,135 @@ async def compute_mactor(
     if not await svc.get_project(project_id):
         raise HTTPException(status_code=404, detail="Projecte no trobat")
     return await svc.compute_mactor(project_id, data.postures)
+
+
+@router.post("/projects/{project_id}/micmac/preview")
+async def preview_micmac(
+    project_id: int,
+    data: MICMACPreviewRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """What-if MIC-MAC preview without persisting."""
+    svc = ProspectiveService(db)
+    if not await svc.get_project(project_id):
+        raise HTTPException(status_code=404, detail="Projecte no trobat")
+    return await svc.preview_micmac(project_id, data.matrix)
+
+
+@router.put("/projects/{project_id}/compatibility")
+async def save_compatibility(
+    project_id: int,
+    data: SaveCompatibilityRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    svc = ProspectiveService(db)
+    if not await svc.get_project(project_id):
+        raise HTTPException(status_code=404, detail="Projecte no trobat")
+    return await svc.save_compatibility(project_id, [p.model_dump() for p in data.pairs])
+
+
+@router.get("/projects/{project_id}/compatibility")
+async def get_compatibility(
+    project_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    svc = ProspectiveService(db)
+    if not await svc.get_project(project_id):
+        raise HTTPException(status_code=404, detail="Projecte no trobat")
+    return await svc.get_compatibility(project_id)
+
+
+@router.get("/projects/{project_id}/morphological-space")
+async def get_morphological_space(
+    project_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    svc = ProspectiveService(db)
+    if not await svc.get_project(project_id):
+        raise HTTPException(status_code=404, detail="Projecte no trobat")
+    return await svc.get_morphological_space(project_id)
+
+
+@router.put("/projects/{project_id}/compatibilities")
+async def save_compatibilities(
+    project_id: int,
+    data: IncompatibilitiesRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    svc = ProspectiveService(db)
+    if not await svc.get_project(project_id):
+        raise HTTPException(status_code=404, detail="Projecte no trobat")
+    return await svc.save_incompatibilities(project_id, data.incompatibilities)
+
+
+@router.get("/projects/{project_id}/compatibilities")
+async def get_compatibilities(
+    project_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    svc = ProspectiveService(db)
+    if not await svc.get_project(project_id):
+        raise HTTPException(status_code=404, detail="Projecte no trobat")
+    return await svc.get_incompatibilities(project_id)
+
+
+@router.get("/projects/{project_id}/morph-space")
+async def get_morph_space(
+    project_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    svc = ProspectiveService(db)
+    if not await svc.get_project(project_id):
+        raise HTTPException(status_code=404, detail="Projecte no trobat")
+    return await svc.get_morph_space(project_id)
+
+
+@router.get("/projects/{project_id}/smic")
+async def get_smic(
+    project_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    svc = ProspectiveService(db)
+    if not await svc.get_project(project_id):
+        raise HTTPException(status_code=404, detail="Projecte no trobat")
+    return await svc.get_smic(project_id)
+
+
+@router.post("/projects/{project_id}/smic")
+async def compute_smic_bayesian(
+    project_id: int,
+    data: ConditionalSMICRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """SMIC Bayesian: conditional_matrix[i][j] = P(j | i occurs)."""
+    svc = ProspectiveService(db)
+    if not await svc.get_project(project_id):
+        raise HTTPException(status_code=404, detail="Projecte no trobat")
+    return await svc.compute_smic(project_id, data.conditional_matrix)
+
+
+@router.post("/projects/{project_id}/smic/compute")
+async def compute_smic(
+    project_id: int,
+    data: SMICRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    svc = ProspectiveService(db)
+    if not await svc.get_project(project_id):
+        raise HTTPException(status_code=404, detail="Projecte no trobat")
+    return await svc.save_and_compute_smic(
+        project_id, data.initial_probs, data.cross_matrix
+    )
 
 
 @router.put("/projects/{project_id}/components")
