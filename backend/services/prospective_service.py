@@ -1,7 +1,6 @@
 """
 Prospective Analysis Service - MIC-MAC, MACTOR, morphological, scenario narratives
 """
-import json
 import logging
 from typing import Any, AsyncGenerator, List, Optional
 
@@ -331,42 +330,112 @@ class ProspectiveService:
         ]
 
     async def _build_context(self, project_id: int) -> str:
+        """Build rich Godet context for scenario generation LLM prompt."""
         project = await self.get_project(project_id)
         if not project:
             return ""
 
         vars_r = await self.db.execute(
-            select(ProspectiveVariable).where(ProspectiveVariable.project_id == project_id)
+            select(ProspectiveVariable)
+            .where(ProspectiveVariable.project_id == project_id)
+            .order_by(ProspectiveVariable.order_index)
         )
         actors_r = await self.db.execute(
-            select(ProspectiveActor).where(ProspectiveActor.project_id == project_id)
+            select(ProspectiveActor)
+            .where(ProspectiveActor.project_id == project_id)
+            .order_by(ProspectiveActor.order_index)
         )
         morph_r = await self.db.execute(
-            select(MorphComponent).where(MorphComponent.project_id == project_id)
+            select(MorphComponent)
+            .where(MorphComponent.project_id == project_id)
+            .order_by(MorphComponent.order_index)
         )
         micmac_r = await self.db.execute(
             select(MICMACResult).where(MICMACResult.project_id == project_id)
+        )
+        mactor_r = await self.db.execute(
+            select(MACTORResult).where(MACTORResult.project_id == project_id)
         )
 
         variables = list(vars_r.scalars().all())
         actors = list(actors_r.scalars().all())
         morph = list(morph_r.scalars().all())
         micmac = micmac_r.scalar_one_or_none()
+        mactor = mactor_r.scalar_one_or_none()
 
-        parts = [
-            f"Títol: {project.title}",
-            f"Hipòtesi: {project.hypothesis}",
-            f"Context: {project.context}",
-            "Variables: " + ", ".join(f"{v.code} ({v.var_type}): {v.name}" for v in variables),
-            "Actors: " + ", ".join(f"{a.code}: {a.name} (força {a.force_score})" for a in actors),
+        parts: list[str] = [
+            f"CONFLICTE ESTRATÈGIC: {project.hypothesis}",
+            f"CONTEXT: {project.context}",
+            "",
+            f"VARIABLES DEL SISTEMA ({len(variables)}):",
         ]
+        for v in variables:
+            parts.append(f"  {v.code} ({v.var_type}): {v.name} — {v.description}")
+
         if micmac and micmac.sectors:
-            parts.append("Sectors MIC-MAC: " + json.dumps(micmac.sectors, ensure_ascii=False))
-        if morph:
-            parts.append(
-                "Components morfològics: "
-                + "; ".join(f"{m.code}: {m.name} ({len(m.configurations or [])} configs)" for m in morph)
+            parts += ["", "RESULTATS MIC-MAC (sectors Godet):"]
+            for s in micmac.sectors:
+                tag = ""
+                if s["index"] == micmac.vb_index:
+                    tag = " ← VARIABLE BLANC (palanca estratègica del sistema)"
+                elif s["index"] == micmac.vr_index:
+                    tag = " ← VARIABLE DE RISC (punt d'inestabilitat)"
+                parts.append(
+                    f"  {s['code']}: {s['sector']} "
+                    f"(mot={s['motricitat']}, dep={s['dependencia']}){tag}"
+                )
+            if micmac.vb_index is not None and micmac.vb_index < len(variables):
+                vb = variables[micmac.vb_index]
+                parts.append(
+                    f"\nLa VARIABLE BLANC és '{vb.code} — {vb.name}'. "
+                    "Els escenaris han de mostrar com evoluciona com a eix central."
+                )
+            if micmac.vr_index is not None and micmac.vr_index < len(variables):
+                vr = variables[micmac.vr_index]
+                parts.append(
+                    f"La VARIABLE DE RISC és '{vr.code} — {vr.name}'. "
+                    "Petits canvis en ella bifurquen el futur."
+                )
+
+        if mactor and actors:
+            mob = mactor.mobilisation_actors or []
+            conv = mactor.convergences_matrix or []
+            parts += ["", f"ACTORS ({len(actors)}):"]
+            actor_mob = sorted(
+                [(a, mob[i] if i < len(mob) else 0) for i, a in enumerate(actors)],
+                key=lambda x: x[1],
+                reverse=True,
             )
+            for a, m in actor_mob:
+                parts.append(
+                    f"  {a.code}: {a.name} (força={a.force_score:.0f}, mobilització={m})"
+                    f" — fins: {', '.join(a.strategic_goals or [])}"
+                )
+            if conv:
+                max_v, pair = 0, ("", "")
+                for i in range(len(actors)):
+                    for j in range(len(actors)):
+                        if i != j and i < len(conv) and j < len(conv[i]) and conv[i][j] > max_v:
+                            max_v = conv[i][j]
+                            pair = (actors[i].code, actors[j].code)
+                if max_v > 0:
+                    parts.append(
+                        f"MÀXIMA CONVERGÈNCIA: {pair[0]}–{pair[1]} "
+                        f"({max_v} objectius compartits) → aliança potencial."
+                    )
+
+        if morph:
+            parts += ["", "COMPONENTS MORFOLÒGICS:"]
+            total = 1
+            for m in morph:
+                cfgs = m.configurations or []
+                total *= len(cfgs) if cfgs else 1
+                parts.append(
+                    f"  {m.code}: {m.name} → "
+                    + " | ".join(c.get("label", "?") for c in cfgs)
+                )
+            parts.append(f"Espai morfològic: {total} combinacions.")
+
         return "\n".join(parts)
 
     async def stream_scenarios(self, project_id: int) -> AsyncGenerator[dict[str, Any], None]:

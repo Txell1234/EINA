@@ -195,3 +195,142 @@
 .preview-block {
   padding: var(--spacing-md);
 }
+
+/* ── MethodologyHint ────────────────────────────────────────── */
+.mhint {
+  background: rgba(30, 58, 95, 0.04);
+  border: 1px solid rgba(30, 58, 95, 0.15);
+  border-left: 3px solid var(--color-primary);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--spacing-lg);
+  overflow: hidden;
+}
+.mhint-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  color: var(--color-primary);
+}
+.mhint-icon {
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+.mhint-title {
+  flex: 1;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+.mhint-chevron {
+  font-size: 0.6rem;
+  color: var(--color-gray-400);
+  flex-shrink: 0;
+}
+.mhint-body {
+  padding: 0 var(--spacing-md) var(--spacing-md);
+  font-size: var(--font-size-sm);
+  color: var(--color-gray-700);
+  line-height: 1.7;
+}
+.mhint-body p {
+  margin-bottom: var(--spacing-sm);
+}
+.mhint-body p:last-child {
+  margin-bottom: 0;
+}
+.mhint-body strong {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+.mhint-example {
+  display: block;
+  background: var(--color-gray-50);
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-family: var(--font-mono, monospace);
+  font-size: var(--font-size-xs);
+  color: var(--color-gray-700);
+  margin-top: var(--spacing-xs);
+  white-space: pre-line;
+}
+.mhint-rule {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 107, 53, 0.1);
+  color: var(--color-accent-dark);
+  border-radius: 3px;
+  padding: 1px 6px;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+}
+
+/* ── MIC-MAC Chart ───────────────────────────────────────────── */
+.micmac-chart-wrap {
+  margin: var(--spacing-lg) 0;
+}
+.micmac-chart-title {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-primary);
+  margin-bottom: var(--spacing-sm);
+}
+.micmac-sectors-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-sm);
+  font-size: var(--font-size-xs);
+}
+.micmac-sector-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 500;
+}
+
+/* ── MACTOR Result ───────────────────────────────────────────── */
+.mactor-result-wrap {
+  margin: var(--spacing-lg) 0;
+}
+.mactor-result-title {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-primary);
+  margin-bottom: var(--spacing-sm);
+}
+.mactor-conv-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-xs);
+  margin-top: var(--spacing-md);
+}
+.mactor-conv-table th,
+.mactor-conv-table td {
+  padding: 4px 8px;
+  border: 1px solid var(--color-gray-200);
+  text-align: center;
+}
+.mactor-conv-table th {
+  background: var(--color-primary);
+  color: white;
+  font-weight: 600;
+}
+.mactor-conv-high {
+  background: rgba(40, 167, 69, 0.2);
+  font-weight: 700;
+}
+.mactor-conv-mid {
+  background: rgba(255, 193, 7, 0.2);
+}
+.mactor-conv-low {
+  background: transparent;
+  color: var(--color-gray-400);
+}

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useCase, type ActiveCase } from '../../contexts/CaseContext'
 import { casesService, extractService, prospectiveService } from '../../services/api'
 import WorkflowProgress from '../shared/WorkflowProgress'
+import MethodologyHint from './MethodologyHint'
 import './ProspectiveAnalysis.css'
 
 const STEP_LABELS = [
@@ -101,6 +102,7 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
   ])
   const [micmacMatrix, setMicmacMatrix] = useState<number[][]>(emptyMatrix(3))
   const [micmacResult, setMicmacResult] = useState<Record<string, unknown> | null>(null)
+  const [mactorResult, setMactorResult] = useState<Record<string, unknown> | null>(null)
 
   const [actors, setActors] = useState<ActorRow[]>([
     { code: 'A1', name: '', force: 3, fins: '' },
@@ -271,7 +273,8 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
       )
       return prospectiveService.computeMactor(projectId!, postures)
     },
-    onSuccess: () => {
+    onSuccess: (data: Record<string, unknown>) => {
+      setMactorResult(data)
       setErrorMsg(null)
       setStep(6)
     },
@@ -535,7 +538,7 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
           ).length
         }
         hasMicmac={micmacResult !== null}
-        hasMactor={step >= 6}
+        hasMactor={mactorResult !== null}
         hasScenarios={savedScenarios.length > 0}
       />
 
@@ -816,6 +819,25 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
       {step === 2 && projectId !== null && (
         <>
           <h2 style={{ color: 'var(--color-primary)' }}>Variables del sistema</h2>
+          <MethodologyHint title="Metodologia Godet — Pas 2: Variables del sistema">
+            <p>
+              Les variables defineixen els elements del sistema que poden evolucionar.
+              Una variable ben formulada és una <strong>mesura de variació</strong>, no un tema genèric.
+            </p>
+            <p>
+              <span className="mhint-rule">Regla de formulació</span>{' '}
+              Cada variable ha de poder puntuar-se de 0 (mínim) a 3 (màxim) i respondre
+              a la pregunta <strong>«Grau en què...»</strong>
+            </p>
+            <p>
+              <strong>Tipus:</strong> I = Interna (accionable) · E = Externa (de l&apos;entorn, no controlable).
+              Nombre recomanat: <strong>8–15 variables</strong>.
+            </p>
+            <code className="mhint-example">
+              {'✓ Correcte: «Grau en què la BRI avança sense resistència significativa» (puntuable 0→3)\n'}
+              {'✗ Incorrecte: «La BRI», «Economia de l\'Índia» (massa vagues)'}
+            </code>
+          </MethodologyHint>
           {variables.map((row, idx) => (
             <div key={idx} className="card" style={{ marginBottom: 'var(--spacing-md)' }}>
               <div className="prospective-field">
@@ -900,6 +922,27 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
       {step === 3 && projectId !== null && (
         <>
           <h2 style={{ color: 'var(--color-primary)' }}>Matriu MIC-MAC (0–3, diagonal 0)</h2>
+          <MethodologyHint title="Metodologia Godet — Pas 3: Matriu MIC-MAC" defaultOpen={false}>
+            <p>
+              Cel·la (i,j): fins a quin punt la variable <strong>fila i</strong> influeix
+              sobre la variable <strong>columna j</strong>.
+              <strong> 0</strong>=cap · <strong>1</strong>=feble · <strong>2</strong>=moderada · <strong>3</strong>=forta.
+              Diagonal sempre = 0.
+            </p>
+            <p>
+              <strong>Motricitat</strong> (suma fila) = capacitat d&apos;influir.{' '}
+              <strong>Dependència</strong> (suma columna) = grau de ser influïda.
+            </p>
+            <code className="mhint-example">
+              {'Sectors Godet:\n'}
+              {'• Motriu: alta mot, baixa dep → mouen el sistema\n'}
+              {'• Clau/Conflicte: alta mot, alta dep → estratègiques ← VB i VR aquí\n'}
+              {'• Resultant: baixa mot, alta dep → mostren el futur\n'}
+              {'• Autònom: baixa mot, baixa dep → perifèriques\n\n'}
+              {'VB (Variable Blanc) = palanca estratègica\n'}
+              {'VR (Variable de Risc) = punt d\'inestabilitat'}
+            </code>
+          </MethodologyHint>
           <div className="prospective-matrix-wrap">
             <table className="prospective-matrix">
               <thead>
@@ -934,12 +977,181 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
               </tbody>
             </table>
           </div>
-          {micmacResult && (
-            <div className="prospective-alert prospective-alert--success">
-              Últim càlcul: VB index {(micmacResult.vb_index as number) ?? '—'}, VR index{' '}
-              {(micmacResult.vr_index as number) ?? '—'}
-            </div>
-          )}
+          {micmacResult && (() => {
+            const sectors = (micmacResult.sectors as Array<{
+              index: number
+              code: string
+              sector: string
+              motricitat: number
+              dependencia: number
+            }>) ?? []
+            const vbFromKey = micmacResult.vb_index as number | undefined
+            const vrFromKey = micmacResult.vr_index as number | undefined
+            const vbFromObj = (micmacResult.variable_blanc as { index: number } | undefined)?.index
+            const vrFromObj = (micmacResult.variable_risc as { index: number } | undefined)?.index
+            const vbIdx = vbFromKey ?? vbFromObj ?? -1
+            const vrIdx = vrFromKey ?? vrFromObj ?? -1
+
+            if (sectors.length === 0) {
+              return (
+                <div className="prospective-alert prospective-alert--success">
+                  MIC-MAC calculat. VB={vbIdx} VR={vrIdx}
+                </div>
+              )
+            }
+
+            const allMot = sectors.map((s) => s.motricitat)
+            const allDep = sectors.map((s) => s.dependencia)
+            const maxMot = Math.max(...allMot, 1)
+            const maxDep = Math.max(...allDep, 1)
+            const avgMot = allMot.reduce((a, b) => a + b, 0) / allMot.length
+            const avgDep = allDep.reduce((a, b) => a + b, 0) / allDep.length
+
+            const W = 480
+            const H = 380
+            const PAD = 52
+            const toX = (dep: number) => PAD + (dep / maxDep) * (W - PAD * 2)
+            const toY = (mot: number) => H - PAD - (mot / maxMot) * (H - PAD * 2)
+            const avgX = toX(avgDep)
+            const avgY = toY(avgMot)
+
+            const COLORS: Record<string, string> = {
+              Motriu: '#1e3a5f',
+              'Clau/Conflicte': '#dc3545',
+              Resultant: '#28a745',
+              Excluyent: '#6c757d',
+              Autònom: '#6c757d',
+            }
+
+            return (
+              <div className="micmac-chart-wrap">
+                <p className="micmac-chart-title">Gràfic motricitat / dependència — Sectors Godet</p>
+                <svg
+                  viewBox={`0 0 ${W} ${H}`}
+                  style={{
+                    width: '100%',
+                    maxWidth: W,
+                    border: '1px solid var(--color-gray-200)',
+                    borderRadius: 'var(--radius-md)',
+                    background: '#fafbfc',
+                  }}
+                  aria-label="Gràfic MIC-MAC"
+                >
+                  <rect x={PAD} y={PAD} width={avgX - PAD} height={avgY - PAD} fill="rgba(30,58,95,0.07)" />
+                  <rect x={avgX} y={PAD} width={W - PAD - avgX} height={avgY - PAD} fill="rgba(220,53,69,0.08)" />
+                  <rect x={avgX} y={avgY} width={W - PAD - avgX} height={H - PAD - avgY} fill="rgba(40,167,69,0.07)" />
+                  <rect x={PAD} y={avgY} width={avgX - PAD} height={H - PAD - avgY} fill="rgba(108,117,125,0.05)" />
+
+                  <text x={PAD + 6} y={PAD + 16} fontSize="10" fill="#1e3a5f" fontWeight="600">Motriu</text>
+                  <text x={avgX + 4} y={PAD + 16} fontSize="10" fill="#dc3545" fontWeight="600">Clau/Conflicte</text>
+                  <text x={avgX + 4} y={H - PAD - 6} fontSize="10" fill="#28a745" fontWeight="600">Resultant</text>
+                  <text x={PAD + 6} y={H - PAD - 6} fontSize="10" fill="#6c757d" fontWeight="600">Autònom</text>
+
+                  <line x1={avgX} y1={PAD} x2={avgX} y2={H - PAD} stroke="#bbb" strokeWidth="1" strokeDasharray="4 3" />
+                  <line x1={PAD} y1={avgY} x2={W - PAD} y2={avgY} stroke="#bbb" strokeWidth="1" strokeDasharray="4 3" />
+
+                  <line x1={PAD} y1={PAD} x2={PAD} y2={H - PAD} stroke="#999" strokeWidth="1.5" />
+                  <line x1={PAD} y1={H - PAD} x2={W - PAD} y2={H - PAD} stroke="#999" strokeWidth="1.5" />
+                  <text x={W / 2} y={H - 8} fontSize="11" fill="#6c757d" textAnchor="middle">Dependència →</text>
+                  <text
+                    x={14}
+                    y={H / 2}
+                    fontSize="11"
+                    fill="#6c757d"
+                    textAnchor="middle"
+                    transform={`rotate(-90,14,${H / 2})`}
+                  >
+                    Motricitat →
+                  </text>
+
+                  {sectors.map((s) => {
+                    const cx = toX(s.dependencia)
+                    const cy = toY(s.motricitat)
+                    const col = COLORS[s.sector] ?? '#6c757d'
+                    const isVB = s.index === vbIdx
+                    const isVR = s.index === vrIdx && s.index !== vbIdx
+                    const r = isVB || isVR ? 11 : 8
+                    return (
+                      <g key={s.index}>
+                        <circle
+                          cx={cx}
+                          cy={cy}
+                          r={r}
+                          fill={col}
+                          opacity={0.85}
+                          stroke={isVB ? '#d4a843' : isVR ? '#ff4444' : 'white'}
+                          strokeWidth={isVB || isVR ? 2.5 : 1.5}
+                        />
+                        <text x={cx + r + 3} y={cy + 4} fontSize="11" fontWeight="600" fill={col}>
+                          {s.code}
+                          {isVB ? ' VB' : isVR ? ' VR' : ''}
+                        </text>
+                      </g>
+                    )
+                  })}
+                </svg>
+
+                <div className="micmac-sectors-legend">
+                  {([
+                    { l: 'Motriu', c: '#1e3a5f', d: 'Alta mot, baixa dep' },
+                    { l: 'Clau/Conflicte', c: '#dc3545', d: 'Alta mot, alta dep' },
+                    { l: 'Resultant', c: '#28a745', d: 'Baixa mot, alta dep' },
+                    { l: 'Autònom', c: '#6c757d', d: 'Baixa mot, baixa dep' },
+                  ] as const).map(({ l, c, d }) => (
+                    <span key={l} className="micmac-sector-badge" style={{ background: `${c}18`, color: c }}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: c, display: 'inline-block' }} />
+                      {l} — {d}
+                    </span>
+                  ))}
+                </div>
+
+                {(vbIdx >= 0 || vrIdx >= 0) && (
+                  <div style={{ display: 'flex', gap: 'var(--spacing-md)', marginTop: 'var(--spacing-md)', flexWrap: 'wrap' }}>
+                    {vbIdx >= 0 && sectors[vbIdx] && (
+                      <div
+                        style={{
+                          background: 'rgba(212,168,67,0.1)',
+                          border: '1px solid rgba(212,168,67,0.4)',
+                          borderRadius: 'var(--radius-sm)',
+                          padding: 'var(--spacing-sm) var(--spacing-md)',
+                          fontSize: 'var(--font-size-sm)',
+                          flex: 1,
+                          minWidth: 200,
+                        }}
+                      >
+                        <strong style={{ color: '#9a7320' }}>VB — Variable Blanc:</strong>{' '}
+                        <strong>{sectors[vbIdx].code}</strong>
+                        <br />
+                        <span style={{ color: 'var(--color-gray-600)', fontSize: 'var(--font-size-xs)' }}>
+                          La palanca estratègica del sistema. Actua sobre ella per canviar el futur.
+                        </span>
+                      </div>
+                    )}
+                    {vrIdx >= 0 && sectors[vrIdx] && (
+                      <div
+                        style={{
+                          background: 'rgba(220,53,69,0.07)',
+                          border: '1px solid rgba(220,53,69,0.3)',
+                          borderRadius: 'var(--radius-sm)',
+                          padding: 'var(--spacing-sm) var(--spacing-md)',
+                          fontSize: 'var(--font-size-sm)',
+                          flex: 1,
+                          minWidth: 200,
+                        }}
+                      >
+                        <strong style={{ color: 'var(--color-danger)' }}>VR — Variable de Risc:</strong>{' '}
+                        <strong>{sectors[vrIdx].code}</strong>
+                        <br />
+                        <span style={{ color: 'var(--color-gray-600)', fontSize: 'var(--font-size-xs)' }}>
+                          Punt d&apos;inestabilitat: petits canvis, efectes imprevisibles.
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })()}
           <div className="prospective-actions">
             <button type="button" className="btn" onClick={() => setStep(2)}>
               Enrere
@@ -1097,6 +1309,18 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
       {step === 4 && projectId !== null && (
         <>
           <h2 style={{ color: 'var(--color-primary)' }}>Actors</h2>
+          <MethodologyHint title="Metodologia Godet — Pas 4: Actors del sistema" defaultOpen={false}>
+            <p>
+              Actors amb capacitat d&apos;influir sobre l&apos;evolució del sistema.
+              <strong> Força (1–5):</strong> 5=caps d&apos;estat · 4=ministres/grans institucions ·
+              3=alts funcionaris · 2=portaveus · 1=actors locals.
+            </p>
+            <p>
+              <strong>Fins estratègics:</strong> objectius a 10–20 anys.
+              El MACTOR analitzarà convergències i divergències entre actors respecte als objectius.
+              Nombre recomanat: <strong>5–10 actors</strong>.
+            </p>
+          </MethodologyHint>
           {actors.map((a, idx) => (
             <div key={idx} className="card" style={{ marginBottom: 'var(--spacing-md)' }}>
               <div className="prospective-field">
@@ -1177,6 +1401,23 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
       {step === 5 && projectId !== null && (
         <>
           <h2 style={{ color: 'var(--color-primary)' }}>Objectius i matriu de postures (−2…+2)</h2>
+          <MethodologyHint title="Metodologia Godet — Pas 5: MACTOR (postures actors/objectius)" defaultOpen={false}>
+            <p>
+              Puntua la postura de cada actor respecte a cada objectiu estratègic.
+            </p>
+            <code className="mhint-example">
+              {'+2 = molt favorable (objectiu prioritari)\n'}
+              {'+1 = favorable (suporta però no prioritari)\n'}
+              {' 0 = neutral\n'}
+              {'−1 = contrari (s\'hi oposa però no prioritàriament)\n'}
+              {'−2 = molt contrari (oposició activa i prioritària)'}
+            </code>
+            <p>
+              El càlcul mesura la <strong>mobilització</strong> de cada actor (quant s&apos;implica)
+              i les <strong>convergències</strong> (quants objectius comparteixen actors).
+              Alta convergència = aliança potencial.
+            </p>
+          </MethodologyHint>
           {objectives.map((o, idx) => (
             <div key={idx} className="card" style={{ marginBottom: 'var(--spacing-md)' }}>
               <div className="prospective-field">
@@ -1263,12 +1504,168 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
               Guardar objectius i calcular MACTOR
             </button>
           </div>
+
+          {mactorResult && (() => {
+            const mobA = (mactorResult.mobilisation_actors as number[]) ?? []
+            const mobO = (mactorResult.mobilisation_objectives as number[]) ?? []
+            const conv = (mactorResult.convergences as number[][]) ?? []
+            const aCodes =
+              (mactorResult.actor_codes as string[]) ?? actors.map((_, i) => `A${i + 1}`)
+            const oCodes =
+              (mactorResult.objective_codes as string[]) ?? objectives.map((_, i) => `O${i + 1}`)
+            const maxMob = Math.max(...mobA, ...mobO, 1)
+            const maxConv = Math.max(...conv.flat(), 1)
+
+            const convBg = (v: number, i: number, j: number) => {
+              if (i === j) return 'var(--color-gray-100)'
+              const pct = v / maxConv
+              if (pct > 0.6) return 'rgba(40,167,69,0.2)'
+              if (pct > 0.3) return 'rgba(255,193,7,0.2)'
+              return 'transparent'
+            }
+
+            return (
+              <div className="mactor-result-wrap">
+                <p className="mactor-result-title">Resultat MACTOR</p>
+
+                <p style={{ fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--color-gray-600)', marginBottom: 6 }}>
+                  Mobilització per actor
+                </p>
+                {mobA.map((mob, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <span
+                      style={{
+                        width: 32,
+                        fontWeight: 600,
+                        color: 'var(--color-primary)',
+                        flexShrink: 0,
+                        fontSize: 'var(--font-size-xs)',
+                      }}
+                    >
+                      {aCodes[i]}
+                    </span>
+                    <div style={{ flex: 1, background: 'var(--color-gray-200)', borderRadius: 3, height: 14, overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          width: `${(mob / maxMob) * 100}%`,
+                          background: 'var(--color-primary)',
+                          height: '100%',
+                          borderRadius: 3,
+                          transition: 'width .4s',
+                        }}
+                      />
+                    </div>
+                    <span style={{ width: 24, textAlign: 'right', fontWeight: 600, fontSize: 'var(--font-size-xs)' }}>
+                      {mob}
+                    </span>
+                  </div>
+                ))}
+
+                <p style={{ fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--color-gray-600)', marginTop: 12, marginBottom: 6 }}>
+                  Mobilització per objectiu
+                </p>
+                {mobO.map((mob, j) => (
+                  <div key={j} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <span
+                      style={{
+                        width: 32,
+                        fontWeight: 600,
+                        color: 'var(--color-success)',
+                        flexShrink: 0,
+                        fontSize: 'var(--font-size-xs)',
+                      }}
+                    >
+                      {oCodes[j]}
+                    </span>
+                    <div style={{ flex: 1, background: 'var(--color-gray-200)', borderRadius: 3, height: 14, overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          width: `${(mob / maxMob) * 100}%`,
+                          background: 'var(--color-success)',
+                          height: '100%',
+                          borderRadius: 3,
+                        }}
+                      />
+                    </div>
+                    <span style={{ width: 24, textAlign: 'right', fontWeight: 600, fontSize: 'var(--font-size-xs)' }}>
+                      {mob}
+                    </span>
+                  </div>
+                ))}
+
+                {conv.length > 1 && (
+                  <>
+                    <p style={{ fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--color-gray-600)', marginTop: 16, marginBottom: 6 }}>
+                      Convergències entre actors (objectius compartits)
+                    </p>
+                    <div style={{ overflowX: 'auto' }}>
+                      <table className="mactor-conv-table">
+                        <thead>
+                          <tr>
+                            <th>↓ vs →</th>
+                            {aCodes.map((c, j) => (
+                              <th key={j}>{c}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {conv.map((row, i) => (
+                            <tr key={i}>
+                              <th style={{ textAlign: 'left', background: 'var(--color-primary)', color: 'white' }}>
+                                {aCodes[i]}
+                              </th>
+                              {row.map((val, j) => (
+                                <td
+                                  key={j}
+                                  style={{ background: convBg(val, i, j) }}
+                                  className={
+                                    i !== j
+                                      ? val / maxConv > 0.6
+                                        ? 'mactor-conv-high'
+                                        : val / maxConv > 0.3
+                                          ? 'mactor-conv-mid'
+                                          : 'mactor-conv-low'
+                                      : ''
+                                  }
+                                >
+                                  {i === j ? '—' : val}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-gray-500)', marginTop: 4 }}>
+                      Verd = alta convergència (aliança) · Groc = moderada · Gris = baixa (possible conflicte)
+                    </p>
+                  </>
+                )}
+              </div>
+            )
+          })()}
         </>
       )}
 
       {step === 6 && projectId !== null && (
         <>
           <h2 style={{ color: 'var(--color-primary)' }}>Components morfològics</h2>
+          <MethodologyHint title="Metodologia Godet — Pas 6: Anàlisi morfològic (Zwicky)" defaultOpen={false}>
+            <p>
+              Explora sistemàticament tots els futurs possibles.
+              Cada <strong>component</strong> és una dimensió d&apos;evolució del sistema.
+              Cada component té <strong>2–4 configuracions</strong> (estats alternatius).
+            </p>
+            <code className="mhint-example">
+              {'C1: Estat BRI → Expansió plena | Estancament | Retrocés\n'}
+              {'C2: Cohesió QUAD → Alta cohesió | Divisió interna\n'}
+              {'Espai morfològic = 3 × 2 = 6 combinacions possibles'}
+            </code>
+            <p>
+              EINA selecciona automàticament 4 escenaris representatius de l&apos;espai:
+              Infern (pitjor), Tensió Crònica, Equilibri Dinàmic, i Cel (millor).
+            </p>
+          </MethodologyHint>
           <p style={{ color: 'var(--color-gray-600)' }}>
             Una configuració per línia dins de cada component (espai combinatori simplificat).
           </p>

@@ -1,0 +1,41 @@
+# EINA — Intel·ligència Estratègica
+# Arrenca tota la plataforma amb: docker compose up --build
+# Primera arrencada: docker compose up --build (tarda 3-5 min)
+# Arrencades posteriors: docker compose up
+
+services:
+
+  backend:
+    build: ./backend
+    container_name: eina-backend
+    restart: unless-stopped
+    env_file: ./backend/.env
+    ports:
+      - "8000:8000"
+    volumes:
+      - eina-db:/app/data
+      - eina-reports:/app/reports
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      start_period: 40s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: http://localhost:8000
+    container_name: eina-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  eina-db:
+  eina-reports:
