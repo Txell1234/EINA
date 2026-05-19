@@ -53,6 +53,7 @@ from routers import (
     public_affairs,
     geopolitical_advanced,
     integration,
+    investment_advanced,
 )
 from routers import geopolitical
 from routers import extract as extract_router
@@ -241,6 +242,7 @@ app.include_router(posts.router, tags=["Posts"])
 app.include_router(reputation.router, tags=["Reputation"])
 app.include_router(public_affairs.router, tags=["Public Affairs"])
 app.include_router(geopolitical_advanced.router, tags=["Geopolitical Advanced"])
+app.include_router(investment_advanced.router, tags=["Investment Advanced"])
 app.include_router(integration.router, tags=["Integration"])
 app.include_router(extract_router.router, prefix="/api/extract", tags=["Extraction Pipeline"])
 app.include_router(prospective_router.router, prefix="/api/prospective", tags=["Prospective Analysis"])

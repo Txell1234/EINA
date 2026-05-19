@@ -67,6 +67,7 @@ class Settings(BaseSettings):
 
     # OSINT Tools
     SHERLOCK_PATH: str = "sherlock"
+    THEHARVESTER_PATH: str = "theHarvester"
     RECONNG_PATH: str = "recon-ng"
 
     # Rate Limiting
