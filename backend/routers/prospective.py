@@ -86,6 +86,55 @@ class MICMACPreviewRequest(BaseModel):
     matrix: List[List[int]]
 
 
+class RetrospectiveRequest(BaseModel):
+    variables: List[dict]
+
+
+class GeopoliticalEnrichRequest(BaseModel):
+    variables: List[dict]
+    case_id: Optional[int] = None
+
+
+@router.post("/projects/{project_id}/retrospective")
+async def get_retrospective(
+    project_id: int,
+    data: RetrospectiveRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Godet retrospectiva: tendències OSINT dels darrers 10 anys per variable."""
+    from services.retrospective_service import RetrospectiveService
+
+    svc = ProspectiveService(db)
+    project = await svc.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Projecte no trobat")
+    case_id = project.case_id
+    if not case_id:
+        raise HTTPException(status_code=400, detail="El projecte no té cas OSINT enllaçat")
+    return await RetrospectiveService(db).get_trends(case_id, data.variables)
+
+
+@router.post("/projects/{project_id}/geopolitical/micmac-suggestions")
+async def geopolitical_micmac_suggestions(
+    project_id: int,
+    data: GeopoliticalEnrichRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Suggeriments de puntuació MIC-MAC des de relacions bilaterals i esdeveniments."""
+    from services.prospective_geopolitical_service import ProspectiveGeopoliticalService
+
+    svc = ProspectiveService(db)
+    project = await svc.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Projecte no trobat")
+    case_id = data.case_id or project.case_id
+    if not case_id:
+        raise HTTPException(status_code=400, detail="Cal un cas enllaçat amb dades geopolítiques")
+    return await ProspectiveGeopoliticalService(db).micmac_suggestions(case_id, data.variables)
+
+
 @router.get("/projects")
 async def list_projects(
     case_id: Optional[int] = Query(None),

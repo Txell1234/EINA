@@ -65,9 +65,22 @@ from routers import extract as extract_router
 from routers import prospective as prospective_router
 
 # Create database tables
+def _run_alembic_upgrade() -> None:
+    from alembic import command
+    from alembic.config import Config
+
+    cfg = Config(str(backend_dir / "alembic.ini"))
+    cfg.set_main_option("sqlalchemy.url", settings.database_url_sync)
+    command.upgrade(cfg, "head")
+
+
 async def init_db():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    if settings.USE_ALEMBIC:
+        await asyncio.to_thread(_run_alembic_upgrade)
+        logger.info("Migracions Alembic aplicades (head)")
+    else:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
 
 async def _check_critical_apis():
     """Check critical APIs and generate alerts if not configured"""

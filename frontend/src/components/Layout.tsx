@@ -28,6 +28,7 @@ type NavLabelKey =
   | 'nav.osintSources'
   | 'nav.extraction'
   | 'nav.project'
+  | 'nav.retrospective'
   | 'nav.variables'
   | 'nav.micmac'
   | 'nav.actors'
@@ -65,6 +66,7 @@ const NAV_GROUPS: {
     labelKey: 'nav.group.analisi',
     items: [
       { path: '/prospective/project', labelKey: 'nav.project', icon: FolderOpen },
+      { path: '/prospective/retrospective', labelKey: 'nav.retrospective', icon: ChartScatter },
       { path: '/prospective/variables', labelKey: 'nav.variables', icon: ChartScatter },
       { path: '/prospective/micmac', labelKey: 'nav.micmac', icon: Grid3x3 },
       { path: '/prospective/actors', labelKey: 'nav.actors', icon: Users },

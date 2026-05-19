@@ -24,6 +24,17 @@ class Settings(BaseSettings):
 
     # Database
     DATABASE_URL: str = "sqlite+aiosqlite:///./osint_platform.db"
+    USE_ALEMBIC: bool = False
+
+    @property
+    def database_url_sync(self) -> str:
+        """URL síncrona per Alembic (sqlite/postgresql sense driver async)."""
+        url = self.DATABASE_URL
+        if url.startswith("sqlite+aiosqlite"):
+            return url.replace("sqlite+aiosqlite", "sqlite", 1)
+        if url.startswith("postgresql+asyncpg"):
+            return url.replace("postgresql+asyncpg", "postgresql+psycopg2", 1)
+        return url
 
     # Security
     SECRET_KEY: str = ""

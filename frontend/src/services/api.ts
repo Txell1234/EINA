@@ -836,6 +836,28 @@ export const prospectiveService = {
     })
     return response.data
   },
+
+  getRetrospective: async (
+    projectId: number,
+    variables: Array<{ code: string; name: string; desc: string }>,
+  ) => {
+    const response = await api.post(`/api/prospective/projects/${projectId}/retrospective`, {
+      variables,
+    })
+    return response.data
+  },
+
+  getGeopoliticalMicmacSuggestions: async (
+    projectId: number,
+    variables: Array<{ code: string; name: string; desc: string }>,
+    caseId?: number,
+  ) => {
+    const response = await api.post(
+      `/api/prospective/projects/${projectId}/geopolitical/micmac-suggestions`,
+      { variables, case_id: caseId },
+    )
+    return response.data
+  },
   getScenarios: async (projectId: number) => {
     const response = await api.get(`/api/prospective/projects/${projectId}/scenarios`)
     return response.data

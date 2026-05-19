@@ -62,6 +62,7 @@ type TranslationKeys =
   | 'nav.osintSources'
   | 'nav.extraction'
   | 'nav.project'
+  | 'nav.retrospective'
   | 'nav.variables'
   | 'nav.micmac'
   | 'nav.actors'
@@ -152,6 +153,7 @@ const translations: Record<SupportedLocale, Translations> = {
     'nav.osintSources': 'OSINT Sources',
     'nav.extraction': '0. Structured extraction',
     'nav.project': '1. Project',
+    'nav.retrospective': '1.5 Retrospective',
     'nav.variables': '2. Variables',
     'nav.micmac': '3. MIC-MAC',
     'nav.actors': '4. Actors',
@@ -239,6 +241,7 @@ const translations: Record<SupportedLocale, Translations> = {
     'nav.osintSources': 'Fuentes OSINT',
     'nav.extraction': '0. Extracción estructurada',
     'nav.project': '1. Proyecto',
+    'nav.retrospective': '1.5 Retrospectiva',
     'nav.variables': '2. Variables',
     'nav.micmac': '3. MIC-MAC',
     'nav.actors': '4. Actores',
@@ -326,6 +329,7 @@ const translations: Record<SupportedLocale, Translations> = {
     'nav.osintSources': 'Fonts OSINT',
     'nav.extraction': '0. Extracció estructurada',
     'nav.project': '1. Projecte',
+    'nav.retrospective': '1.5 Retrospectiva',
     'nav.variables': '2. Variables',
     'nav.micmac': '3. MIC-MAC',
     'nav.actors': '4. Actors',
@@ -413,6 +417,7 @@ const translations: Record<SupportedLocale, Translations> = {
     'nav.osintSources': 'Sources OSINT',
     'nav.extraction': '0. Extraction structurée',
     'nav.project': '1. Projet',
+    'nav.retrospective': '1.5 Rétrospective',
     'nav.variables': '2. Variables',
     'nav.micmac': '3. MIC-MAC',
     'nav.actors': '4. Acteurs',

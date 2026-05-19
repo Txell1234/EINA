@@ -11,6 +11,7 @@ import './ProspectiveAnalysis.css'
 const STEP_LABELS = [
   'Extracció OSINT',
   'Projecte',
+  'Retrospectiva',
   'Variables',
   'MIC-MAC',
   'Actors',
@@ -122,7 +123,7 @@ function isPairIncompatible(
 }
 
 export interface ProspectiveAnalysisProps {
-  /** Pas inicial del wizard (0–7) quan s’entra des d’una ruta concreta del menú */
+  /** Pas inicial del wizard (0–8) quan s’entra des d’una ruta concreta del menú */
   entryStep?: number
 }
 
@@ -212,6 +213,23 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
   } | null>(null)
   const [applyTargetProjectId, setApplyTargetProjectId] = useState<number | null>(null)
 
+  const [geoSuggestions, setGeoSuggestions] = useState<Array<{
+    row: number
+    col: number
+    value: number
+    reason: string
+  }> | null>(null)
+  const [retrospectiveData, setRetrospectiveData] = useState<{
+    period: string
+    osint_articles: number
+    variables: Array<{
+      code: string
+      name: string
+      trend: string
+      total_mentions: number
+      yearly: Array<{ year: number; mentions: number }>
+    }>
+  } | null>(null)
   const [expertName, setExpertName] = useState('')
   const [panelConsensus, setPanelConsensus] = useState<Record<string, unknown> | null>(null)
 
@@ -316,7 +334,7 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
       const n = variables.length
       setMicmacMatrix(emptyMatrix(n))
       setErrorMsg(null)
-      setStep(3)
+      setStep(4)
     },
     onError: () => setErrorMsg('Error guardant variables.'),
   })
@@ -326,7 +344,7 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
     onSuccess: (data: Record<string, unknown>) => {
       setMicmacResult(data)
       setErrorMsg(null)
-      setStep(4)
+      setStep(5)
     },
     onError: () => setErrorMsg('Error calculant MIC-MAC.'),
   })
@@ -373,7 +391,7 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
       const no = objectives.length
       setPostures(Array.from({ length: na }, () => Array.from({ length: no }, () => 0)))
       setErrorMsg(null)
-      setStep(5)
+      setStep(6)
     },
     onError: () => setErrorMsg('Error guardant actors.'),
   })
@@ -389,7 +407,7 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
     onSuccess: (data: Record<string, unknown>) => {
       setMactorResult(data)
       setErrorMsg(null)
-      setStep(6)
+      setStep(7)
     },
     onError: () => setErrorMsg('Error amb objectius o MACTOR.'),
   })
@@ -410,7 +428,7 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
     onSuccess: (stats) => {
       setMorphSpaceStats(stats)
       setErrorMsg(null)
-      setStep(7)
+      setStep(8)
     },
     onError: () => setErrorMsg('Error guardant components morfològics.'),
   })
@@ -610,7 +628,7 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
   const { data: savedScenarios = [] } = useQuery({
     queryKey: ['prospective-scenarios', projectId],
     queryFn: () => prospectiveService.getScenarios(projectId!),
-    enabled: projectId !== null && step === 7,
+    enabled: projectId !== null && step === 8,
   })
 
   const updateMatrixCell = (i: number, j: number, val: number) => {
@@ -980,6 +998,100 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
 
       {step === 2 && projectId !== null && (
         <>
+          <h2 style={{ color: 'var(--color-primary)' }}>Retrospectiva d&apos;actors</h2>
+          <MethodologyHint title="Metodologia Godet — Retrospectiva" defaultOpen>
+            <p>
+              Abans de definir el MIC-MAC, analitza com han evolucionat les variables clau
+              en el passat. EINA agrega mencions OSINT dels darrers 10 anys per ancorar
+              el judici de l&apos;analista en dades empíriques.
+            </p>
+          </MethodologyHint>
+          <div className="prospective-actions" style={{ marginBottom: 'var(--spacing-md)' }}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={async () => {
+                if (!projectId) return
+                try {
+                  const data = await prospectiveService.getRetrospective(
+                    projectId,
+                    variables.map((v) => ({
+                      code: v.code,
+                      name: v.name,
+                      desc: v.desc,
+                    })),
+                  )
+                  setRetrospectiveData(data)
+                  setErrorMsg(null)
+                } catch {
+                  setErrorMsg('No s\'han pogut carregar tendències OSINT. Comprova que el cas té dades.')
+                }
+              }}
+            >
+              Carregar tendències OSINT (10 anys)
+            </button>
+          </div>
+          {retrospectiveData && (
+            <div className="card" style={{ marginBottom: 'var(--spacing-md)' }}>
+              <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-gray-600)' }}>
+                Període {retrospectiveData.period} · {retrospectiveData.osint_articles} articles OSINT
+              </p>
+              {retrospectiveData.variables.map((v) => (
+                <div
+                  key={v.code}
+                  style={{
+                    padding: 'var(--spacing-sm) 0',
+                    borderBottom: '1px solid var(--color-gray-100)',
+                  }}
+                >
+                  <strong>{v.code}</strong> — {v.name}{' '}
+                  <span
+                    style={{
+                      marginLeft: 8,
+                      fontSize: 'var(--font-size-xs)',
+                      color:
+                        v.trend === 'pujant'
+                          ? 'var(--color-danger)'
+                          : v.trend === 'baixant'
+                            ? 'var(--color-success)'
+                            : 'var(--color-gray-500)',
+                    }}
+                  >
+                    {v.trend} ({v.total_mentions} mencions)
+                  </span>
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: 4,
+                      marginTop: 6,
+                      flexWrap: 'wrap',
+                      fontSize: '10px',
+                      color: 'var(--color-gray-500)',
+                    }}
+                  >
+                    {v.yearly.map((y) => (
+                      <span key={y.year} title={`${y.year}: ${y.mentions}`}>
+                        {y.year}:{y.mentions}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="prospective-actions">
+            <button type="button" className="btn" onClick={() => setStep(1)}>
+              Enrere
+            </button>
+            <button type="button" className="btn btn-accent" onClick={() => setStep(3)}>
+              Continuar a Variables
+            </button>
+          </div>
+        </>
+      )}
+
+      {step === 3 && projectId !== null && (
+        <>
           <h2 style={{ color: 'var(--color-primary)' }}>Variables del sistema</h2>
           <MethodologyHint title="Metodologia Godet — Pas 2: Variables del sistema">
             <p>
@@ -1065,8 +1177,40 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
           >
             Afegir variable
           </button>
+          <div className="prospective-actions" style={{ marginTop: 'var(--spacing-md)' }}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={!projectId}
+              onClick={async () => {
+                if (!projectId) return
+                try {
+                  const data = await prospectiveService.getGeopoliticalMicmacSuggestions(
+                    projectId,
+                    variables.map((v) => ({
+                      code: v.code,
+                      name: v.name,
+                      desc: v.desc,
+                    })),
+                  )
+                  setGeoSuggestions(data.suggestions ?? [])
+                  setErrorMsg(null)
+                } catch {
+                  setErrorMsg('No s\'han trobat dades geopolítiques per al cas enllaçat.')
+                }
+              }}
+            >
+              Enriquir amb context geopolític
+            </button>
+          </div>
+          {geoSuggestions && geoSuggestions.length > 0 && (
+            <div className="prospective-alert prospective-alert--success" style={{ marginTop: 'var(--spacing-sm)' }}>
+              {geoSuggestions.length} suggeriment(s) MIC-MAC des de relacions bilaterals/esdeveniments.
+              S&apos;aplicaran al pas MIC-MAC.
+            </div>
+          )}
           <div className="prospective-actions">
-            <button type="button" className="btn" onClick={() => setStep(1)}>
+            <button type="button" className="btn" onClick={() => setStep(2)}>
               Enrere
             </button>
             <button
@@ -1081,9 +1225,30 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
         </>
       )}
 
-      {step === 3 && projectId !== null && (
+      {step === 4 && projectId !== null && (
         <>
           <h2 style={{ color: 'var(--color-primary)' }}>Matriu MIC-MAC (0–3, diagonal 0)</h2>
+          {geoSuggestions && geoSuggestions.length > 0 && (
+            <div className="prospective-actions" style={{ marginBottom: 'var(--spacing-md)' }}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => {
+                  setMicmacMatrix((prev) => {
+                    const next = prev.map((r) => [...r])
+                    for (const s of geoSuggestions) {
+                      if (s.row < next.length && s.col < next.length && s.row !== s.col) {
+                        next[s.row][s.col] = Math.max(next[s.row][s.col], s.value)
+                      }
+                    }
+                    return next
+                  })
+                }}
+              >
+                Aplicar {geoSuggestions.length} suggeriment(s) geopolítics
+              </button>
+            </div>
+          )}
           <MethodologyHint title="Metodologia Godet — Pas 3: Matriu MIC-MAC" defaultOpen={false}>
             <p>
               Cel·la (i,j): fins a quin punt la variable <strong>fila i</strong> influeix
@@ -1278,7 +1443,7 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
           )}
 
           <div className="prospective-actions">
-            <button type="button" className="btn" onClick={() => setStep(2)}>
+            <button type="button" className="btn" onClick={() => setStep(3)}>
               Enrere
             </button>
             <button
@@ -1431,7 +1596,7 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
         </>
       )}
 
-      {step === 4 && projectId !== null && (
+      {step === 5 && projectId !== null && (
         <>
           <h2 style={{ color: 'var(--color-primary)' }}>Actors</h2>
           <MethodologyHint title="Metodologia Godet — Pas 4: Actors del sistema" defaultOpen={false}>
@@ -1508,7 +1673,7 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
             Afegir actor
           </button>
           <div className="prospective-actions">
-            <button type="button" className="btn" onClick={() => setStep(3)}>
+            <button type="button" className="btn" onClick={() => setStep(4)}>
               Enrere
             </button>
             <button
@@ -1523,7 +1688,7 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
         </>
       )}
 
-      {step === 5 && projectId !== null && (
+      {step === 6 && projectId !== null && (
         <>
           <h2 style={{ color: 'var(--color-primary)' }}>Objectius i matriu de postures (−2…+2)</h2>
           <MethodologyHint title="Metodologia Godet — Pas 5: MACTOR (postures actors/objectius)" defaultOpen={false}>
@@ -1617,7 +1782,7 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
           </div>
 
           <div className="prospective-actions">
-            <button type="button" className="btn" onClick={() => setStep(4)}>
+            <button type="button" className="btn" onClick={() => setStep(5)}>
               Enrere
             </button>
             <button
@@ -1772,7 +1937,7 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
         </>
       )}
 
-      {step === 6 && projectId !== null && (
+      {step === 7 && projectId !== null && (
         <>
           <h2 style={{ color: 'var(--color-primary)' }}>Components morfològics</h2>
           <MethodologyHint title="Metodologia Godet — Pas 6: Anàlisi morfològic (Zwicky)" defaultOpen={false}>
@@ -1946,7 +2111,7 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
           </div>
 
           <div className="prospective-actions">
-            <button type="button" className="btn" onClick={() => setStep(5)}>
+            <button type="button" className="btn" onClick={() => setStep(6)}>
               Enrere
             </button>
             <button
@@ -1961,7 +2126,7 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
         </>
       )}
 
-      {step === 7 && projectId !== null && (
+      {step === 8 && projectId !== null && (
         <>
           <h2 style={{ color: 'var(--color-primary)' }}>Escenaris narratius (SSE + Claude)</h2>
 
@@ -2059,7 +2224,7 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
           </div>
 
           <div className="prospective-actions">
-            <button type="button" className="btn" onClick={() => setStep(6)}>
+            <button type="button" className="btn" onClick={() => setStep(7)}>
               Enrere
             </button>
             <button type="button" className="btn btn-accent" onClick={() => startScenarioStream()}>
