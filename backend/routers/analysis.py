@@ -8,12 +8,13 @@ from __future__ import annotations
 import asyncio
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
+from app.limiter import limiter
 from models.user import User
 
 router = APIRouter()
@@ -31,7 +32,9 @@ class ApplyAnalysisRequest(BaseModel):
 
 
 @router.post("/direct")
+@limiter.limit("3/minute")
 async def analyze_text_direct(
+    request: Request,
     data: DirectAnalysisRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

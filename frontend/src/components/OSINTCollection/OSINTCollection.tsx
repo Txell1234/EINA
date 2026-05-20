@@ -215,8 +215,25 @@ export default function OSINTCollection() {
       setResults((prev) => [data as OSINTResult, ...prev].slice(0, 50))
       refetchHistory()
     },
-    onError: (err: Error) => {
-      setResultError(err.message)
+    onError: (err: unknown) => {
+      const axiosErr = err as { response?: { data?: { detail?: string } }; message?: string }
+      const raw = axiosErr?.response?.data?.detail ?? axiosErr?.message ?? ''
+
+      const userMsg = raw.includes('timeout') || raw.includes('TIMEOUT')
+        ? 'La font OSINT no ha respost a temps. Torna a intentar-ho en uns segons.'
+        : raw.includes('429') || raw.includes('rate')
+        ? 'La font OSINT ha limitat les peticions. Espera 1 minut i torna a intentar-ho.'
+        : raw.includes('403') || raw.includes('Forbidden')
+        ? 'Accés denegat a la font OSINT. Comprova la configuració de la clau API.'
+        : raw.includes('404') || raw.includes('Not Found')
+        ? 'La font OSINT no ha trobat resultats per a aquesta cerca.'
+        : raw.includes('Network') || raw.includes('ECONNREFUSED')
+        ? 'Error de connexió. Comprova que el servidor backend és accessible.'
+        : raw.length > 0
+        ? raw
+        : 'Error inesperat. Revisa la consola per a més detalls.'
+
+      setResultError(userMsg)
     },
   })
 

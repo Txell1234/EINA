@@ -104,6 +104,10 @@ class CreateUserRequest(BaseModel):
     password: str
     is_superuser: bool = False
 
+
+class ChangePasswordRequest(BaseModel):
+    new_password: str
+
 # ========== Classification Management ==========
 
 @router.get("/classifications", response_model=List[ClassificationResponse])
@@ -664,4 +668,26 @@ async def make_superuser(
     user.is_superuser = True
     await db.commit()
     return {"id": user.id, "email": user.email, "is_superuser": user.is_superuser}
+
+
+@router.patch("/users/{user_id}/password")
+async def change_user_password(
+    user_id: int,
+    data: ChangePasswordRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Change a user's password. Requires superuser."""
+    if not current_user.is_superuser:
+        raise HTTPException(status_code=403, detail="Requereix permisos d'administrador")
+    if len(data.new_password) < 8:
+        raise HTTPException(status_code=400, detail="La contrasenya ha de tenir mínim 8 caràcters")
+
+    user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuari no trobat")
+
+    user.hashed_password = _pwd_context.hash(data.new_password)
+    await db.commit()
+    return {"id": user.id, "email": user.email, "message": "Contrasenya actualitzada"}
 

@@ -6,7 +6,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -45,38 +45,50 @@ async def run_extraction(
 async def list_statements(
     case_id: int,
     decision: Optional[str] = Query(None),
+    skip: int = 0,
+    limit: int = 50,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    q = select(ExtractedStatement).where(ExtractedStatement.case_id == case_id)
+    base = select(ExtractedStatement).where(ExtractedStatement.case_id == case_id)
     if decision:
-        q = q.where(ExtractedStatement.cleanup_decision == decision)
-    q = q.order_by(ExtractedStatement.extracted_at.desc())
+        base = base.where(ExtractedStatement.cleanup_decision == decision)
+
+    count_q = select(func.count()).select_from(base.subquery())
+    total = (await db.execute(count_q)).scalar() or 0
+
+    q = base.order_by(ExtractedStatement.extracted_at.desc()).offset(skip).limit(limit)
     result = await db.execute(q)
     rows = result.scalars().all()
-    return [
-        {
-            "id": s.id,
-            "actor": s.actor,
-            "actor_type": s.actor_type,
-            "actor_importance": s.actor_importance,
-            "context": s.context,
-            "statement": s.statement,
-            "topic": s.topic,
-            "framing": s.framing,
-            "posture_toward": s.posture_toward,
-            "posture_value": s.posture_value,
-            "tone": s.tone,
-            "tone_intensity": s.tone_intensity,
-            "relevance_signals": s.relevance_signals,
-            "grounding_score": s.grounding_score,
-            "cleanup_decision": s.cleanup_decision,
-            "cleanup_reason": s.cleanup_reason,
-            "source_url": s.source_url,
-            "source_date": s.source_date,
-        }
-        for s in rows
-    ]
+    return {
+        "total": total,
+        "skip": skip,
+        "limit": limit,
+        "has_more": skip + limit < total,
+        "items": [
+            {
+                "id": s.id,
+                "actor": s.actor,
+                "actor_type": s.actor_type,
+                "actor_importance": s.actor_importance,
+                "context": s.context,
+                "statement": s.statement,
+                "topic": s.topic,
+                "framing": s.framing,
+                "posture_toward": s.posture_toward,
+                "posture_value": s.posture_value,
+                "tone": s.tone,
+                "tone_intensity": s.tone_intensity,
+                "relevance_signals": s.relevance_signals,
+                "grounding_score": s.grounding_score,
+                "cleanup_decision": s.cleanup_decision,
+                "cleanup_reason": s.cleanup_reason,
+                "source_url": s.source_url,
+                "source_date": s.source_date,
+            }
+            for s in rows
+        ],
+    }
 
 
 @router.post("/cleanup/{case_id}")

@@ -16,6 +16,8 @@ export default function AdminPanel() {
   const [newFullName, setNewFullName] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [newIsSuperuser, setNewIsSuperuser] = useState(false)
+  const [changingPasswordFor, setChangingPasswordFor] = useState<number | null>(null)
+  const [newPasswordValue, setNewPasswordValue] = useState('')
   const queryClient = useQueryClient()
 
   // Get all cases for selector
@@ -69,6 +71,15 @@ export default function AdminPanel() {
   const toggleActiveMutation = useMutation({
     mutationFn: (userId: number) => adminService.toggleUserActive(userId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-users'] }),
+  })
+
+  const changePwdMutation = useMutation({
+    mutationFn: ({ id, pwd }: { id: number; pwd: string }) =>
+      adminService.changePassword(id, pwd),
+    onSuccess: () => {
+      setChangingPasswordFor(null)
+      setNewPasswordValue('')
+    },
   })
 
   // Feedback mutation
@@ -598,6 +609,54 @@ export default function AdminPanel() {
                   >
                     {user.is_active ? 'Desactivar' : 'Activar'}
                   </button>
+                  {changingPasswordFor === user.id ? (
+                    <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginTop: 4, width: '100%' }}>
+                      <input
+                        type="password"
+                        placeholder="Nova contrasenya (mínim 8)"
+                        value={newPasswordValue}
+                        onChange={(e) => setNewPasswordValue(e.target.value)}
+                        style={{
+                          padding: '4px 8px',
+                          border: '1px solid var(--color-gray-300)',
+                          borderRadius: 'var(--radius-sm)',
+                          fontSize: 'var(--font-size-xs)',
+                          width: 180,
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="btn"
+                        style={{ fontSize: 'var(--font-size-xs)', padding: '4px 8px' }}
+                        disabled={newPasswordValue.length < 8 || changePwdMutation.isPending}
+                        onClick={() =>
+                          changePwdMutation.mutate({ id: user.id, pwd: newPasswordValue })
+                        }
+                      >
+                        Desar
+                      </button>
+                      <button
+                        type="button"
+                        className="btn"
+                        style={{ fontSize: 'var(--font-size-xs)', padding: '4px 8px' }}
+                        onClick={() => {
+                          setChangingPasswordFor(null)
+                          setNewPasswordValue('')
+                        }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn"
+                      style={{ fontSize: 'var(--font-size-xs)', padding: '4px 10px' }}
+                      onClick={() => setChangingPasswordFor(user.id)}
+                    >
+                      Canviar contrasenya
+                    </button>
+                  )}
                 </div>
               ))}
               {(users as unknown[]).length === 0 && (

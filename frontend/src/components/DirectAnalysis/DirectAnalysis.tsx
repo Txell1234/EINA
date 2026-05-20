@@ -84,6 +84,8 @@ export default function DirectAnalysis() {
 
   const [text, setText] = useState('')
   const [result, setResult] = useState<AnalysisResult | null>(null)
+  const [localResult, setLocalResult] = useState<AnalysisResult | null>(null)
+  const [editingVar, setEditingVar] = useState<number | null>(null)
   const [projectTitle, setProjectTitle] = useState('')
   const [activeTab, setActiveTab] = useState<
     'variables' | 'actors' | 'components' | 'statements'
@@ -93,18 +95,25 @@ export default function DirectAnalysis() {
   const analyzeMutation = useMutation({
     mutationFn: () => directAnalysisService.analyze(text, activeCase?.id),
     onSuccess: (data) => {
-      setResult(data as AnalysisResult)
-      const hyp = (data as AnalysisResult).hypothesis
+      const r = data as AnalysisResult
+      setResult(r)
+      setLocalResult(JSON.parse(JSON.stringify(r)) as AnalysisResult)
+      const hyp = r.hypothesis
       if (hyp) {
         setProjectTitle(hyp.length > 60 ? hyp.slice(0, 57) + '...' : hyp)
       }
       setApplied(false)
+      setEditingVar(null)
     },
   })
 
   const applyMutation = useMutation({
     mutationFn: () =>
-      directAnalysisService.applyToProject(result, projectTitle, activeCase?.id),
+      directAnalysisService.applyToProject(
+        localResult ?? result,
+        projectTitle,
+        activeCase?.id,
+      ),
     onSuccess: (data) => {
       setApplied(true)
       setTimeout(() => {
@@ -115,6 +124,8 @@ export default function DirectAnalysis() {
 
   const wordCount = text.trim().split(/\s+/).filter(Boolean).length
   const charCount = text.length
+
+  const displayResult = localResult ?? result
 
   return (
     <div className="da-page">
@@ -284,10 +295,10 @@ export default function DirectAnalysis() {
                 <div className="da-tabs">
                   {(
                     [
-                      { id: 'variables', label: 'Variables', count: result.variables.length },
-                      { id: 'actors', label: 'Actors', count: result.actors.length },
-                      { id: 'components', label: 'Morfologia', count: result.components.length },
-                      { id: 'statements', label: 'Postures', count: result.statements.length },
+                      { id: 'variables', label: 'Variables', count: displayResult?.variables.length ?? 0 },
+                      { id: 'actors', label: 'Actors', count: displayResult?.actors.length ?? 0 },
+                      { id: 'components', label: 'Morfologia', count: displayResult?.components.length ?? 0 },
+                      { id: 'statements', label: 'Postures', count: displayResult?.statements.length ?? 0 },
                     ] as const
                   ).map((tab) => (
                     <button
@@ -308,11 +319,82 @@ export default function DirectAnalysis() {
 
                 {activeTab === 'variables' && (
                   <div className="da-list">
-                    {result.variables.map((v) => (
-                      <div key={v.code} className="da-item">
+                    {(localResult?.variables ?? []).map((v, i) => (
+                      <div key={`${v.code}-${i}`} className="da-item">
                         <div className="da-item-header">
                           <span className="da-code">{v.code}</span>
-                          <span className="da-item-name">{v.name}</span>
+                          {editingVar === i ? (
+                            <input
+                              autoFocus
+                              value={v.name}
+                              style={{
+                                flex: 1,
+                                padding: '2px 6px',
+                                fontSize: 'var(--font-size-sm)',
+                                border: '1px solid var(--color-primary)',
+                                borderRadius: 3,
+                              }}
+                              onChange={(e) => {
+                                const updated = [...(localResult?.variables ?? [])]
+                                updated[i] = { ...updated[i], name: e.target.value }
+                                setLocalResult((prev) =>
+                                  prev ? { ...prev, variables: updated } : prev,
+                                )
+                              }}
+                              onBlur={() => setEditingVar(null)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') setEditingVar(null)
+                              }}
+                            />
+                          ) : (
+                            <>
+                              <span
+                                className="da-item-name"
+                                style={{ cursor: 'pointer' }}
+                                title="Fes clic per editar"
+                                onClick={() => setEditingVar(i)}
+                              >
+                                {v.name}
+                              </span>
+                              <button
+                                type="button"
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  fontSize: 12,
+                                  color: 'var(--color-gray-400)',
+                                  padding: '0 4px',
+                                }}
+                                onClick={() => setEditingVar(i)}
+                                title="Editar"
+                              >
+                                ✎
+                              </button>
+                              <button
+                                type="button"
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  fontSize: 12,
+                                  color: 'var(--color-danger)',
+                                  padding: '0 4px',
+                                }}
+                                onClick={() => {
+                                  const updated = (localResult?.variables ?? []).filter(
+                                    (_, idx) => idx !== i,
+                                  )
+                                  setLocalResult((prev) =>
+                                    prev ? { ...prev, variables: updated } : prev,
+                                  )
+                                }}
+                                title="Eliminar"
+                              >
+                                ✕
+                              </button>
+                            </>
+                          )}
                           <span className={`da-type-badge da-type-${v.type.toLowerCase()}`}>
                             {v.type === 'I' ? 'Interna' : 'Externa'}
                           </span>
@@ -326,7 +408,7 @@ export default function DirectAnalysis() {
 
                 {activeTab === 'actors' && (
                   <div className="da-list">
-                    {result.actors.map((a) => (
+                    {(displayResult?.actors ?? []).map((a) => (
                       <div key={a.code} className="da-item">
                         <div className="da-item-header">
                           <span className="da-code">{a.code}</span>
@@ -350,7 +432,7 @@ export default function DirectAnalysis() {
 
                 {activeTab === 'components' && (
                   <div className="da-list">
-                    {result.components.map((c) => (
+                    {(displayResult?.components ?? []).map((c) => (
                       <div key={c.code} className="da-item">
                         <div className="da-item-header">
                           <span className="da-code">{c.code}</span>
@@ -371,7 +453,7 @@ export default function DirectAnalysis() {
 
                 {activeTab === 'statements' && (
                   <div className="da-list">
-                    {result.statements.map((s, i) => (
+                    {(displayResult?.statements ?? []).map((s, i) => (
                       <div key={i} className="da-item da-item--stmt">
                         <div className="da-item-header">
                           <span className="da-stmt-actor">{s.actor}</span>
@@ -403,8 +485,9 @@ export default function DirectAnalysis() {
               <div className="card da-apply-card">
                 <h3 className="da-apply-title">Crear projecte Godet amb aquest resultat</h3>
                 <p className="da-apply-desc">
-                  Crea un projecte prospectiu pre-emplenat amb les {result.variables.length}{' '}
-                  variables, {result.actors.length} actors i {result.components.length} components
+                  Crea un projecte prospectiu pre-emplenat amb les {displayResult?.variables.length ?? 0}{' '}
+                  variables, {displayResult?.actors.length ?? 0} actors i{' '}
+                  {displayResult?.components.length ?? 0} components
                   morfològics extrets. Podràs ajustar tots els elements al wizard abans de calcular.
                 </p>
 

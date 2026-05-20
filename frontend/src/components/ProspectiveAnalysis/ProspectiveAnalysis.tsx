@@ -250,16 +250,23 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
   const [expertName, setExpertName] = useState('')
   const [panelConsensus, setPanelConsensus] = useState<Record<string, unknown> | null>(null)
 
+  const [statementsPage, setStatementsPage] = useState(0)
+
   const { data: casesList = [], isLoading: loadingCases } = useQuery({
     queryKey: ['cases-list'],
     queryFn: () => casesService.list(),
   })
 
-  const { data: statements = [], refetch: refetchStatements } = useQuery({
-    queryKey: ['extract-statements', extractionCaseId],
-    queryFn: () => extractService.getStatements(extractionCaseId!),
+  const statementsLimit = (statementsPage + 1) * 50
+
+  const { data: statementsData, refetch: refetchStatements } = useQuery({
+    queryKey: ['extract-statements', extractionCaseId, statementsPage],
+    queryFn: () =>
+      extractService.getStatements(extractionCaseId!, undefined, 0, statementsLimit),
     enabled: extractionCaseId !== null,
   })
+
+  const statements = (statementsData?.items ?? []) as ExtractStatementRow[]
 
   const { data: projects = [], isLoading: loadingProjects } = useQuery({
     queryKey: ['prospective-projects'],
@@ -552,6 +559,7 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
   const cleanupMutation = useMutation({
     mutationFn: () => extractService.runCleanup(extractionCaseId!),
     onSuccess: () => {
+      setStatementsPage(0)
       void refetchStatements()
       setErrorMsg(null)
     },
@@ -742,6 +750,7 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
         if (data.event === 'done') {
           setExtractRunning(false)
           es.close()
+          setStatementsPage(0)
           void refetchStatements()
         }
         if (data.event === 'error') {
@@ -780,9 +789,7 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
       <WorkflowProgress
         osintCount={activeCase?.osint_count ?? 0}
         extractionCount={
-          (statements as ExtractStatementRow[]).filter(
-            (s) => s.cleanup_decision === 'KEEP',
-          ).length
+          statements.filter((s) => s.cleanup_decision === 'KEEP').length
         }
         hasMicmac={micmacResult !== null}
         hasMactor={mactorResult !== null}
@@ -812,6 +819,7 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
                 const raw = e.target.value
                 const id = raw ? Number(raw) : null
                 setExtractionCaseId(id)
+                setStatementsPage(0)
                 if (id === null) return
                 const row = (casesList as { id: number; name: string }[]).find((c) => c.id === id)
                 if (row) {
@@ -886,7 +894,7 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
                 </tr>
               </thead>
               <tbody>
-                {(statements as ExtractStatementRow[]).map((s) => (
+                {statements.map((s) => (
                   <tr key={s.id}>
                     <td>{s.actor}</td>
                     <td className="extract-statement-cell">{s.statement}</td>
@@ -898,6 +906,22 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
               </tbody>
             </table>
           </div>
+
+          {statementsData?.has_more && (
+            <button
+              type="button"
+              className="btn"
+              style={{
+                width: '100%',
+                marginTop: 'var(--spacing-md)',
+                fontSize: 'var(--font-size-sm)',
+              }}
+              onClick={() => setStatementsPage((p) => p + 1)}
+            >
+              Carregar més declaracions (
+              {(statementsData.total ?? 0) - statements.length} restants)
+            </button>
+          )}
 
           {previewSuggestions && (
             <div className="preview-block card" style={{ marginTop: 'var(--spacing-lg)' }}>

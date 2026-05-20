@@ -20,6 +20,17 @@ api.interceptors.response.use(
       console.error('🔌 Error de connexió: No es pot connectar al servidor backend')
       console.error('   Assegura\'t que el backend està executant-se a http://localhost:8000')
     } else if (error.response) {
+      // JWT expired or invalid → clear session and redirect to login
+      if (error.response?.status === 401) {
+        const currentPath = window.location.pathname
+        if (currentPath !== '/login' && currentPath !== '/register') {
+          localStorage.removeItem('token')
+          localStorage.removeItem('user')
+          setTimeout(() => {
+            window.location.href = '/login'
+          }, 100)
+        }
+      }
       console.error(`❌ Error del servidor: ${error.response.status} - ${error.response.statusText}`)
     } else {
       console.error('❌ Error desconegut:', error.message)
@@ -626,6 +637,12 @@ export const adminService = {
     const response = await api.patch(`/api/admin/users/${userId}/make-superuser`)
     return response.data
   },
+  changePassword: async (userId: number, newPassword: string) => {
+    const response = await api.patch(`/api/admin/users/${userId}/password`, {
+      new_password: newPassword,
+    })
+    return response.data
+  },
 }
 
 export const geopoliticalService = {
@@ -715,9 +732,13 @@ export default api
 
 export const extractService = {
   getStreamUrl: (caseId: number): string => `/api/extract/run/${caseId}`,
-  getStatements: async (caseId: number, decision?: string) => {
+  getStatements: async (caseId: number, decision?: string, skip = 0, limit = 50) => {
     const response = await api.get(`/api/extract/statements/${caseId}`, {
-      params: decision ? { decision } : {},
+      params: {
+        ...(decision ? { decision } : {}),
+        skip,
+        limit,
+      },
     })
     return response.data
   },
@@ -996,10 +1017,11 @@ export const prospectiveService = {
 
 export const directAnalysisService = {
   analyze: async (text: string, caseId?: number) => {
-    const response = await api.post('/api/analysis/direct', {
-      text,
-      case_id: caseId ?? null,
-    })
+    const response = await api.post(
+      '/api/analysis/direct',
+      { text, case_id: caseId ?? null },
+      { timeout: 120_000 },
+    )
     return response.data
   },
 
