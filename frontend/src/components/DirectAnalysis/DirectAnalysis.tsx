@@ -2,7 +2,7 @@
  * DirectAnalysis — Paste any strategic text, get full Godet analysis
  */
 import { useState } from 'react'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useCase } from '../../contexts/CaseContext'
 import { directAnalysisService } from '../../services/api'
@@ -46,6 +46,8 @@ interface AnalysisResult {
   statements: Statement[]
   text_length: number
   truncated?: boolean
+  llm_provider?: string
+  llm_model?: string
   error?: string
 }
 
@@ -91,6 +93,20 @@ export default function DirectAnalysis() {
     'variables' | 'actors' | 'components' | 'statements'
   >('variables')
   const [applied, setApplied] = useState(false)
+
+  const { data: llmConfig } = useQuery({
+    queryKey: ['llm-config'],
+    queryFn: () => directAnalysisService.getLlmConfig(),
+  })
+
+  const llmLabel =
+    llmConfig?.provider === 'openai'
+      ? 'OpenAI'
+      : llmConfig?.provider === 'gemini'
+        ? 'Google Gemini'
+        : llmConfig?.provider === 'anthropic'
+          ? 'Anthropic Claude'
+          : 'IA'
 
   const analyzeMutation = useMutation({
     mutationFn: () => directAnalysisService.analyze(text, activeCase?.id),
@@ -188,7 +204,11 @@ export default function DirectAnalysis() {
               <button
                 type="button"
                 className="btn btn-accent da-analyze-btn"
-                disabled={text.trim().length < 100 || analyzeMutation.isPending}
+                disabled={
+                  text.trim().length < 100 ||
+                  analyzeMutation.isPending ||
+                  llmConfig?.configured === false
+                }
                 onClick={() => analyzeMutation.mutate()}
               >
                 {analyzeMutation.isPending ? (
@@ -196,8 +216,10 @@ export default function DirectAnalysis() {
                     <span className="spinner da-spinner" />
                     Analitzant...
                   </>
+                ) : llmConfig?.configured === false ? (
+                  'Configura una clau LLM al .env'
                 ) : (
-                  'Analitzar amb IA →'
+                  `Analitzar amb ${llmLabel} →`
                 )}
               </button>
             </div>
@@ -238,12 +260,12 @@ export default function DirectAnalysis() {
                   fontSize: 'var(--font-size-sm)',
                 }}
               >
-                Claude Sonnet analitza el text i extreu l&apos;estructura Godet...
+                {llmLabel} analitza el text i extreu l&apos;estructura Godet...
                 <br />
                 <span
                   style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-gray-400)' }}
                 >
-                  Normalment tarda 10-30 segons.
+                  Normalment tarda 10–90 segons segons el proveïdor i la longitud del text.
                 </span>
               </p>
             </div>
@@ -260,6 +282,18 @@ export default function DirectAnalysis() {
                   >
                     {confidenceLabel(result.confidence)} ({Math.round(result.confidence * 100)}%)
                   </span>
+                  {result.llm_provider && (
+                    <span
+                      style={{
+                        marginLeft: 12,
+                        fontSize: 'var(--font-size-xs)',
+                        color: 'var(--color-gray-500)',
+                      }}
+                    >
+                      · {result.llm_provider}
+                      {result.llm_model ? ` / ${result.llm_model}` : ''}
+                    </span>
+                  )}
                 </div>
 
                 {result.truncated && (

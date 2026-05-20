@@ -1016,6 +1016,16 @@ export const prospectiveService = {
 }
 
 export const directAnalysisService = {
+  getLlmConfig: async () => {
+    const response = await api.get('/api/analysis/llm-config')
+    return response.data as {
+      provider: 'anthropic' | 'openai' | 'gemini' | null
+      configured: boolean
+      llm_provider_setting: string
+      providers: Record<string, { configured: boolean; extract_model?: string; scenario_model?: string }>
+    }
+  },
+
   analyze: async (text: string, caseId?: number) => {
     const response = await api.post(
       '/api/analysis/direct',

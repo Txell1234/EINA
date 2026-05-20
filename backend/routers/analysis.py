@@ -20,6 +20,14 @@ from models.user import User
 router = APIRouter()
 
 
+@router.get("/llm-config")
+async def get_llm_config(current_user: User = Depends(get_current_user)):
+    """Return active LLM provider and which API keys are configured."""
+    from services.llm_service import provider_status
+
+    return provider_status()
+
+
 class DirectAnalysisRequest(BaseModel):
     text: str
     case_id: Optional[int] = None

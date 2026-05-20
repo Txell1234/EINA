@@ -289,21 +289,41 @@ async def health_check():
     from datetime import datetime
     from app.config import settings
     
+    from services.llm_service import provider_status
+
     openai_configured = bool(
         settings.OPENAI_API_KEY and 
         settings.OPENAI_API_KEY.strip() and 
         settings.OPENAI_API_KEY != "sk-proj-TU_CLAVE_API_AQUI"
     )
+    llm = provider_status()
+    llm_configured = llm["configured"]
     
     from services.export_backends import probe_openpyxl, probe_weasyprint
 
     openpyxl_status = probe_openpyxl()
     weasyprint_status = probe_weasyprint(smoke_test=False)
 
+    recommendations: list[str] = []
+    if not llm_configured:
+        recommendations.append(
+            "Configura almenys una clau LLM al .env: ANTHROPIC_API_KEY, OPENAI_API_KEY o GEMINI_API_KEY "
+            "(o defineix LLM_PROVIDER=anthropic|openai|gemini)"
+        )
+    if not openai_configured:
+        recommendations.append(
+            "OPENAI_API_KEY opcional per a classificació IA i embeddings (AIService)"
+        )
+    if not weasyprint_status.get("available"):
+        recommendations.append(
+            "Install WeasyPrint native libs for PDF export — see backend/Dockerfile"
+        )
+
     return JSONResponse({
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
         "services": {
+            "llm": llm,
             "openai": {
                 "configured": openai_configured,
                 "status": "available" if openai_configured else "fallback_mode",
@@ -314,14 +334,7 @@ async def health_check():
                 "openpyxl": openpyxl_status,
             },
         },
-        "recommendations": [] if openai_configured else [
-            "Configure OPENAI_API_KEY in .env to enable full AI analysis capabilities"
-        ]
-        + (
-            ["Install WeasyPrint native libs for PDF export — see backend/Dockerfile"]
-            if not weasyprint_status.get("available")
-            else []
-        )
+        "recommendations": recommendations,
     })
 
 if __name__ == "__main__":

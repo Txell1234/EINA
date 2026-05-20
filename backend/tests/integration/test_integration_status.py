@@ -28,6 +28,8 @@ class TestIntegrationStatus:
         assert "cache_info" in data
         
         # Check AI section
+        assert "llm" in data["ai"]
+        assert "provider" in data["ai"]["llm"]
         assert "openai" in data["ai"]
         assert "configured" in data["ai"]["openai"]
         assert "status" in data["ai"]["openai"]
@@ -133,14 +135,21 @@ class TestIntegrationStatus:
         # Check alerts structure
         assert isinstance(alerts, list)
         
-        # If OpenAI is not configured, there should be an alert
+        # If LLM is not configured, there should be a critical alert
+        if not data["summary"]["critical_apis"].get("llm"):
+            llm_alert = next((a for a in alerts if a["api"] == "llm"), None)
+            assert llm_alert is not None
+            assert llm_alert["level"] == "critical"
+            assert "message" in llm_alert
+            assert "impact" in llm_alert
+
+        # If OpenAI is not configured, there should be a warning (embeddings/classification)
         if not data["ai"]["openai"]["configured"]:
-            assert len(alerts) > 0
             openai_alert = next((a for a in alerts if a["api"] == "openai"), None)
-            assert openai_alert is not None
-            assert openai_alert["level"] == "critical"
-            assert "message" in openai_alert
-            assert "impact" in openai_alert
+            if openai_alert is not None:
+                assert openai_alert["level"] == "warning"
+                assert "message" in openai_alert
+                assert "impact" in openai_alert
     
     def test_summary_counts(self, test_client: TestClient):
         """Test that summary counts are correct"""

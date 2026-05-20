@@ -20,7 +20,7 @@ import logging
 import re
 from typing import Any
 
-from services.llm_service import LLMService
+from services.llm_service import LLMService, llm_config_error_message
 
 logger = logging.getLogger(__name__)
 
@@ -176,8 +176,7 @@ class DirectAnalysisService:
         """
         if not self.llm.configured:
             return {
-                "error": "Cap proveïdor LLM configurat. "
-                         "Afegeix ANTHROPIC_API_KEY o OPENAI_API_KEY al .env",
+                "error": llm_config_error_message(),
                 "confidence": 0,
             }
 
@@ -222,6 +221,8 @@ class DirectAnalysisService:
         result["warnings"] = list(set(result.get("warnings", []) + new_warnings))
         result["text_length"] = len(text)
         result["truncated"] = len(text) > 8000
+        result["llm_provider"] = self.llm.provider
+        result["llm_model"] = self.llm.resolve_model("sonnet")
 
         return result
 

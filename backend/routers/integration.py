@@ -37,6 +37,9 @@ def _get_api_status() -> Dict[str, Any]:
     
     # Cache expired or doesn't exist, rebuild
     from app.config import settings
+    from services.llm_service import provider_status
+
+    llm = provider_status()
 
     def _is_tool_available(executable_path: str) -> bool:
         if not executable_path:
@@ -47,6 +50,7 @@ def _get_api_status() -> Dict[str, Any]:
     
     status_info = {
         "ai": {
+            "llm": llm,
             "openai": {
                 "configured": bool(settings.OPENAI_API_KEY and settings.OPENAI_API_KEY.strip() and settings.OPENAI_API_KEY != "sk-proj-TU_CLAVE_API_AQUI"),
                 "model": settings.OPENAI_MODEL,
@@ -124,6 +128,7 @@ def _get_api_status() -> Dict[str, Any]:
             "configured_apis": 0,
             "not_configured_apis": 0,
             "critical_apis": {
+                "llm": llm["configured"],
                 "openai": bool(settings.OPENAI_API_KEY and settings.OPENAI_API_KEY.strip() and settings.OPENAI_API_KEY != "sk-proj-TU_CLAVE_API_AQUI")
             },
             "alerts": []
@@ -142,12 +147,20 @@ def _get_api_status() -> Dict[str, Any]:
     
     # Generate alerts for critical APIs
     alerts = []
-    if not status_info["summary"]["critical_apis"]["openai"]:
+    if not status_info["summary"]["critical_apis"]["llm"]:
         alerts.append({
             "level": "critical",
+            "api": "llm",
+            "message": "Cap proveïdor LLM configurat (Anthropic, OpenAI o Gemini). "
+                       "Extracció, escenaris i anàlisi directa no funcionaran.",
+            "impact": "Funcionalitats prospectives Godet i extracció OSINT desactivades.",
+        })
+    if not status_info["summary"]["critical_apis"]["openai"]:
+        alerts.append({
+            "level": "warning",
             "api": "openai",
-            "message": "OpenAI API key is not configured. AI analysis features will use fallback mode.",
-            "impact": "All AI-powered features (analysis, classification, predictions) will be limited."
+            "message": "OpenAI API key is not configured. AI classification and embeddings use fallback mode.",
+            "impact": "Classificació IA i embeddings limitats; usa LLM_PROVIDER=openai|gemini|anthropic per al flux Godet.",
         })
     
     status_info["summary"]["alerts"] = alerts

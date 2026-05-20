@@ -52,6 +52,34 @@ def resolve_provider() -> Optional[Provider]:
     return None
 
 
+def provider_status() -> dict:
+    """Return configuration status for all LLM providers and the active one."""
+    active = resolve_provider()
+    return {
+        "provider": active,
+        "configured": active is not None,
+        "llm_provider_setting": (settings.LLM_PROVIDER or "auto").strip().lower(),
+        "providers": {
+            "anthropic": {
+                "configured": _anthropic_configured(),
+                "extract_model": settings.ANTHROPIC_EXTRACT_MODEL,
+                "scenario_model": settings.ANTHROPIC_SCENARIO_MODEL,
+            },
+            "openai": {
+                "configured": _openai_configured(),
+                "extract_model": settings.OPENAI_EXTRACT_MODEL,
+                "scenario_model": settings.OPENAI_SCENARIO_MODEL,
+                "embedding_model": settings.OPENAI_EMBEDDING_MODEL,
+            },
+            "gemini": {
+                "configured": _gemini_configured(),
+                "extract_model": settings.GEMINI_EXTRACT_MODEL,
+                "scenario_model": settings.GEMINI_SCENARIO_MODEL,
+            },
+        },
+    }
+
+
 def llm_config_error_message() -> str:
     pref = (settings.LLM_PROVIDER or "auto").strip().lower()
     if pref in ("anthropic", "openai", "gemini"):
@@ -97,12 +125,19 @@ class LLMService:
             return ""
         return _model_for(self.provider, self.mode)
 
+    def resolve_model(self, prefer_model: Optional[str] = None) -> str:
+        """Return the model name that would be used for a completion."""
+        return self._resolve_model(prefer_model)
+
     def _resolve_model(self, prefer_model: Optional[str] = None) -> str:
+        """Map quality tier to the best model for the active provider."""
         if prefer_model == "sonnet":
             if self.provider == "anthropic":
                 return "claude-sonnet-4-20250514"
             if self.provider == "openai":
-                return "gpt-4o"
+                return settings.OPENAI_SCENARIO_MODEL or "gpt-4o"
+            if self.provider == "gemini":
+                return settings.GEMINI_SCENARIO_MODEL or "gemini-2.0-flash"
         return self.model
 
     def complete(
