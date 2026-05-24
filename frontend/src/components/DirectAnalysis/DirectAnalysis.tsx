@@ -80,6 +80,23 @@ const EXAMPLE_TEXTS = [
   },
 ]
 
+function formatApiError(error: unknown): string {
+  const err = error as { response?: { data?: { detail?: unknown } }; message?: string }
+  const detail = err.response?.data?.detail
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => {
+        if (typeof item === 'object' && item && 'msg' in item) {
+          return String((item as { msg: string }).msg)
+        }
+        return String(item)
+      })
+      .join(' · ')
+  }
+  return err.message ?? 'Error analitzant el text'
+}
+
 export default function DirectAnalysis() {
   const { activeCase } = useCase()
   const navigate = useNavigate()
@@ -226,7 +243,7 @@ export default function DirectAnalysis() {
 
             {analyzeMutation.isError && (
               <div className="da-alert da-alert--error">
-                {(analyzeMutation.error as Error)?.message ?? 'Error analitzant el text'}
+                {formatApiError(analyzeMutation.error)}
               </div>
             )}
           </div>

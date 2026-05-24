@@ -1,8 +1,9 @@
-import { lazy, Suspense, type ReactNode } from 'react'
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+// @refresh reset
+import { lazy, Suspense } from 'react'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import Layout from './components/Layout'
 import Login from './components/Auth/Login'
-import { AuthProvider, useAuth } from './contexts/AuthContext'
+import { AuthProvider, ProtectedRoute } from './contexts/AuthContext'
 import { CaseProvider } from './contexts/CaseContext'
 import { I18nProvider } from './contexts/I18nContext'
 
@@ -32,15 +33,7 @@ const ProspectiveAnalysis = lazy(
   () => import('./components/ProspectiveAnalysis/ProspectiveAnalysis'),
 )
 const DirectAnalysis = lazy(() => import('./components/DirectAnalysis/DirectAnalysis'))
-
-function ProtectedRoute({ children }: { children: ReactNode }) {
-  const { isAuthenticated } = useAuth()
-  const location = useLocation()
-  if (!isAuthenticated) {
-    return <Navigate to="/login" state={{ from: location.pathname }} replace />
-  }
-  return <>{children}</>
-}
+const IntelligenceCenter = lazy(() => import('./components/Intelligence/IntelligenceCenter'))
 
 function AppRoutes() {
   return (
@@ -62,6 +55,7 @@ function AppRoutes() {
           <Route path="investment-recommendations" element={<InvestmentRecommendations />} />
           <Route path="data-synchronization" element={<ProspectiveAnalysis entryStep={0} />} />
           <Route path="direct-analysis" element={<DirectAnalysis />} />
+          <Route path="intelligence" element={<IntelligenceCenter />} />
           <Route path="admin" element={<AdminPanel />} />
           <Route path="reputation" element={<ReputationDashboard />} />
           <Route path="public-affairs" element={<PublicAffairsDashboard />} />

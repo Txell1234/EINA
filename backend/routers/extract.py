@@ -22,6 +22,7 @@ router = APIRouter()
 
 
 @router.post("/run/{case_id}")
+@router.get("/run/{case_id}")
 @limiter.limit("5/minute")
 async def run_extraction(
     request: Request,
@@ -91,6 +92,17 @@ async def list_statements(
     }
 
 
+@router.get("/validate/{case_id}")
+async def validate_extraction(
+    case_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Mètriques de qualitat d'extracció (patró china-us-rhetoric validate.py)."""
+    svc = ExtractService(db)
+    return await svc.validate_case(case_id)
+
+
 @router.post("/cleanup/{case_id}")
 async def run_cleanup(case_id: int, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     svc = ExtractService(db)
@@ -123,3 +135,75 @@ async def apply_to_project(
     actors = await extract_svc.get_suggested_actors(case_id)
     result = await prospective_svc.apply_extraction(project_id, variables, actors)
     return result
+
+
+@router.get("/source-reliability/{case_id}")
+async def get_source_reliability(
+    case_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Agrupa declaracions per domini de source_url i calcula fiabilitat.
+    Retorna ranking de fonts per grounding_score mitjà.
+    """
+    from urllib.parse import urlparse
+
+    result = await db.execute(
+        select(ExtractedStatement).where(
+            ExtractedStatement.case_id == case_id,
+            ExtractedStatement.cleanup_decision == "KEEP",
+        )
+    )
+    stmts = result.scalars().all()
+
+    domain_data: dict[str, dict] = {}
+    for s in stmts:
+        if not s.source_url:
+            domain = "desconegut"
+        else:
+            try:
+                parsed = urlparse(s.source_url)
+                domain = parsed.netloc.replace("www.", "") or "desconegut"
+            except Exception:
+                domain = "desconegut"
+
+        if domain not in domain_data:
+            domain_data[domain] = {
+                "domain": domain,
+                "n_statements": 0,
+                "grounding_scores": [],
+                "hallucinations": 0,
+                "topics": set(),
+            }
+        domain_data[domain]["n_statements"] += 1
+        domain_data[domain]["grounding_scores"].append(s.grounding_score or 0.5)
+        if (s.grounding_score or 0.5) < 0.08:
+            domain_data[domain]["hallucinations"] += 1
+        if s.topic:
+            domain_data[domain]["topics"].add(s.topic)
+
+    sources = []
+    for domain, data in domain_data.items():
+        scores = data["grounding_scores"]
+        avg = sum(scores) / len(scores) if scores else 0.5
+        sources.append({
+            "domain": domain,
+            "n_statements": data["n_statements"],
+            "avg_grounding": round(avg, 3),
+            "hallucination_rate": round(
+                data["hallucinations"] / len(scores) if scores else 0, 3
+            ),
+            "reliability_label": (
+                "Alta" if avg >= 0.6
+                else "Moderada" if avg >= 0.3
+                else "Baixa"
+            ),
+            "main_topics": list(data["topics"])[:4],
+        })
+
+    return {
+        "case_id": case_id,
+        "total_sources": len(sources),
+        "sources": sorted(sources, key=lambda x: -x["avg_grounding"]),
+    }

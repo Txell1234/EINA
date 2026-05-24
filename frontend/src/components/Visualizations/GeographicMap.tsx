@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from 'react-leaflet'
 import { LatLngExpression } from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
 import Heatmap from './Heatmap'
-import { heatmapService } from '../../services/api'
+import { geopoliticalService } from '../../services/api'
 
 // Fix para iconos de Leaflet en React
 delete (L.Icon.Default.prototype as any)._getIconUrl
@@ -13,6 +14,83 @@ L.Icon.Default.mergeOptions({
   iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
 })
+
+interface MapLayerConfig {
+  id: string
+  label: string
+  visible: boolean
+  color: string
+}
+
+const DEFAULT_LAYERS: MapLayerConfig[] = [
+  { id: 'markers', label: 'Ubicacions', visible: true, color: '#1e3a5f' },
+  { id: 'geo_risks', label: 'Riscos geopolítics', visible: true, color: '#dc3545' },
+  { id: 'events', label: 'Esdeveniments', visible: false, color: '#ff6b35' },
+  { id: 'infra', label: 'Infraestructures', visible: false, color: '#6c757d' },
+]
+
+const CRITICAL_INFRA_POINTS = [
+  { lat: 22.3, lng: 114.2, name: 'Hong Kong', type: 'Port', icon: '🚢', country: 'Xina' },
+  { lat: 1.27, lng: 103.82, name: 'Singapore', type: 'Port', icon: '🚢', country: 'Singapur' },
+  { lat: 29.97, lng: 32.55, name: 'Suez Canal', type: 'Canal', icon: '⚓', country: 'Egipte' },
+  { lat: 9.06, lng: -79.68, name: 'Panama Canal', type: 'Canal', icon: '⚓', country: 'Panamà' },
+  { lat: 51.9, lng: 4.47, name: 'Rotterdam', type: 'Port', icon: '🚢', country: 'Països Baixos' },
+  { lat: 37.7, lng: 122.5, name: 'Shanghai', type: 'Port', icon: '🚢', country: 'Xina' },
+  { lat: 50.9, lng: -1.4, name: 'Southhampton (cables)', type: 'Infraestructura digital', icon: '🔌', country: 'UK' },
+  { lat: 37.4, lng: -5.9, name: 'Sevilla (cables)', type: 'Infraestructura digital', icon: '🔌', country: 'Espanya' },
+  { lat: 26.9, lng: 49.6, name: 'Ras Tanura (petroli)', type: 'Energia', icon: '⛽', country: 'Aràbia Saudita' },
+  { lat: 60.4, lng: 5.3, name: 'Bergen (gas)', type: 'Energia', icon: '⛽', country: 'Noruega' },
+  { lat: 51.1, lng: 17.0, name: 'Druzhba Pipeline', type: 'Oleoducte', icon: '🛢️', country: 'Polònia' },
+  { lat: 37.3, lng: -121.9, name: 'Silicon Valley', type: 'Tecnologia', icon: '💻', country: 'EUA' },
+  { lat: 35.7, lng: 139.7, name: 'Tokio Tech Hub', type: 'Tecnologia', icon: '💻', country: 'Japó' },
+  { lat: 40.7, lng: -74.0, name: 'NYSE / Wall Street', type: 'Financer', icon: '📈', country: 'EUA' },
+  { lat: 51.5, lng: -0.1, name: 'City of London', type: 'Financer', icon: '📈', country: 'UK' },
+]
+
+const COUNTRY_COORDS: Record<string, [number, number]> = {
+  Spain: [40.4, -3.7],
+  España: [40.4, -3.7],
+  France: [48.9, 2.4],
+  Germany: [52.5, 13.4],
+  USA: [38.9, -77.0],
+  'United States': [38.9, -77.0],
+  China: [39.9, 116.4],
+  Xina: [39.9, 116.4],
+  Russia: [55.8, 37.6],
+  Ukraine: [50.4, 30.5],
+  UK: [51.5, -0.1],
+  'United Kingdom': [51.5, -0.1],
+  Israel: [31.8, 35.2],
+  Iran: [35.7, 51.4],
+  India: [28.6, 77.2],
+  Brazil: [-15.8, -47.9],
+  Mexico: [19.4, -99.1],
+  Japan: [35.7, 139.7],
+  'Saudi Arabia': [24.7, 46.7],
+}
+
+function resolveRiskCoords(risk: {
+  country: string
+  location_lat?: number
+  location_lng?: number
+}): [number, number] | null {
+  if (risk.location_lat != null && risk.location_lng != null) {
+    return [risk.location_lat, risk.location_lng]
+  }
+  return COUNTRY_COORDS[risk.country] ?? null
+}
+
+function eventPosition(coords: unknown): [number, number] | null {
+  if (!coords) return null
+  if (Array.isArray(coords) && coords.length >= 2) {
+    return [Number(coords[0]), Number(coords[1])]
+  }
+  if (typeof coords === 'object' && coords !== null && 'lat' in coords && 'lng' in coords) {
+    const c = coords as { lat: number; lng: number }
+    return [c.lat, c.lng]
+  }
+  return null
+}
 
 interface Location {
   id: string
@@ -64,6 +142,37 @@ export default function GeographicMap({
   const [zoomLevel, setZoomLevel] = useState<'world' | 'region' | 'city' | 'neighborhood'>('world')
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(null)
   const [viewMode, setViewMode] = useState<'markers' | 'heatmap'>('markers')
+  const [layers, setLayers] = useState<MapLayerConfig[]>(DEFAULT_LAYERS)
+
+  const isLayerVisible = (id: string) => layers.find((l) => l.id === id)?.visible ?? false
+  const toggleLayer = (id: string) =>
+    setLayers((prev) => prev.map((l) => (l.id === id ? { ...l, visible: !l.visible } : l)))
+
+  const { data: geoRisks } = useQuery({
+    queryKey: ['geo-risks-map', caseId],
+    queryFn: () => geopoliticalService.getRisks(caseId),
+    enabled: !!caseId && isLayerVisible('geo_risks'),
+  })
+
+  const { data: geoEvents } = useQuery({
+    queryKey: ['geo-events-map', caseId],
+    queryFn: () => geopoliticalService.getEvents(caseId),
+    enabled: !!caseId && isLayerVisible('events'),
+  })
+
+  const riskItems = (Array.isArray(geoRisks) ? geoRisks : []) as Array<{
+    country: string
+    overall_risk_score: number
+    location_lat?: number
+    location_lng?: number
+  }>
+
+  const eventItems = (geoEvents?.events ?? []) as Array<{
+    location_coordinates?: unknown
+    title: string
+    event_type: string
+    importance: string
+  }>
 
   // Calcular centro y zoom basado en ubicaciones
   const mapCenter = useMemo(() => {
@@ -199,7 +308,48 @@ export default function GeographicMap({
           </div>
         )}
       </div>
-      
+
+      <div
+        style={{
+          display: 'flex',
+          gap: 'var(--spacing-sm)',
+          flexWrap: 'wrap',
+          padding: 'var(--spacing-sm) 0',
+          marginBottom: 'var(--spacing-sm)',
+        }}
+      >
+        <span
+          style={{
+            fontSize: 'var(--font-size-xs)',
+            fontWeight: 600,
+            color: 'var(--color-gray-600)',
+            alignSelf: 'center',
+          }}
+        >
+          Capes:
+        </span>
+        {layers.map((layer) => (
+          <button
+            key={layer.id}
+            type="button"
+            onClick={() => toggleLayer(layer.id)}
+            style={{
+              padding: '3px 10px',
+              borderRadius: '999px',
+              border: `1px solid ${layer.color}`,
+              background: layer.visible ? layer.color : 'transparent',
+              color: layer.visible ? 'white' : layer.color,
+              fontSize: 'var(--font-size-xs)',
+              fontWeight: 500,
+              cursor: 'pointer',
+              transition: 'all .15s',
+            }}
+          >
+            {layer.label}
+          </button>
+        ))}
+      </div>
+
       <div className="map-controls">
         <div className="zoom-buttons">
           <button 
@@ -257,45 +407,136 @@ export default function GeographicMap({
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
           
-          {locations.map((location) => (
-            <Marker
-              key={location.id}
-              position={[location.latitude, location.longitude]}
-              eventHandlers={{
-                click: () => setSelectedLocation(location)
-              }}
-            >
-              <Popup>
-                <div className="location-popup">
-                  <h4>{location.name}</h4>
-                  <p><strong>Tipo:</strong> {location.type}</p>
-                  {location.count && <p><strong>Eventos:</strong> {location.count}</p>}
-                  {location.data && (
-                    <div className="location-data">
-                      <pre>{JSON.stringify(location.data, null, 2)}</pre>
-                    </div>
-                  )}
-                </div>
-              </Popup>
-            </Marker>
-          ))}
-          
-          {/* Círculos para mostrar concentración */}
-          {locations.map((location) => (
-            location.count && location.count > 1 && (
-              <Circle
-                key={`circle-${location.id}`}
-                center={[location.latitude, location.longitude]}
-                radius={location.count * 1000}
-                pathOptions={{
-                  fillColor: getMarkerColor(location.type),
-                  fillOpacity: 0.2,
-                  color: getMarkerColor(location.type),
-                  weight: 2
+          {isLayerVisible('markers') &&
+            locations.map((location) => (
+              <Marker
+                key={location.id}
+                position={[location.latitude, location.longitude]}
+                eventHandlers={{
+                  click: () => setSelectedLocation(location),
                 }}
-              />
-            )
-          ))}
+              >
+                <Popup>
+                  <div className="location-popup">
+                    <h4>{location.name}</h4>
+                    <p>
+                      <strong>Tipo:</strong> {location.type}
+                    </p>
+                    {location.count && (
+                      <p>
+                        <strong>Eventos:</strong> {location.count}
+                      </p>
+                    )}
+                    {location.data && (
+                      <div className="location-data">
+                        <pre>{JSON.stringify(location.data, null, 2)}</pre>
+                      </div>
+                    )}
+                  </div>
+                </Popup>
+              </Marker>
+            ))}
+
+          {isLayerVisible('markers') &&
+            locations.map(
+              (location) =>
+                location.count &&
+                location.count > 1 && (
+                  <Circle
+                    key={`circle-${location.id}`}
+                    center={[location.latitude, location.longitude]}
+                    radius={location.count * 1000}
+                    pathOptions={{
+                      fillColor: getMarkerColor(location.type),
+                      fillOpacity: 0.2,
+                      color: getMarkerColor(location.type),
+                      weight: 2,
+                    }}
+                  />
+                ),
+            )}
+
+          {isLayerVisible('geo_risks') &&
+            riskItems.map((risk, i) => {
+              const pos = resolveRiskCoords(risk)
+              if (!pos) return null
+              return (
+                <Circle
+                  key={`risk-${i}`}
+                  center={pos}
+                  radius={risk.overall_risk_score * 5000}
+                  pathOptions={{
+                    fillColor:
+                      risk.overall_risk_score > 70
+                        ? '#dc3545'
+                        : risk.overall_risk_score > 40
+                          ? '#ffc107'
+                          : '#28a745',
+                    fillOpacity: 0.25,
+                    color:
+                      risk.overall_risk_score > 70
+                        ? '#dc3545'
+                        : risk.overall_risk_score > 40
+                          ? '#ffc107'
+                          : '#28a745',
+                    weight: 1.5,
+                  }}
+                >
+                  <Popup>
+                    <strong>{risk.country}</strong>
+                    <br />
+                    Risc global: {risk.overall_risk_score}/100
+                  </Popup>
+                </Circle>
+              )
+            })}
+
+          {isLayerVisible('events') &&
+            eventItems.map((ev, i) => {
+              const pos = eventPosition(ev.location_coordinates)
+              if (!pos) return null
+              return (
+                <Marker
+                  key={`ev-${i}`}
+                  position={pos}
+                  icon={L.divIcon({
+                    html: '<div style="background:#ff6b35;color:white;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;border:2px solid white;box-shadow:0 1px 3px rgba(0,0,0,.3)">⚡</div>',
+                    className: '',
+                    iconSize: [20, 20],
+                    iconAnchor: [10, 10],
+                  })}
+                >
+                  <Popup>
+                    <strong>{ev.title}</strong>
+                    <br />
+                    Tipus: {ev.event_type}
+                    <br />
+                    Importància: {ev.importance}
+                  </Popup>
+                </Marker>
+              )
+            })}
+
+          {isLayerVisible('infra') &&
+            CRITICAL_INFRA_POINTS.map((pt, i) => (
+              <Marker
+                key={`infra-${i}`}
+                position={[pt.lat, pt.lng]}
+                icon={L.divIcon({
+                  html: `<div style="background:#495057;color:white;border-radius:3px;padding:1px 4px;font-size:9px;font-weight:700;border:1px solid white;box-shadow:0 1px 2px rgba(0,0,0,.3);white-space:nowrap">${pt.icon} ${pt.name}</div>`,
+                  className: '',
+                  iconAnchor: [20, 10],
+                })}
+              >
+                <Popup>
+                  <strong>{pt.name}</strong>
+                  <br />
+                  Tipus: {pt.type}
+                  <br />
+                  {pt.country && `País: ${pt.country}`}
+                </Popup>
+              </Marker>
+            ))}
         </MapContainer>
       </div>
 

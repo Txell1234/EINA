@@ -246,7 +246,7 @@ async def get_case_locations(
         
         for result in results:
             if result.data:
-                locations = extract_locations_from_data(result.data)
+                locations = await extract_locations_from_data(result.data)
                 for loc in locations:
                     # Merge locations with same name
                     if loc.name in location_map:

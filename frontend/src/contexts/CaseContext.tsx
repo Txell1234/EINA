@@ -5,6 +5,7 @@ export interface ActiveCase {
   name: string
   case_type: string
   status: string
+  description?: string
   osint_count?: number
   extraction_count?: number
   has_micmac?: boolean

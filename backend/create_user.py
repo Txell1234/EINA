@@ -52,8 +52,11 @@ async def create_initial_user():
         existing = result.scalar_one_or_none()
         
         if existing:
-            print("❌ El usuario admin@osint.local ya existe")
-            print("\n📧 Usa estas credenciales:")
+            existing.hashed_password = pwd_context.hash("admin123")
+            existing.is_active = True
+            await session.commit()
+            print("✅ Contrasenya restablerta per admin@osint.local")
+            print("\n📧 Credenciales de acceso:")
             print("   Email: admin@osint.local")
             print("   Contraseña: admin123")
             return

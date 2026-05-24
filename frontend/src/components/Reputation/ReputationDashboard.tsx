@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useCase } from '../../contexts/CaseContext'
-import { casesService, prospectiveService, reputationService } from '../../services/api'
+import { useCasesList } from '../../hooks/useCasesList'
+import { prospectiveService, reputationService } from '../../services/api'
 import './ReputationDashboard.css'
 
 interface ReputationProfile {
@@ -24,10 +25,7 @@ export default function ReputationDashboard({ caseId: caseIdProp }: ReputationDa
 
   const effectiveCaseId = activeCase?.id ?? caseIdProp
 
-  const { data: cases } = useQuery({
-    queryKey: ['cases-for-reputation'],
-    queryFn: () => casesService.list(),
-  })
+  const { data: cases } = useCasesList()
 
   const { data: projects = [] } = useQuery({
     queryKey: ['prospective-projects-for-reputation', effectiveCaseId],

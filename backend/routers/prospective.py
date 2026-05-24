@@ -535,9 +535,10 @@ async def export_project_pdf(project_id: int, current_user: User = Depends(get_c
     from pathlib import Path
 
     from fastapi.responses import Response as BinaryResponse
-    from services.report_export_service import export_pdf as _pdf
 
     try:
+        from services.report_export_service import export_pdf as _pdf
+
         meta = await _pdf(db, project_id)
         data = Path(meta["file_path"]).read_bytes()
     except ValueError as e:
@@ -559,9 +560,10 @@ async def export_project_docx(project_id: int, current_user: User = Depends(get_
     from pathlib import Path
 
     from fastapi.responses import Response as BinaryResponse
-    from services.report_export_service import export_docx as _docx
 
     try:
+        from services.report_export_service import export_docx as _docx
+
         meta = await _docx(db, project_id)
         data = Path(meta["file_path"]).read_bytes()
     except ValueError as e:
@@ -573,6 +575,31 @@ async def export_project_docx(project_id: int, current_user: User = Depends(get_
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         headers={
             "Content-Disposition": f"attachment; filename=informe_prospectiu_{project_id}.docx"
+        },
+    )
+
+
+@router.get("/projects/{project_id}/export/html")
+async def export_project_html(project_id: int, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Export prospective project as HTML (recomanat per imprimir a PDF a Windows)."""
+    from pathlib import Path
+
+    from fastapi.responses import Response as BinaryResponse
+
+    try:
+        from services.report_export_service import export_html as _html
+
+        meta = await _html(db, project_id)
+        data = Path(meta["file_path"]).read_bytes()
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    return BinaryResponse(
+        content=data,
+        media_type="text/html; charset=utf-8",
+        headers={
+            "Content-Disposition": f"attachment; filename=informe_prospectiu_{project_id}.html"
         },
     )
 

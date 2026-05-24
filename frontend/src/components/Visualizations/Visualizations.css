@@ -1,3 +1,16 @@
+.visualizations-dashboard {
+  max-width: var(--max-content-width);
+  margin: 0 auto;
+}
+
+.visualizations-dashboard .card {
+  border-top: 2px solid transparent;
+}
+
+.visualizations-dashboard .card:hover {
+  border-top-color: var(--color-accent);
+}
+
 .network-graph-container,
 .trend-analysis-container,
 .relationship-map-container,

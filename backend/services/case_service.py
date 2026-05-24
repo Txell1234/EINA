@@ -47,11 +47,11 @@ class CaseService:
                     analysis_plan = prompt.ai_analysis
                     logger.info(f"Using existing analysis plan from prompt for case {case_id}")
                 else:
-                # Generate plan from case description
+                    # Generate plan from case description
                     logger.info(f"Generating new analysis plan for case {case_id}")
-                analysis_plan = await self.ai_service.analyze_case_prompt(
-                    case.description or case.name
-                )
+                    analysis_plan = await self.ai_service.analyze_case_prompt(
+                        case.description or case.name
+                    )
             
             # Execute OSINT collection
             osint_queries = analysis_plan.get("osint_queries", [])

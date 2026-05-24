@@ -3,7 +3,7 @@ Shared FastAPI dependencies.
 """
 from __future__ import annotations
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Query, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from sqlalchemy import select
@@ -18,20 +18,26 @@ _bearer = HTTPBearer(auto_error=False)
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+    access_token: str | None = Query(None, alias="access_token"),
     db: AsyncSession = Depends(get_db),
 ) -> User:
     """
     Validate JWT Bearer token and return the authenticated user.
-    Raises HTTP 401 if the token is missing, invalid, or the user is inactive.
+    Also accepts ?access_token= for SSE (EventSource cannot send headers).
     """
-    if credentials is None:
+    token: str | None = None
+    if credentials is not None:
+        token = credentials.credentials
+    elif access_token:
+        token = access_token
+
+    if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token d'autenticació requerit",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    token = credentials.credentials
     try:
         payload = jwt.decode(
             token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
@@ -60,15 +66,13 @@ async def get_current_user(
 
 async def get_optional_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+    access_token: str | None = Query(None, alias="access_token"),
     db: AsyncSession = Depends(get_db),
 ) -> User | None:
-    """
-    Like get_current_user but returns None instead of raising 401.
-    Use for endpoints that work both authenticated and unauthenticated.
-    """
-    if credentials is None:
+    """Like get_current_user but returns None instead of raising 401."""
+    if credentials is None and not access_token:
         return None
     try:
-        return await get_current_user(credentials, db)
+        return await get_current_user(credentials, access_token, db)
     except HTTPException:
         return None

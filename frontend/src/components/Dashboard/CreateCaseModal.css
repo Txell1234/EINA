@@ -1,3 +1,5 @@
+@import '../../styles/variables.css';
+
 .btn-create-case {
   background-color: #ff6b35;
   color: white;
@@ -15,15 +17,13 @@
 
 .modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.55);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: var(--z-modal-backdrop);
+  padding: 1rem;
 }
 
 .modal-content {
@@ -31,9 +31,21 @@
   padding: 30px;
   border-radius: 8px;
   max-width: 600px;
-  width: 90%;
-  max-height: 80vh;
+  width: 100%;
+  max-height: min(80vh, 720px);
   overflow-y: auto;
+  position: relative;
+  z-index: var(--z-modal);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+}
+
+.modal-error-message {
+  padding: 10px;
+  margin-bottom: 15px;
+  background-color: #fee;
+  border: 1px solid #fcc;
+  border-radius: 4px;
+  color: #c33;
 }
 
 .modal-content h2 {
@@ -75,6 +87,21 @@
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
+.modal-success-message {
+  padding: 10px;
+  margin-bottom: 15px;
+  background-color: #ecfdf3;
+  border: 1px solid #bbf7d0;
+  border-radius: 4px;
+  color: #166534;
+}
+
+.prompt-stats {
+  margin: -12px 0 16px;
+  font-size: 13px;
+  color: #666;
+}
+
 .prompt-input {
   width: 100%;
   padding: 12px;
@@ -84,6 +111,7 @@
   font-family: inherit;
   resize: vertical;
   margin-bottom: 20px;
+  min-height: 220px;
 }
 
 .modal-actions {
@@ -113,6 +141,40 @@
 .modal-actions button[type="submit"]:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.creation-mode-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.mode-tab {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: #f8f8f8;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.mode-tab.active {
+  background: #fff5f0;
+  border-color: #ff6b35;
+  color: #c44a1a;
+}
+
+.mode-hint {
+  color: #555;
+  font-size: 14px;
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+.create-case-modal {
+  max-width: 640px;
 }
 
 

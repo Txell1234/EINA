@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../../services/api'
 import './ResearchPlanReview.css'
 
@@ -9,6 +9,7 @@ interface ResearchPlanReviewProps {
   onClose: () => void
   onApprove: (plan: any) => void
   researchPlan?: any
+  osintOnly?: boolean
 }
 
 interface ResearchPhase {
@@ -26,12 +27,28 @@ export default function ResearchPlanReview({
   isOpen,
   onClose,
   onApprove,
-  researchPlan
+  researchPlan,
+  osintOnly = false,
 }: ResearchPlanReviewProps) {
   const [plan, setPlan] = useState<any>(researchPlan)
   const [editingQuery, setEditingQuery] = useState<number | null>(null)
   const [expandedPhases, setExpandedPhases] = useState<Set<string>>(new Set())
   const queryClient = useQueryClient()
+
+  const { data: integrationStatus } = useQuery({
+    queryKey: ['integration-status'],
+    queryFn: async () => {
+      const response = await api.get('/api/integration/status')
+      return response.data
+    },
+    enabled: isOpen,
+    staleTime: 60_000,
+  })
+
+  const newsApiConfigured =
+    plan?.news_api_configured ??
+    integrationStatus?.osint_apis?.news_api?.configured ??
+    true
 
   useEffect(() => {
     if (researchPlan) {
@@ -84,6 +101,9 @@ export default function ResearchPlanReview({
   const getQueryTypeName = (type: string): string => {
     const typeNames: Record<string, string> = {
       'google_news': 'Google News',
+      'gdelt': 'GDELT',
+      'rss_feed': 'RSS (think-tank)',
+      'rss_url': 'RSS/Substack (URL curada)',
       'ensembledata_twitter_keyword_posts': 'Twitter/X (EnsembleData)',
       'ensembledata_instagram_hashtag_posts': 'Instagram (EnsembleData)',
       'ensembledata_tiktok_keyword_posts': 'TikTok (EnsembleData)',
@@ -108,11 +128,33 @@ export default function ResearchPlanReview({
     <div className="research-plan-overlay" onClick={onClose}>
       <div className="research-plan-modal" onClick={(e) => e.stopPropagation()}>
         <div className="research-plan-header">
-          <h2>📋 Pla de Recerca - Revisió i Aprovació</h2>
+          <h2>
+            {osintOnly
+              ? '📡 Recollida OSINT — Revisió i aprovació'
+              : '📋 Pla de recerca IA — Revisió i aprovació'}
+          </h2>
           <button className="close-button" onClick={onClose}>×</button>
         </div>
 
         <div className="research-plan-content">
+          {!osintOnly && (
+            <p className="plan-permission-notice">
+              Revisa les cerques OSINT proposades i les variables/factors abans d&apos;executar.
+              Res es recollirà sense la teva aprovació.
+            </p>
+          )}
+          {osintOnly && (
+            <p className="plan-permission-notice">
+              Mode manual: només s&apos;executarà la recollida OSINT. Les variables les defines tu
+              al mòdul prospectiu.
+            </p>
+          )}
+          {!newsApiConfigured && (
+            <p className="plan-permission-notice" style={{ borderColor: '#f59e0b' }}>
+              NEWS_API_KEY no configurada: les cerques <strong>google_news</strong> usaran Google
+              News RSS (gratuït). GDELT i RSS no requereixen clau API.
+            </p>
+          )}
           {/* Plan Summary */}
           <div className="plan-summary">
             <div className="summary-item">
@@ -135,6 +177,12 @@ export default function ResearchPlanReview({
                 <strong>Estratègia de Recerca:</strong> {plan.research_strategy}
               </div>
             )}
+            {plan.curated_feeds && plan.curated_feeds.length > 0 && (
+              <div className="summary-item full-width">
+                <strong>Fonts curades (RSS/Substack):</strong>{' '}
+                {(plan.curated_feeds as string[]).join(', ')}
+              </div>
+            )}
           </div>
 
           {/* Key Entities */}
@@ -146,6 +194,37 @@ export default function ResearchPlanReview({
                   <span key={idx} className="entity-tag">{entity}</span>
                 ))}
               </div>
+            </div>
+          )}
+
+          {!osintOnly && plan.suggested_variables?.length > 0 && (
+            <div className="suggested-variables">
+              <h3>📊 Variables proposades (MIC-MAC)</h3>
+              <ul className="suggestion-list">
+                {plan.suggested_variables.map((v: any, idx: number) => (
+                  <li key={idx}>
+                    <strong>{v.code ? `${v.code} — ` : ''}{v.name}</strong>
+                    {v.var_type && <span className="suggestion-meta"> ({v.var_type})</span>}
+                    {v.description && <p className="suggestion-desc">{v.description}</p>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {!osintOnly && plan.suggested_actors?.length > 0 && (
+            <div className="suggested-actors">
+              <h3>👥 Actors proposats (MACTOR)</h3>
+              <ul className="suggestion-list">
+                {plan.suggested_actors.map((a: any, idx: number) => (
+                  <li key={idx}>
+                    <strong>{a.code ? `${a.code} — ` : ''}{a.name}</strong>
+                    {a.strategic_goals?.length > 0 && (
+                      <p className="suggestion-desc">{a.strategic_goals.join(' · ')}</p>
+                    )}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 
@@ -233,7 +312,11 @@ export default function ResearchPlanReview({
             onClick={handleApprove}
             disabled={approveMutation.isPending || totalQueries === 0}
           >
-            {approveMutation.isPending ? 'Aprovant i Executant...' : `✅ Aprovar i Executar (${totalQueries} consultes)`}
+            {approveMutation.isPending
+              ? 'Executant…'
+              : osintOnly
+                ? `✅ Aprovar recollida OSINT (${totalQueries} consultes)`
+                : `✅ Aprovar pla complet (${totalQueries} OSINT + extracció)`}
           </button>
         </div>
       </div>

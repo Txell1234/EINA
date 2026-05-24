@@ -1,17 +1,15 @@
 import { useState } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation } from '@tanstack/react-query'
 import { useCase } from '../../contexts/CaseContext'
-import { aiAnalysisService, casesService } from '../../services/api'
+import { useCasesList } from '../../hooks/useCasesList'
+import { aiAnalysisService } from '../../services/api'
 
 export default function AIAnalysis() {
   const { activeCase, setActiveCase } = useCase()
   const [result, setResult] = useState<unknown>(null)
   const [engine, setEngine] = useState<'taranis' | 'osintgpt' | 'ominis'>('taranis')
 
-  const { data: cases } = useQuery({
-    queryKey: ['cases-list'],
-    queryFn: () => casesService.list(),
-  })
+  const { data: cases } = useCasesList()
 
   const analyzeMutation = useMutation({
     mutationFn: () => {

@@ -1,6 +1,9 @@
 import axios from 'axios'
+import { notifySessionExpired } from '../utils/authEvents'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL ??
+  (import.meta.env.DEV ? '' : 'http://localhost:8000')
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -9,6 +12,14 @@ const api = axios.create({
   },
   timeout: 30000, // 30 segundos timeout global (aumentado para operaciones largas)
 })
+
+/** Append JWT for EventSource/SSE (cannot set Authorization header). */
+export function sseUrl(path: string): string {
+  const token = localStorage.getItem('token')
+  if (!token) return path
+  const sep = path.includes('?') ? '&' : '?'
+  return `${path}${sep}access_token=${encodeURIComponent(token)}`
+}
 
 // Interceptor per mostrar errors de connexió
 api.interceptors.response.use(
@@ -20,18 +31,25 @@ api.interceptors.response.use(
       console.error('🔌 Error de connexió: No es pot connectar al servidor backend')
       console.error('   Assegura\'t que el backend està executant-se a http://localhost:8000')
     } else if (error.response) {
-      // JWT expired or invalid → clear session and redirect to login
-      if (error.response?.status === 401) {
+      const requestUrl = error.config?.url ?? ''
+      const isAuthRoute =
+        requestUrl.includes('/api/auth/login') || requestUrl.includes('/api/auth/register')
+
+      // JWT expired or invalid → clear session and redirect (not on login/register failures)
+      if (error.response?.status === 401 && !isAuthRoute) {
         const currentPath = window.location.pathname
         if (currentPath !== '/login' && currentPath !== '/register') {
-          localStorage.removeItem('token')
-          localStorage.removeItem('user')
+          notifySessionExpired()
           setTimeout(() => {
-            window.location.href = '/login'
+            if (window.location.pathname !== '/login') {
+              window.location.href = '/login'
+            }
           }, 100)
         }
       }
-      console.error(`❌ Error del servidor: ${error.response.status} - ${error.response.statusText}`)
+      if (!isAuthRoute) {
+        console.error(`❌ Error del servidor: ${error.response.status} - ${error.response.statusText}`)
+      }
     } else {
       console.error('❌ Error desconegut:', error.message)
     }
@@ -81,11 +99,14 @@ export const casesService = {
     const response = await api.post('/api/cases/', data)
     return response.data
   },
-  createFromPrompt: async (prompt: string) => {
-    const response = await api.post('/api/cases/from-prompt', { 
-      prompt: prompt 
-    }, {
-      timeout: 15000, // 15 segundos timeout (aumentado para dar más margen)
+  createFromPrompt: async (data: {
+    prompt: string
+    creation_mode?: 'guided' | 'manual'
+    name?: string
+    case_type?: string
+  }) => {
+    const response = await api.post('/api/cases/from-prompt', data, {
+      timeout: 15000,
     })
     return response.data
   },
@@ -139,8 +160,10 @@ export const visualizationsService = {
 }
 
 export const researchService = {
-  generatePlan: async (caseId: number) => {
-    const response = await api.post(`/api/research/plan/${caseId}`)
+  generatePlan: async (caseId: number, osintOnly = false) => {
+    const response = await api.post(`/api/research/plan/${caseId}`, null, {
+      params: { osint_only: osintOnly },
+    })
     return response.data
   },
   getPlan: async (caseId: number) => {
@@ -285,7 +308,11 @@ export const osintService = {
     const clean = Object.fromEntries(
       Object.entries(params).filter(([, v]) => v !== null && v !== undefined && v !== ''),
     )
-    const response = await api.post(`/api/osint/${endpoint}`, null, { params: clean })
+    const isSlowSource = endpoint.includes('rss') || endpoint === 'gdelt'
+    const response = await api.post(`/api/osint/${endpoint}`, null, {
+      params: clean,
+      timeout: isSlowSource ? 120_000 : 30_000,
+    })
     return response.data
   },
 
@@ -414,6 +441,37 @@ export const investmentsService = {
       params: { case_id: caseId, recommendation_id: recommendationId },
     })
     return response.data
+  },
+}
+
+export const financialService = {
+  getQuote: async (symbol: string) => {
+    const response = await api.get(`/api/investments/quote/${symbol}`)
+    return response.data
+  },
+  getCurrencyRates: async (base = 'USD') => {
+    const response = await api.get('/api/investments/currency/rates', {
+      params: { base },
+    })
+    return response.data
+  },
+  getRisks: async (caseId?: number) => {
+    const response = await api.get('/api/investments/risks', {
+      params: caseId !== undefined ? { case_id: caseId } : {},
+    })
+    return response.data
+  },
+  getSanctionedEntities: async (query: string) => {
+    const response = await api.post('/api/osint/opensanctions', null, {
+      params: { query },
+      timeout: 15000,
+    })
+    const data = response.data?.data ?? response.data
+    if (data?.results) return data
+    if (data?.top_matches) {
+      return { results: data.top_matches, total: data.matches ?? data.top_matches.length }
+    }
+    return data
   },
 }
 
@@ -676,6 +734,24 @@ export const geopoliticalService = {
     })
     return response.data
   },
+  getEvents: async (caseId?: number, eventType?: string, days = 90) => {
+    const response = await api.get('/api/geopolitical/events', {
+      params: {
+        ...(caseId !== undefined ? { case_id: caseId } : {}),
+        ...(eventType ? { event_type: eventType } : {}),
+        days,
+      },
+    })
+    const data = response.data
+    return Array.isArray(data) ? { events: data } : data
+  },
+  extractEvents: async (caseId?: number) => {
+    const response = await api.post('/api/geopolitical/events/extract', null, {
+      params: caseId !== undefined ? { case_id: caseId } : {},
+      timeout: 120_000,
+    })
+    return response.data
+  },
 }
 
 export const reputationService = {
@@ -731,7 +807,8 @@ export const reputationService = {
 export default api
 
 export const extractService = {
-  getStreamUrl: (caseId: number): string => `/api/extract/run/${caseId}`,
+  getStreamUrl: (caseId: number): string =>
+    sseUrl(`/api/extract/run/${caseId}`),
   getStatements: async (caseId: number, decision?: string, skip = 0, limit = 50) => {
     const response = await api.get(`/api/extract/statements/${caseId}`, {
       params: {
@@ -754,6 +831,14 @@ export const extractService = {
     const response = await api.post(`/api/extract/apply/${projectId}`, null, {
       params: { case_id: caseId },
     })
+    return response.data
+  },
+  getSourceReliability: async (caseId: number) => {
+    const response = await api.get(`/api/extract/source-reliability/${caseId}`)
+    return response.data
+  },
+  validate: async (caseId: number) => {
+    const response = await api.get(`/api/extract/validate/${caseId}`)
     return response.data
   },
 }
@@ -902,9 +987,9 @@ export const prospectiveService = {
     return response.data
   },
   getStreamUrl: (projectId: number): string =>
-    `/api/prospective/projects/${projectId}/scenarios/stream`,
+    sseUrl(`/api/prospective/projects/${projectId}/scenarios/stream`),
   getScenariosStreamUrl: (projectId: number): string =>
-    `/api/prospective/projects/${projectId}/scenarios/stream`,
+    sseUrl(`/api/prospective/projects/${projectId}/scenarios/stream`),
 
   exportPdf: async (projectId: number): Promise<void> => {
     const response = await api.get(
@@ -934,6 +1019,21 @@ export const prospectiveService = {
     const a = document.createElement('a')
     a.href = url
     a.download = `informe_prospectiu_${projectId}.docx`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  },
+
+  exportHtml: async (projectId: number): Promise<void> => {
+    const response = await api.get(
+      `/api/prospective/projects/${projectId}/export/html`,
+      { responseType: 'blob' },
+    )
+    const url = URL.createObjectURL(new Blob([response.data], { type: 'text/html;charset=utf-8' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `informe_prospectiu_${projectId}.html`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)

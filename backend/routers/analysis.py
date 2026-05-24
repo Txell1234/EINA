@@ -3,13 +3,12 @@ Direct Analysis Router
 POST /api/analysis/direct — analyze raw text and return full Godet structure
 POST /api/analysis/apply  — create a prospective project from analysis result
 """
-from __future__ import annotations
 
 import asyncio
-from typing import Optional
+from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -29,7 +28,7 @@ async def get_llm_config(current_user: User = Depends(get_current_user)):
 
 
 class DirectAnalysisRequest(BaseModel):
-    text: str
+    text: str = Field(..., min_length=100, description="Text estratègic a analitzar (mín. 100 caràcters)")
     case_id: Optional[int] = None
 
 
@@ -43,7 +42,7 @@ class ApplyAnalysisRequest(BaseModel):
 @limiter.limit("3/minute")
 async def analyze_text_direct(
     request: Request,
-    data: DirectAnalysisRequest,
+    payload: Annotated[DirectAnalysisRequest, Body()],
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -51,11 +50,11 @@ async def analyze_text_direct(
     Analyze raw text and extract full Godet analysis structure.
     Returns hypothesis, variables, actors, components, statements.
     """
-    _ = db, current_user
+    _ = db, current_user, request
     from services.direct_analysis_service import DirectAnalysisService
 
     svc = DirectAnalysisService()
-    result = await asyncio.to_thread(svc.analyze, data.text)
+    result = await asyncio.to_thread(svc.analyze, payload.text)
 
     if "error" in result and result.get("confidence", 0) == 0:
         raise HTTPException(status_code=400, detail=result["error"])
@@ -65,7 +64,7 @@ async def analyze_text_direct(
 
 @router.post("/apply")
 async def apply_analysis_to_project(
-    data: ApplyAnalysisRequest,
+    payload: Annotated[ApplyAnalysisRequest, Body()],
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -83,11 +82,11 @@ async def apply_analysis_to_project(
         ProspectiveVariable,
     )
 
-    analysis = data.analysis
+    analysis = payload.analysis
 
     project = ProspectiveProject(
-        case_id=data.case_id,
-        title=data.project_title,
+        case_id=payload.case_id,
+        title=payload.project_title,
         hypothesis=analysis.get("hypothesis", ""),
         context=analysis.get("context", ""),
     )
@@ -139,7 +138,7 @@ async def apply_analysis_to_project(
 
     for s in analysis.get("statements", []):
         db.add(ExtractedStatement(
-            case_id=data.case_id,
+            case_id=payload.case_id,
             project_id=project.id,
             actor=str(s.get("actor", "")),
             actor_type="state",

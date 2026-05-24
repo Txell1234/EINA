@@ -89,10 +89,9 @@ class AIService:
     
     def _get_fallback_plan(self, prompt: str) -> Dict[str, Any]:
         """Genera un plan de fallback cuando OpenAI no está disponible"""
-        # Extraer nombre básico del prompt
-        name = prompt[:50] + "..." if len(prompt) > 50 else prompt
-        if not name.strip():
-            name = "Caso generado"
+        from utils.prompt_utils import derive_case_name
+
+        name = derive_case_name(prompt)
         
         return {
             "name": name,

@@ -242,6 +242,37 @@ async def fetch_all_rss_feeds(
     )
     return OSINTResultResponse.model_validate(result)
 
+@router.post("/rss/url", response_model=OSINTResultResponse)
+async def fetch_rss_url(
+    url: str,
+    max_items: int = 20,
+    label: str = "custom",
+    case_id: Optional[int] = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Fetch a custom RSS/Atom/Substack feed URL (curated source)."""
+    osint_service = OSINTService(db)
+    result = await osint_service.execute_query(
+        query_type="rss_url",
+        query_params={"url": url, "max_items": max_items, "label": label},
+        case_id=case_id,
+    )
+    return OSINTResultResponse.model_validate(result)
+
+@router.get("/rss/curated")
+async def list_curated_rss_feeds(
+    current_user: User = Depends(get_current_user),
+):
+    """List curated RSS/Substack feeds available by topic."""
+    from integrations.rss_feeds import RSSFeedsService, match_curated_feeds
+
+    return {
+        "feeds": RSSFeedsService().list_curated_feeds(),
+        "matcher": "POST case name/description to /api/research/plan for auto-match",
+        "example_match": match_curated_feeds("Rearmament Japó", "anàlisi geopolítica indo-pacífic"),
+    }
+
 @router.post("/opensanctions", response_model=OSINTResultResponse)
 async def search_opensanctions(
     query: str,

@@ -1,29 +1,31 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { visualizationsService, geographicService, casesService } from '../../services/api'
+import {
+  visualizationsService,
+  geographicService,
+} from '../../services/api'
 import NetworkGraph from './NetworkGraph'
 import TrendAnalysis from './TrendAnalysis'
-import RelationshipMap from './RelationshipMap'
 import GeographicMap from './GeographicMap'
-import GeopoliticalDashboard from './GeopoliticalDashboard'
-import InvestmentDashboard from './InvestmentDashboard'
-import SocialDashboard from './SocialDashboard'
-import BusinessDashboard from './BusinessDashboard'
 import Heatmap from './Heatmap'
+import EventTimeline from './EventTimeline'
+import FinancialIntelWidget from './FinancialIntelWidget'
+import IntelMetricsPanel from './IntelMetricsPanel'
 import PostsViewer from '../Posts/PostsViewer'
 import './Visualizations.css'
 
-// Heatmap Selector Component
 function HeatmapSelector({ caseId }: { caseId: number }) {
   const [metricType, setMetricType] = useState<'posts' | 'sentiment' | 'engagement'>('posts')
   const [granularity, setGranularity] = useState<'country' | 'region' | 'city' | 'municipality'>('city')
-
   return (
     <div>
       <div className="heatmap-controls-bar">
         <div className="control-group">
           <label>Mètrica:</label>
-          <select value={metricType} onChange={(e) => setMetricType(e.target.value as any)}>
+          <select
+            value={metricType}
+            onChange={(e) => setMetricType(e.target.value as 'posts' | 'sentiment' | 'engagement')}
+          >
             <option value="posts">Posts</option>
             <option value="sentiment">Sentiment</option>
             <option value="engagement">Engagement</option>
@@ -31,7 +33,12 @@ function HeatmapSelector({ caseId }: { caseId: number }) {
         </div>
         <div className="control-group">
           <label>Granularitat:</label>
-          <select value={granularity} onChange={(e) => setGranularity(e.target.value as any)}>
+          <select
+            value={granularity}
+            onChange={(e) =>
+              setGranularity(e.target.value as 'country' | 'region' | 'city' | 'municipality')
+            }
+          >
             <option value="municipality">Comuns (Andorra)</option>
             <option value="city">Ciutats</option>
             <option value="region">Regions</option>
@@ -39,147 +46,282 @@ function HeatmapSelector({ caseId }: { caseId: number }) {
           </select>
         </div>
       </div>
-      <Heatmap
-        caseId={caseId}
-        metricType={metricType}
-        granularity={granularity}
-      />
+      <Heatmap caseId={caseId} metricType={metricType} granularity={granularity} />
     </div>
   )
 }
+
+type TabId = 'overview' | 'map' | 'timeline' | 'network' | 'financial' | 'intel' | 'trends' | 'heatmap' | 'posts'
+
+const TABS: Array<{ id: TabId; label: string; icon: string }> = [
+  { id: 'overview', label: 'Visió general', icon: '◈' },
+  { id: 'map', label: 'Mapa', icon: '🗺️' },
+  { id: 'timeline', label: 'Timeline', icon: '⏱️' },
+  { id: 'network', label: 'Xarxa', icon: '🕸️' },
+  { id: 'financial', label: 'Financer', icon: '📊' },
+  { id: 'intel', label: 'Intel', icon: '🎯' },
+  { id: 'trends', label: 'Tendències', icon: '📈' },
+  { id: 'heatmap', label: 'Heatmap', icon: '🔥' },
+  { id: 'posts', label: 'Publicacions', icon: '📋' },
+]
 
 interface VisualizationsDashboardProps {
   caseId: number
 }
 
+function TabBar({
+  activeTab,
+  onTabChange,
+}: {
+  activeTab: TabId
+  onTabChange: (t: TabId) => void
+}) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        gap: 0,
+        overflowX: 'auto',
+        borderBottom: '1px solid var(--color-gray-200)',
+        scrollbarWidth: 'none',
+      }}
+    >
+      {TABS.map((tab) => (
+        <button
+          key={tab.id}
+          type="button"
+          onClick={() => onTabChange(tab.id)}
+          style={{
+            padding: '10px 16px',
+            border: 'none',
+            cursor: 'pointer',
+            background: 'none',
+            borderBottom: activeTab === tab.id ? '2px solid var(--color-primary)' : '2px solid transparent',
+            color: activeTab === tab.id ? 'var(--color-primary)' : 'var(--color-gray-500)',
+            fontWeight: activeTab === tab.id ? 600 : 400,
+            fontSize: 'var(--font-size-sm)',
+            whiteSpace: 'nowrap',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            transition: 'all .15s',
+          }}
+        >
+          <span>{tab.icon}</span>
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 export default function VisualizationsDashboard({ caseId }: VisualizationsDashboardProps) {
-  const [activeTab, setActiveTab] = useState<'network' | 'trends' | 'relationships' | 'geographic' | 'heatmap' | 'posts'>('network')
-  
-  // Get case data to determine case type
-  const { data: caseData } = useQuery({
-    queryKey: ['case', caseId],
-    queryFn: () => casesService.get(caseId),
-    enabled: !!caseId
-  })
-  
-  const caseType = caseData?.case_type?.toLowerCase() || 'general'
+  const [activeTab, setActiveTab] = useState<TabId>('overview')
 
   const { data: networkData, isLoading: networkLoading } = useQuery({
     queryKey: ['networkGraph', caseId],
     queryFn: () => visualizationsService.networkGraph(caseId),
-    enabled: activeTab === 'network'
+    enabled: !!caseId,
   })
 
   const { data: trendData, isLoading: trendLoading } = useQuery({
     queryKey: ['trendAnalysis', caseId],
     queryFn: () => visualizationsService.trendAnalysis(caseId),
-    enabled: activeTab === 'trends'
-  })
-
-  const { data: relationshipData, isLoading: relationshipLoading } = useQuery({
-    queryKey: ['relationshipMap', caseId],
-    queryFn: () => visualizationsService.relationshipMap(caseId),
-    enabled: activeTab === 'relationships'
+    enabled: !!caseId,
   })
 
   const { data: geographicData, isLoading: geographicLoading } = useQuery({
     queryKey: ['geographicLocations', caseId],
     queryFn: () => geographicService.getLocations(caseId),
-    enabled: activeTab === 'geographic'
+    enabled: !!caseId,
   })
 
-  // Route to expert dashboard based on case type
-  const getExpertDashboard = () => {
-    switch (caseType) {
-      case 'geopolitical':
-        return <GeopoliticalDashboard caseId={caseId} />
-      case 'business':
-      case 'investment':
-        return <InvestmentDashboard caseId={caseId} />
-      case 'social':
-      case 'political':
-        return <SocialDashboard caseId={caseId} />
-      default:
-        // For general cases or when type is not recognized, show BusinessDashboard
-        return <BusinessDashboard caseId={caseId} />
-    }
-  }
+  const mapLocations =
+    geographicData?.locations?.map(
+      (loc: {
+        id: string
+        name: string
+        latitude: number
+        longitude: number
+        type: string
+        data?: unknown
+        count?: number
+      }) => ({
+        id: loc.id,
+        name: loc.name,
+        latitude: loc.latitude,
+        longitude: loc.longitude,
+        type: loc.type as 'country' | 'region' | 'city' | 'neighborhood' | 'point',
+        data: loc.data,
+        count: loc.count,
+      }),
+    ) ?? []
 
-  // Show expert dashboard if case type matches
-  if (['geopolitical', 'business', 'investment', 'social', 'political'].includes(caseType)) {
-    return (
-      <div className="visualizations-dashboard">
-        {getExpertDashboard()}
-      </div>
-    )
-  }
-
-  // Otherwise show standard visualizations
   return (
     <div className="visualizations-dashboard">
-      <div className="visualizations-header">
-        <h2>Visualizaciones - Economic Intelligence Unit</h2>
-        <div className="visualization-tabs">
-          <button
-            className={activeTab === 'network' ? 'active' : ''}
-            onClick={() => setActiveTab('network')}
-          >
-            Network Graph
-          </button>
-          <button
-            className={activeTab === 'trends' ? 'active' : ''}
-            onClick={() => setActiveTab('trends')}
-          >
-            Trend Analysis
-          </button>
-          <button
-            className={activeTab === 'relationships' ? 'active' : ''}
-            onClick={() => setActiveTab('relationships')}
-          >
-            Relationship Map
-          </button>
-          <button
-            className={activeTab === 'geographic' ? 'active' : ''}
-            onClick={() => setActiveTab('geographic')}
-          >
-            Geographic Map
-          </button>
-          <button
-            className={activeTab === 'heatmap' ? 'active' : ''}
-            onClick={() => setActiveTab('heatmap')}
-          >
-            Heatmap
-          </button>
-        </div>
-      </div>
+      <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
 
-      <div className="visualization-content">
-        {activeTab === 'network' && (
-          <div>
-            {networkLoading ? (
-              <div className="loading">Cargando network graph...</div>
-            ) : networkData ? (
-              <NetworkGraph
-                nodes={networkData.nodes}
-                edges={networkData.edges}
-                title="Network Graph - Case Analysis"
+      <div className="visualization-content" style={{ marginTop: 'var(--spacing-lg)' }}>
+        {activeTab === 'overview' && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--spacing-lg)' }}>
+            <div className="card">
+              <h3
+                style={{
+                  fontSize: 'var(--font-size-sm)',
+                  fontWeight: 600,
+                  color: 'var(--color-primary)',
+                  margin: '0 0 var(--spacing-sm)',
+                }}
+              >
+                🗺️ Mapa geoespacial
+              </h3>
+              {geographicLoading ? (
+                <div className="spinner" style={{ margin: '1rem auto' }} />
+              ) : mapLocations.length > 0 ? (
+                <GeographicMap locations={mapLocations} caseId={caseId} initialZoom={2} showHeatmap={false} />
+              ) : (
+                <div
+                  style={{
+                    height: 200,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--color-gray-400)',
+                    fontSize: 'var(--font-size-sm)',
+                  }}
+                >
+                  Sense dades geogràfiques
+                </div>
+              )}
+            </div>
+
+            <div className="card">
+              <h3
+                style={{
+                  fontSize: 'var(--font-size-sm)',
+                  fontWeight: 600,
+                  color: 'var(--color-primary)',
+                  margin: '0 0 var(--spacing-sm)',
+                }}
+              >
+                🕸️ Xarxa de relacions
+              </h3>
+              {networkLoading ? (
+                <div className="spinner" style={{ margin: '1rem auto' }} />
+              ) : networkData ? (
+                <NetworkGraph
+                  nodes={networkData.nodes ?? []}
+                  edges={networkData.edges ?? []}
+                  width={380}
+                  height={280}
+                />
+              ) : (
+                <div
+                  style={{
+                    height: 200,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--color-gray-400)',
+                    fontSize: 'var(--font-size-sm)',
+                  }}
+                >
+                  Sense dades de xarxa
+                </div>
+              )}
+            </div>
+
+            <div className="card">
+              <FinancialIntelWidget caseId={caseId} />
+            </div>
+
+            <div className="card">
+              <IntelMetricsPanel caseId={caseId} />
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'map' && (
+          <div className="card">
+            {geographicLoading ? (
+              <div className="spinner" style={{ margin: '2rem auto' }} />
+            ) : mapLocations.length > 0 ? (
+              <GeographicMap
+                locations={mapLocations}
+                title="Mapa geopolític — capes superposables"
+                caseId={caseId}
+                showHeatmap={true}
+                initialZoom={2}
               />
             ) : (
-              <div className="no-data">No hay datos de red disponibles</div>
+              <div className="empty-state">
+                <div className="empty-state-icon">🗺️</div>
+                <h3 className="empty-state-title">Sense dades geogràfiques</h3>
+                <p className="empty-state-desc">Recull dades OSINT amb ubicació per veure el mapa.</p>
+              </div>
             )}
+          </div>
+        )}
+
+        {activeTab === 'timeline' && (
+          <div className="card">
+            <h3
+              style={{
+                fontSize: 'var(--font-size-sm)',
+                fontWeight: 600,
+                color: 'var(--color-primary)',
+                margin: '0 0 var(--spacing-lg)',
+              }}
+            >
+              ⏱️ Timeline d&apos;esdeveniments geopolítics
+            </h3>
+            <EventTimeline caseId={caseId} />
+          </div>
+        )}
+
+        {activeTab === 'network' && (
+          <div className="card">
+            {networkLoading ? (
+              <div className="spinner" style={{ margin: '2rem auto' }} />
+            ) : networkData ? (
+              <NetworkGraph
+                nodes={networkData.nodes ?? []}
+                edges={networkData.edges ?? []}
+                title="Actors i connexions"
+                width={900}
+                height={600}
+              />
+            ) : (
+              <div className="empty-state">
+                <div className="empty-state-icon">🕸️</div>
+                <h3 className="empty-state-title">Xarxa buida</h3>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'financial' && (
+          <div className="card">
+            <FinancialIntelWidget caseId={caseId} watchlist={['EUR', 'CNY', 'JPY', 'GBP', 'CHF', 'AED', 'INR']} />
+          </div>
+        )}
+
+        {activeTab === 'intel' && (
+          <div className="card">
+            <IntelMetricsPanel caseId={caseId} />
           </div>
         )}
 
         {activeTab === 'trends' && (
           <div>
             {trendLoading ? (
-              <div className="loading">Cargando análisis de tendencias...</div>
+              <div className="spinner" style={{ margin: '2rem auto' }} />
             ) : trendData ? (
               <TrendAnalysis
                 data={trendData.data || []}
                 predictionData={trendData.prediction || []}
                 showPrediction={!!trendData.prediction}
-                title="Trend Analysis - Case Evolution"
+                title="Anàlisi de tendències"
                 type="area"
                 metadata={trendData.metadata}
                 dataSourcesBreakdown={trendData.data_sources_breakdown}
@@ -192,77 +334,24 @@ export default function VisualizationsDashboard({ caseId }: VisualizationsDashbo
                 caseId={caseId}
               />
             ) : (
-              <div className="no-data">No hay datos de tendencias disponibles</div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'relationships' && (
-          <div>
-            {relationshipLoading ? (
-              <div className="loading">Cargando mapa de relaciones...</div>
-            ) : relationshipData ? (
-              <RelationshipMap
-                relationships={relationshipData.relationships.map((r: {
-                  from_entity: string
-                  to_entity: string
-                  type: string
-                  strength: number
-                }) => ({
-                  from: r.from_entity,
-                  to: r.to_entity,
-                  type: r.type,
-                  strength: r.strength
-                }))}
-                title="Relationship Map - Entity Connections"
-              />
-            ) : (
-              <div className="no-data">No hay datos de relaciones disponibles</div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'geographic' && (
-          <div>
-            {geographicLoading ? (
-              <div className="loading">Cargando mapa geográfico...</div>
-            ) : geographicData && geographicData.locations && geographicData.locations.length > 0 ? (
-              <GeographicMap
-                locations={geographicData.locations.map((loc: {
-                  id: string
-                  name: string
-                  latitude: number
-                  longitude: number
-                  type: string
-                  data?: unknown
-                  count?: number
-                }) => ({
-                  id: loc.id,
-                  name: loc.name,
-                  latitude: loc.latitude,
-                  longitude: loc.longitude,
-                  type: loc.type as 'country' | 'region' | 'city' | 'neighborhood' | 'point',
-                  data: loc.data,
-                  count: loc.count
-                }))}
-                title="Geographic Map - Case Locations"
-                caseId={caseId}
-                showHeatmap={true}
-              />
-            ) : (
-              <div className="no-data">No hay datos geográficos disponibles para este caso</div>
+              <div className="card">
+                <div className="empty-state">
+                  <div className="empty-state-icon">📈</div>
+                  <h3 className="empty-state-title">Sense dades de tendències</h3>
+                </div>
+              </div>
             )}
           </div>
         )}
 
         {activeTab === 'heatmap' && (
-          <div>
+          <div className="card">
             <HeatmapSelector caseId={caseId} />
           </div>
         )}
 
         {activeTab === 'posts' && (
-          <div>
+          <div className="card">
             <PostsViewer caseId={caseId} />
           </div>
         )}
@@ -270,4 +359,5 @@ export default function VisualizationsDashboard({ caseId }: VisualizationsDashbo
     </div>
   )
 }
+
 

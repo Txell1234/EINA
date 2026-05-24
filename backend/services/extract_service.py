@@ -15,6 +15,14 @@ from models.extract import ExtractedStatement
 from models.osint import OSINTQuery, OSINTResult
 from services.llm_service import LLMService, llm_config_error_message
 from services.event_bus_service import get_event_bus
+from services.osint_data_utils import flatten_osint_items, osint_has_error, text_from_osint_item
+from services.extract_validation import (
+    grounding_score,
+    has_international_signal,
+    needs_llm_cleanup,
+    validate_statements,
+    GROUNDING_REVIEW_THRESHOLD,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +67,18 @@ KEEP si: menciona actor estranger, coded language, competència estrangera impl�
 REMOVE si: política interna pura sense referència estrangera.
 
 Respon ÚNICAMENT: {{"decision": "KEEP" o "REMOVE", "reason": "1 frase"}}"""
+
+CLEANUP_BATCH_PROMPT = """Classifica cada declaració com INTERNACIONAL (KEEP) o DOMÈSTICA (REMOVE).
+
+INTERNACIONAL: menciona actor estranger, relacions bilaterals/multilaterals, seguretat regional,
+sancions, aliances, coded language (Occident, hegemonia, potències occidentals).
+DOMÈSTICA: política interna pura sense referència estrangera.
+
+Retorna ÚNICAMENT un JSON array, mateix ordre:
+[{{"decision": "KEEP" o "REMOVE", "reason": "1 frase"}}]
+
+Declaracions:
+"""
 
 
 def _recover_partial_json(text: str) -> list[dict]:
@@ -108,29 +128,18 @@ def _clean_json(text: str) -> str:
 
 
 def _grounding_score(statement: str, source_text: str) -> float:
-    stmt_words = set(statement.lower().split())
-    if not stmt_words:
-        return 0.0
-    src_words = set(source_text.lower().split())
-    return len(stmt_words & src_words) / len(stmt_words)
+    return grounding_score(statement, source_text)
 
 
-def _text_from_osint_data(data: dict) -> str:
-    if not isinstance(data, dict):
+def _format_source_date(date_val: str) -> str:
+    if not date_val:
         return ""
-    parts: list[str] = []
-    for key in ("text", "content", "description", "title", "summary", "body", "snippet"):
-        val = data.get(key)
-        if val:
-            parts.append(str(val))
-    articles = data.get("articles") or data.get("items") or data.get("results")
-    if isinstance(articles, list):
-        for item in articles[:20]:
-            if isinstance(item, dict):
-                for key in ("title", "description", "content", "summary", "text"):
-                    if item.get(key):
-                        parts.append(str(item[key]))
-    return " ".join(parts)
+    if date_val.isdigit():
+        from datetime import datetime, timezone
+        return datetime.fromtimestamp(int(date_val), tz=timezone.utc).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
+    return date_val
 
 
 class ExtractService:
@@ -146,37 +155,50 @@ class ExtractService:
         queries_r = await self.db.execute(select(OSINTQuery).where(OSINTQuery.case_id == case_id))
         queries = list(queries_r.scalars().all())
 
+        existing_urls_r = await self.db.execute(
+            select(ExtractedStatement.source_url).where(
+                ExtractedStatement.case_id == case_id,
+                ExtractedStatement.source_url != "",
+            )
+        )
+        already_extracted_urls = {row[0] for row in existing_urls_r.all() if row[0]}
+
         items: list[dict[str, Any]] = []
+        skipped = 0
         for q in queries:
             results_r = await self.db.execute(
                 select(OSINTResult).where(OSINTResult.query_id == q.id)
             )
             for r in results_r.scalars().all():
-                if not r.data:
+                if not r.data or not isinstance(r.data, dict):
                     continue
-                text = _text_from_osint_data(r.data if isinstance(r.data, dict) else {})
-                if len(text.strip()) > 80:
-                    url = ""
-                    date = ""
-                    if isinstance(r.data, dict):
-                        url = str(r.data.get("url", "") or "")
-                        date = str(
-                            r.data.get("seendate", "")
-                            or r.data.get("date", "")
-                            or r.data.get("publishedAt", "")
-                            or r.data.get("published", "")
-                            or r.data.get("created_utc", "")
-                            or ""
-                        )
-                        if date and date.isdigit():
-                            from datetime import datetime, timezone
-                            date = datetime.fromtimestamp(
-                                int(date), tz=timezone.utc
-                            ).strftime("%Y-%m-%dT%H:%M:%SZ")
-                    items.append({"id": r.id, "text": text[:6000], "url": url, "date": date})
+                if osint_has_error(r.data) or r.status == "error":
+                    continue
+
+                for article in flatten_osint_items(r.data):
+                    text = text_from_osint_item(article)
+                    if len(text.strip()) < 80:
+                        continue
+                    url = str(article.get("url") or "")
+                    if url and url in already_extracted_urls:
+                        skipped += 1
+                        continue
+                    date = _format_source_date(str(article.get("date") or ""))
+                    title = str(article.get("title") or "")
+                    if title and title not in text:
+                        text = f"{title}. {text}"
+                    items.append(
+                        {
+                            "id": r.id,
+                            "text": text[:6000],
+                            "url": url,
+                            "date": date,
+                            "title": title,
+                        }
+                    )
 
         total = len(items)
-        yield {"event": "start", "total": total}
+        yield {"event": "start", "total": total, "skipped_existing": skipped}
 
         total_extracted = 0
         for i, item in enumerate(items):
@@ -186,13 +208,28 @@ class ExtractService:
                 score = _grounding_score(stmt.get("statement", ""), item["text"])
                 stmt_date = stmt.get("date", "")
                 source_date = stmt_date if stmt_date else item.get("date", "")
+                statement_text = str(stmt.get("statement", ""))
+                context_text = str(stmt.get("context", "") or item.get("title", ""))
+                topic_text = str(stmt.get("topic", ""))
+                signals = stmt.get("relevance_signals") or []
+
+                if has_international_signal(statement_text, context_text, topic_text, item["text"]):
+                    cleanup_decision = "KEEP"
+                    cleanup_reason = "Senyal internacional detectada (regex)"
+                elif score < GROUNDING_REVIEW_THRESHOLD:
+                    cleanup_decision = "NEEDS_REVIEW"
+                    cleanup_reason = ""
+                else:
+                    cleanup_decision = "PENDING"
+                    cleanup_reason = ""
+
                 obj = ExtractedStatement(
                     case_id=case_id,
                     osint_result_id=item["id"],
                     actor=str(stmt.get("actor", "")),
                     actor_type=str(stmt.get("actor_type", "state")),
                     actor_importance=int(stmt.get("actor_importance", 3)),
-                    context=str(stmt.get("context", "")),
+                    context=str(stmt.get("context", "") or item.get("title", "")),
                     statement=str(stmt.get("statement", "")),
                     topic=str(stmt.get("topic", "")),
                     framing=str(stmt.get("framing", "neutral")),
@@ -200,9 +237,10 @@ class ExtractService:
                     posture_value=max(-2, min(2, int(stmt.get("posture_value", 0)))),
                     tone=str(stmt.get("tone", "neutral")),
                     tone_intensity=int(stmt.get("tone_intensity", 3)),
-                    relevance_signals=stmt.get("relevance_signals") or [],
+                    relevance_signals=signals,
                     grounding_score=score,
-                    cleanup_decision="NEEDS_REVIEW" if score < 0.08 else "PENDING",
+                    cleanup_decision=cleanup_decision,
+                    cleanup_reason=cleanup_reason,
                     source_url=item.get("url", ""),
                     source_date=source_date,
                     source_text_excerpt=item["text"][:500],
@@ -215,6 +253,11 @@ class ExtractService:
 
         await self.db.commit()
 
+        stmts_r = await self.db.execute(
+            select(ExtractedStatement).where(ExtractedStatement.case_id == case_id)
+        )
+        validation = validate_statements(list(stmts_r.scalars().all()))
+
         await get_event_bus().emit(
             {
                 "source": "extract_service",
@@ -226,7 +269,7 @@ class ExtractService:
             }
         )
 
-        yield {"event": "done", "total_extracted": total_extracted}
+        yield {"event": "done", "total_extracted": total_extracted, "validation": validation}
 
     def _extract_from_text(self, text: str) -> list[dict]:
         if not self.llm.configured or not text.strip():
@@ -243,7 +286,7 @@ class ExtractService:
             logger.error("Extract error: %s", e)
             return []
 
-    async def cleanup_pass(self, case_id: int) -> dict[str, int]:
+    async def cleanup_pass(self, case_id: int, batch_size: int = 12) -> dict[str, int]:
         if not self.llm.configured:
             return {"kept": 0, "removed": 0, "error": "no api key"}
 
@@ -253,35 +296,89 @@ class ExtractService:
             .where(ExtractedStatement.cleanup_decision.in_(["PENDING", "NEEDS_REVIEW"]))
         )
         pending = list(pending_r.scalars().all())
-        kept = removed = 0
+        kept = removed = auto_kept = 0
 
+        llm_candidates = [s for s in pending if needs_llm_cleanup(s)]
         for stmt in pending:
-            if stmt.relevance_signals and len(stmt.relevance_signals) >= 2:
+            if not needs_llm_cleanup(stmt):
                 stmt.cleanup_decision = "KEEP"
+                stmt.cleanup_reason = stmt.cleanup_reason or "Senyal internacional (pre-filtre)"
+                auto_kept += 1
                 kept += 1
-                continue
-            prompt = CLEANUP_PROMPT.format(
-                actor=stmt.actor,
-                statement=stmt.statement[:400],
-                context=stmt.context[:200],
-                topic=stmt.topic,
-                signals=str(stmt.relevance_signals),
-            )
-            try:
-                raw = self.llm.complete(prompt, max_tokens=80)
-                result = json.loads(_clean_json(raw))
-                stmt.cleanup_decision = result.get("decision", "KEEP")
-                stmt.cleanup_reason = result.get("reason", "")
+
+        for start in range(0, len(llm_candidates), batch_size):
+            batch = llm_candidates[start : start + batch_size]
+            if len(batch) == 1:
+                stmt = batch[0]
+                prompt = CLEANUP_PROMPT.format(
+                    actor=stmt.actor,
+                    statement=stmt.statement[:400],
+                    context=stmt.context[:200],
+                    topic=stmt.topic,
+                    signals=str(stmt.relevance_signals),
+                )
+                try:
+                    raw = self.llm.complete(prompt, max_tokens=80)
+                    result = json.loads(_clean_json(raw))
+                    stmt.cleanup_decision = result.get("decision", "KEEP")
+                    stmt.cleanup_reason = result.get("reason", "")
+                except Exception:
+                    stmt.cleanup_decision = "KEEP"
+                    stmt.cleanup_reason = "Error classificació — conservat per defecte"
                 if stmt.cleanup_decision == "KEEP":
                     kept += 1
                 else:
                     removed += 1
-            except Exception:
-                stmt.cleanup_decision = "KEEP"
-                kept += 1
+                continue
+
+            items_text = "\n\n".join(
+                f"{i + 1}. Actor: {s.actor}\n   Declaració: {s.statement[:300]}\n"
+                f"   Context: {s.context[:120]}\n   Tema: {s.topic}"
+                for i, s in enumerate(batch)
+            )
+            try:
+                raw = self.llm.complete(CLEANUP_BATCH_PROMPT + items_text, max_tokens=800)
+                results = json.loads(_clean_json(raw))
+                if isinstance(results, list) and len(results) == len(batch):
+                    for stmt, result in zip(batch, results):
+                        stmt.cleanup_decision = result.get("decision", "KEEP")
+                        stmt.cleanup_reason = result.get("reason", "")
+                        if stmt.cleanup_decision == "KEEP":
+                            kept += 1
+                        else:
+                            removed += 1
+                    continue
+            except Exception as e:
+                logger.warning("Batch cleanup fallit, fallback individual: %s", e)
+
+            for stmt in batch:
+                prompt = CLEANUP_PROMPT.format(
+                    actor=stmt.actor,
+                    statement=stmt.statement[:400],
+                    context=stmt.context[:200],
+                    topic=stmt.topic,
+                    signals=str(stmt.relevance_signals),
+                )
+                try:
+                    raw = self.llm.complete(prompt, max_tokens=80)
+                    result = json.loads(_clean_json(raw))
+                    stmt.cleanup_decision = result.get("decision", "KEEP")
+                    stmt.cleanup_reason = result.get("reason", "")
+                except Exception:
+                    stmt.cleanup_decision = "KEEP"
+                if stmt.cleanup_decision == "KEEP":
+                    kept += 1
+                else:
+                    removed += 1
 
         await self.db.commit()
-        return {"kept": kept, "removed": removed}
+        return {"kept": kept, "removed": removed, "auto_kept_regex": auto_kept}
+
+    async def validate_case(self, case_id: int) -> dict[str, Any]:
+        stmts_r = await self.db.execute(
+            select(ExtractedStatement).where(ExtractedStatement.case_id == case_id)
+        )
+        return validate_statements(list(stmts_r.scalars().all()))
 
     async def get_suggested_variables(self, case_id: int) -> list[dict]:
         if not self.llm.configured:

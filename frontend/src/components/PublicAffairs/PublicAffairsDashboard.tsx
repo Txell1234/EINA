@@ -1,16 +1,14 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useCase } from '../../contexts/CaseContext'
-import { casesService, publicAffairsService } from '../../services/api'
+import { useCasesList } from '../../hooks/useCasesList'
+import { publicAffairsService } from '../../services/api'
 
 export default function PublicAffairsDashboard() {
   const { activeCase, setActiveCase } = useCase()
   const [tab, setTab] = useState<'policies' | 'stakeholders' | 'advocacy'>('policies')
 
-  const { data: cases } = useQuery({
-    queryKey: ['cases-for-pa'],
-    queryFn: () => casesService.list(),
-  })
+  const { data: cases } = useCasesList()
 
   const { data: policies = [], isLoading: loadingPolicies } = useQuery({
     queryKey: ['pa-policies', activeCase?.id],

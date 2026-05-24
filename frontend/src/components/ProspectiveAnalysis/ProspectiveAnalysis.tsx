@@ -2,7 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useCase, type ActiveCase } from '../../contexts/CaseContext'
-import { casesService, extractService, prospectiveService } from '../../services/api'
+import { useCasesList } from '../../hooks/useCasesList'
+import { extractService, prospectiveService } from '../../services/api'
 import { computeMicmacPreview } from '../../utils/micmac'
 import WorkflowProgress from '../shared/WorkflowProgress'
 import MethodologyHint from './MethodologyHint'
@@ -72,7 +73,20 @@ interface ExtractProgressPayload {
   event: string
   current?: number
   total?: number
+  skipped_existing?: number
+  total_extracted?: number
   text?: string
+  message?: string
+  validation?: ExtractValidationSummary
+}
+
+interface ExtractValidationSummary {
+  has_data?: boolean
+  total_statements?: number
+  avg_grounding?: number
+  below_threshold?: number
+  no_intl_signal?: number
+  domestic_signal_risk?: number
   message?: string
 }
 
@@ -234,6 +248,9 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
   const [extractProgress, setExtractProgress] = useState<{ current: number; total: number } | null>(
     null,
   )
+  const [extractValidation, setExtractValidation] = useState<ExtractValidationSummary | null>(
+    null,
+  )
   const [previewSuggestions, setPreviewSuggestions] = useState<{
     suggested_variables: unknown[]
     suggested_actors: unknown[]
@@ -252,10 +269,7 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
 
   const [statementsPage, setStatementsPage] = useState(0)
 
-  const { data: casesList = [], isLoading: loadingCases } = useQuery({
-    queryKey: ['cases-list'],
-    queryFn: () => casesService.list(),
-  })
+  const { data: casesList = [], isLoading: loadingCases } = useCasesList()
 
   const statementsLimit = (statementsPage + 1) * 50
 
@@ -558,10 +572,18 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
 
   const cleanupMutation = useMutation({
     mutationFn: () => extractService.runCleanup(extractionCaseId!),
-    onSuccess: () => {
+    onSuccess: async () => {
       setStatementsPage(0)
       void refetchStatements()
       setErrorMsg(null)
+      if (extractionCaseId) {
+        try {
+          const v = await extractService.validate(extractionCaseId)
+          setExtractValidation(v)
+        } catch {
+          /* optional */
+        }
+      }
     },
     onError: () => setErrorMsg('Error en la neteja.'),
   })
@@ -735,6 +757,7 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
     setErrorMsg(null)
     setExtractRunning(true)
     setExtractProgress(null)
+    setExtractValidation(null)
     extractEsRef.current?.close()
     const es = new EventSource(extractService.getStreamUrl(extractionCaseId))
     extractEsRef.current = es
@@ -751,7 +774,13 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
           setExtractRunning(false)
           es.close()
           setStatementsPage(0)
+          if (data.validation) {
+            setExtractValidation(data.validation)
+          }
           void refetchStatements()
+          if (extractionCaseId) {
+            cleanupMutation.mutate()
+          }
         }
         if (data.event === 'error') {
           setErrorMsg(data.message ?? 'Error en extracció')
@@ -876,6 +905,22 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
           {extractRunning && extractProgress && extractProgress.total > 0 && (
             <div className="prospective-alert prospective-alert--success">
               Processant fonts: {extractProgress.current} / {extractProgress.total}
+            </div>
+          )}
+
+          {extractValidation?.has_data && (
+            <div className="card" style={{ marginTop: 'var(--spacing-md)', padding: 'var(--spacing-md)' }}>
+              <h3 style={{ color: 'var(--color-primary)', marginTop: 0 }}>Qualitat d&apos;extracció</h3>
+              <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-gray-600)', marginTop: 0 }}>
+                Validació automàtica (patró china-us-rhetoric): grounding, leakage domèstic.
+              </p>
+              <ul style={{ fontSize: 'var(--font-size-sm)', margin: 0, paddingLeft: '1.2rem' }}>
+                <li>{extractValidation.total_statements} declaracions totals</li>
+                <li>Grounding mitjà: {((extractValidation.avg_grounding ?? 0) * 100).toFixed(1)}%</li>
+                <li>Sota llindar (&lt;10%): {extractValidation.below_threshold ?? 0}</li>
+                <li>Sense senyal internacional: {extractValidation.no_intl_signal ?? 0}</li>
+                <li>Risc domèstic: {extractValidation.domestic_signal_risk ?? 0}</li>
+              </ul>
             </div>
           )}
 
@@ -2463,16 +2508,46 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
               <button
                 type="button"
                 className="btn btn-accent"
-                onClick={() => prospectiveService.exportPdf(projectId)}
+                title="Requereix WeasyPrint (Linux). A Windows usa HTML o DOCX."
+                onClick={async () => {
+                  try {
+                    await prospectiveService.exportPdf(projectId)
+                  } catch (err: unknown) {
+                    const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+                    alert(typeof detail === 'string' ? detail : 'No s\'ha pogut exportar el PDF.')
+                  }
+                }}
               >
                 PDF
               </button>
               <button
                 type="button"
                 className="btn btn-primary"
-                onClick={() => prospectiveService.exportDocx(projectId)}
+                onClick={async () => {
+                  try {
+                    await prospectiveService.exportDocx(projectId)
+                  } catch (err: unknown) {
+                    const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+                    alert(typeof detail === 'string' ? detail : 'No s\'ha pogut exportar el DOCX.')
+                  }
+                }}
               >
                 DOCX (Word)
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                title="Obre l'informe complet en HTML; des del navegador pots imprimir com a PDF"
+                onClick={async () => {
+                  try {
+                    await prospectiveService.exportHtml(projectId)
+                  } catch (err: unknown) {
+                    const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+                    alert(typeof detail === 'string' ? detail : 'No s\'ha pogut exportar l\'HTML.')
+                  }
+                }}
+              >
+                HTML / Imprimir PDF
               </button>
             </div>
           )}

@@ -1,17 +1,15 @@
 import { useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useCase } from '../../contexts/CaseContext'
-import { casesService, investmentsService, prospectiveService } from '../../services/api'
+import { useCasesList } from '../../hooks/useCasesList'
+import { investmentsService, prospectiveService } from '../../services/api'
 
 export default function InvestmentRecommendations() {
   const { activeCase, setActiveCase } = useCase()
   const [result, setResult] = useState<unknown>(null)
   const [projectId, setProjectId] = useState<number | null>(null)
 
-  const { data: cases } = useQuery({
-    queryKey: ['cases-list'],
-    queryFn: () => casesService.list(),
-  })
+  const { data: cases } = useCasesList()
 
   const { data: projects = [] } = useQuery({
     queryKey: ['prospective-projects'],

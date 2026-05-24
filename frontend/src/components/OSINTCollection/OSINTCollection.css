@@ -19,6 +19,19 @@
   gap: var(--spacing-xs);
 }
 
+.osint-case-hint {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--color-gray-600);
+  line-height: 1.4;
+}
+
+.btn-create-case-osint {
+  width: 100%;
+  font-size: 0.875rem;
+  padding: 0.625rem 1rem;
+}
+
 .osint-field-label {
   font-size: var(--font-size-xs);
   font-weight: 600;

@@ -56,6 +56,10 @@ type TranslationKeys =
   | 'layout.activeCase'
   | 'layout.noCase'
   | 'layout.logout'
+  | 'layout.intelligenceUnit'
+  | 'layout.briefing'
+  | 'layout.collapseSidebar'
+  | 'layout.expandSidebar'
   | 'nav.group.recollida'
   | 'nav.group.analisi'
   | 'nav.group.resultats'
@@ -72,6 +76,7 @@ type TranslationKeys =
   | 'nav.mactor'
   | 'nav.morph'
   | 'nav.scenarios'
+  | 'nav.intelligence'
   | 'nav.alerts'
   | 'nav.alertMonitors'
   | 'nav.alertMonitorsTriggered'
@@ -148,6 +153,10 @@ const translations: Record<SupportedLocale, Translations> = {
     'quickAccess.reputation': 'Reputation',
     'quickAccess.publicAffairs': 'Public Affairs',
     'layout.subtitle': 'Strategic Intelligence',
+    'layout.intelligenceUnit': 'Intelligence Unit',
+    'layout.briefing': 'Briefing',
+    'layout.collapseSidebar': 'Collapse sidebar',
+    'layout.expandSidebar': 'Expand sidebar',
     'layout.activeCase': 'Active case',
     'layout.noCase': 'No case selected',
     'layout.logout': 'Log Out',
@@ -167,6 +176,7 @@ const translations: Record<SupportedLocale, Translations> = {
     'nav.mactor': '5. MACTOR',
     'nav.morph': '6. Morphological',
     'nav.scenarios': '7. Scenarios & export',
+    'nav.intelligence': 'Intelligence Unit',
     'nav.reputation': 'Reputation',
     'nav.publicAffairs': 'Public affairs',
     'nav.alerts': 'Active alerts',
@@ -240,6 +250,10 @@ const translations: Record<SupportedLocale, Translations> = {
     'quickAccess.reputation': 'Reputación',
     'quickAccess.publicAffairs': 'Asuntos públicos',
     'layout.subtitle': 'Inteligencia Estratégica',
+    'layout.intelligenceUnit': 'Unidad de Inteligencia',
+    'layout.briefing': 'Informe',
+    'layout.collapseSidebar': 'Contraer barra',
+    'layout.expandSidebar': 'Expandir barra',
     'layout.activeCase': 'Caso activo',
     'layout.noCase': 'Ningún caso seleccionado',
     'layout.logout': 'Cerrar sesión',
@@ -259,6 +273,7 @@ const translations: Record<SupportedLocale, Translations> = {
     'nav.mactor': '5. MACTOR',
     'nav.morph': '6. Morfológico',
     'nav.scenarios': '7. Escenarios y exportación',
+    'nav.intelligence': 'Unidad de Inteligencia',
     'nav.reputation': 'Reputación',
     'nav.publicAffairs': 'Asuntos públicos',
     'nav.alerts': 'Alertas activas',
@@ -332,6 +347,10 @@ const translations: Record<SupportedLocale, Translations> = {
     'quickAccess.reputation': 'Reputació',
     'quickAccess.publicAffairs': 'Assumptes públics',
     'layout.subtitle': 'Intel·ligència Estratègica',
+    'layout.intelligenceUnit': 'Intelligence Unit',
+    'layout.briefing': 'Briefing',
+    'layout.collapseSidebar': 'Replegar barra',
+    'layout.expandSidebar': 'Desplegar barra',
     'layout.activeCase': 'Cas actiu',
     'layout.noCase': 'Cap cas seleccionat',
     'layout.logout': 'Tancar sessió',
@@ -351,6 +370,7 @@ const translations: Record<SupportedLocale, Translations> = {
     'nav.mactor': '5. MACTOR',
     'nav.morph': '6. Morfològic',
     'nav.scenarios': '7. Escenaris i exportació',
+    'nav.intelligence': 'Intelligence Unit',
     'nav.reputation': 'Reputació',
     'nav.publicAffairs': 'Assumptes públics',
     'nav.alerts': 'Alertes actives',
@@ -424,6 +444,10 @@ const translations: Record<SupportedLocale, Translations> = {
     'quickAccess.reputation': 'Réputation',
     'quickAccess.publicAffairs': 'Affaires publiques',
     'layout.subtitle': 'Intelligence stratégique',
+    'layout.intelligenceUnit': 'Unité de renseignement',
+    'layout.briefing': 'Briefing',
+    'layout.collapseSidebar': 'Réduire le panneau',
+    'layout.expandSidebar': 'Développer le panneau',
     'layout.activeCase': 'Cas actif',
     'layout.noCase': 'Aucun cas sélectionné',
     'layout.logout': 'Se déconnecter',
@@ -443,6 +467,7 @@ const translations: Record<SupportedLocale, Translations> = {
     'nav.mactor': '5. MACTOR',
     'nav.morph': '6. Morphologique',
     'nav.scenarios': '7. Scénarios et export',
+    'nav.intelligence': 'Unité de renseignement',
     'nav.reputation': 'Réputation',
     'nav.publicAffairs': 'Affaires publiques',
     'nav.alerts': 'Alertes actives',

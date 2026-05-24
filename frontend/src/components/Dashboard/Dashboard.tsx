@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query'
 import { casesService, geographicService, heatmapService } from '../../services/api'
 import type { ActiveCase } from '../../contexts/CaseContext'
 import { useCase } from '../../contexts/CaseContext'
+import { toActiveCase } from '../../utils/caseUtils'
+import { useCasesList } from '../../hooks/useCasesList'
 import EmptyState from '../shared/EmptyState'
 import WorkflowProgress from '../shared/WorkflowProgress'
 import CreateCaseModal from './CreateCaseModal'
@@ -70,30 +72,10 @@ export default function Dashboard() {
   const [showVisualizations, setShowVisualizations] = useState(false)
   const [editingCaseId, setEditingCaseId] = useState<number | null>(null)
   
-  const { data: cases, isLoading, refetch, isRefetching, error: casesError } = useQuery({
-    queryKey: ['cases'],
-    queryFn: async () => {
-      try {
-        const result = await casesService.list()
-        console.log('✅ Cases rebuts del backend:', result)
-        return result || []
-      } catch (error: any) {
-        console.error('❌ Error carregant casos:', error)
-        if (error.code === 'ERR_NETWORK' || error.message?.includes('Network Error')) {
-          console.error('🔌 PROBLEMA: No es pot connectar al servidor backend')
-          console.error('   Verifica que el backend estigui executant-se:')
-          console.error('   1. Obre una terminal al directori backend/')
-          console.error('   2. Executa: python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000')
-          console.error('   3. O executa: .\\start_server.ps1 (Windows)')
-        }
-        throw error // Re-lançar perquè React Query pugui gestionar-ho
-      }
-    },
-    refetchInterval: 10000, // Refrescar cada 10 segons
-    refetchOnWindowFocus: true, // Refrescar quan la finestra recupera el focus
-    staleTime: 0, // Les dades són immediatament "stale" per forçar refresc
-    retry: 2, // Reintentar 2 vegades
-    retryDelay: 2000, // Esperar 2 segons entre intents
+  const { data: cases, isLoading, refetch, isRefetching, error: casesError } = useCasesList({
+    refetchInterval: 10000,
+    retry: 2,
+    retryDelay: 2000,
   })
 
   // Get real metrics from backend
@@ -135,12 +117,10 @@ export default function Dashboard() {
     name: string
     case_type?: string
     status: string
+    description?: string
   }) => {
     const next: ActiveCase = {
-      id: caseItem.id,
-      name: caseItem.name,
-      case_type: caseItem.case_type ?? 'general',
-      status: caseItem.status,
+      ...toActiveCase(caseItem),
       osint_count: activeCase?.id === caseItem.id ? activeCase.osint_count : undefined,
       extraction_count: activeCase?.id === caseItem.id ? activeCase.extraction_count : undefined,
       has_micmac: activeCase?.id === caseItem.id ? activeCase.has_micmac : undefined,

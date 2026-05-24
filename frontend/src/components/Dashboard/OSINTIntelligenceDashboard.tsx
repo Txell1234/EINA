@@ -1,10 +1,29 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { casesService, dashboardService, geographicService, prospectiveService, reportsService } from '../../services/api'
+import {
+  Bell,
+  Download,
+  Globe2,
+  Hash,
+  Landmark,
+  Link2,
+  MessageSquare,
+  Plug,
+  Radio,
+  RefreshCw,
+  Satellite,
+  Shield,
+  Target,
+  TrendingUp,
+  Users,
+} from 'lucide-react'
+import { dashboardService, geographicService, prospectiveService, reportsService } from '../../services/api'
 import GeographicMap from '../Visualizations/GeographicMap'
 import WorkflowProgress from '../shared/WorkflowProgress'
-import { useCase } from '../../contexts/CaseContext'
+import CreateCaseModal from './CreateCaseModal'
+import { useCase, type ActiveCase } from '../../contexts/CaseContext'
+import { useCasesList } from '../../hooks/useCasesList'
 import './OSINTIntelligenceDashboard.css'
 import { useI18n } from '../../contexts/I18nContext'
 
@@ -26,12 +45,19 @@ export default function OSINTIntelligenceDashboard() {
   const [isExporting, setIsExporting] = useState(false)
   const [exportStatus, setExportStatus] = useState<string | null>(null)
   const { t } = useI18n()
-  const { activeCase } = useCase()
+  const { activeCase, setActiveCase } = useCase()
 
-  const { data: cases, isLoading: casesLoading } = useQuery({
-    queryKey: ['dashboard-cases'],
-    queryFn: () => casesService.list(),
-  })
+  useEffect(() => {
+    if (activeCase?.id && selectedCaseId === null) {
+      setSelectedCaseId(activeCase.id)
+    }
+  }, [activeCase?.id, selectedCaseId])
+
+  const handleCaseCreated = (created: ActiveCase) => {
+    setSelectedCaseId(created.id)
+  }
+
+  const { data: cases, isLoading: casesLoading } = useCasesList()
 
   const { data: metrics, isLoading: metricsLoading, refetch: refetchMetrics } = useQuery({
     queryKey: ['osint-dashboard-metrics', selectedDays, selectedCaseId],
@@ -140,14 +166,15 @@ export default function OSINTIntelligenceDashboard() {
     <div className="osint-intelligence-dashboard">
       <div className="dashboard-header-section">
         <div className="header-left">
+          <p className="dashboard-kicker">{t('layout.intelligenceUnit')}</p>
           <h1 className="dashboard-title">{t('dashboard.title')}</h1>
           <div className="status-indicator">
-            <span className="status-icon">🛰️</span>
+            <span className="status-icon" aria-hidden>
+              <Satellite size={16} />
+            </span>
             <span className="status-badge live">{t('dashboard.statusLive')}</span>
           </div>
-          <p className="dashboard-description">
-            {t('dashboard.description')}
-          </p>
+          <p className="dashboard-description">{t('dashboard.description')}</p>
           {activeCase && (
             <WorkflowProgress
               osintCount={activeCase.osint_count}
@@ -157,28 +184,42 @@ export default function OSINTIntelligenceDashboard() {
               hasScenarios={activeCase.has_scenarios}
             />
           )}
-          <div style={{ marginTop: '1rem' }}>
+          <div className="case-toolbar">
             <select
+              className="case-select"
               value={selectedCaseId ?? ''}
-              onChange={(event) =>
-                setSelectedCaseId(event.target.value ? Number(event.target.value) : null)
-              }
-              style={{
-                padding: '0.5rem 0.75rem',
-                borderRadius: '8px',
-                border: '1px solid rgba(255,255,255,0.3)',
-                background: 'rgba(255,255,255,0.2)',
-                color: 'white',
-                minWidth: '220px'
+              onChange={(event) => {
+                const value = event.target.value
+                if (!value) {
+                  setSelectedCaseId(null)
+                  return
+                }
+                const id = Number(value)
+                setSelectedCaseId(id)
+                const c = cases?.find((x) => x.id === id)
+                if (c) {
+                  setActiveCase({
+                    id: c.id,
+                    name: c.name,
+                    case_type: c.case_type ?? 'general',
+                    status: c.status ?? 'pending',
+                  })
+                }
               }}
             >
               <option value="">{t('dashboard.allCases')}</option>
-              {cases?.map((caseItem: any) => (
+              {cases?.map((caseItem) => (
                 <option key={caseItem.id} value={caseItem.id}>
-                  {caseItem.name}
+                  #{caseItem.id} — {caseItem.name}
                 </option>
               ))}
             </select>
+            <CreateCaseModal className="btn-create-case-dashboard" onCaseCreated={handleCaseCreated} />
+            {activeCase && (
+              <Link to="/osint-collection" className="case-osint-link">
+                Recollida OSINT →
+              </Link>
+            )}
           </div>
         </div>
         <div className="header-right">
@@ -186,36 +227,36 @@ export default function OSINTIntelligenceDashboard() {
             {TIME_FILTERS.map((filter) => (
               <button
                 key={filter.label}
+                type="button"
                 className={`time-filter-btn ${selectedDays === filter.days ? 'active' : ''}`}
                 onClick={() => setSelectedDays(filter.days)}
               >
-                {t(filter.label as any)}
+                {t(filter.label as 'time.24h')}
               </button>
             ))}
           </div>
           <div className="action-buttons">
-            <button className="action-btn" onClick={() => refetchMetrics()}>
-              🔄 {t('dashboard.update')}
+            <button type="button" className="action-btn" onClick={() => refetchMetrics()}>
+              <RefreshCw size={14} />
+              {t('dashboard.update')}
             </button>
             <button
+              type="button"
               className="action-btn"
               onClick={handleExport}
               disabled={!selectedCaseId || isExporting}
             >
-              ⬇️ {t('dashboard.export')}
+              <Download size={14} />
+              {t('dashboard.export')}
             </button>
           </div>
-          {exportStatus && (
-            <div style={{ fontSize: '0.875rem', color: 'white' }}>
-              {exportStatus}
-            </div>
-          )}
+          {exportStatus && <div className="export-status">{exportStatus}</div>}
         </div>
       </div>
 
       <div className="metrics-grid">
         <div className="metric-card">
-          <div className="metric-icon">💬</div>
+          <div className="metric-icon"><MessageSquare size={18} /></div>
           <div className="metric-content">
             <div className="metric-value">{totalMentions.toLocaleString()}</div>
             <div className="metric-change">
@@ -225,17 +266,15 @@ export default function OSINTIntelligenceDashboard() {
           </div>
         </div>
         <div className="metric-card">
-          <div className="metric-icon">📈</div>
+          <div className="metric-icon"><TrendingUp size={18} /></div>
           <div className="metric-content">
             <div className="metric-value">{sentimentScore}%</div>
-            <div className="metric-change">
-              {metrics?.sentiment_score?.change_points ?? 0} pts
-            </div>
+            <div className="metric-change">{metrics?.sentiment_score?.change_points ?? 0} pts</div>
             <div className="metric-label">{t('metrics.sentimentScore')}</div>
           </div>
         </div>
         <div className="metric-card">
-          <div className="metric-icon">👥</div>
+          <div className="metric-icon"><Users size={18} /></div>
           <div className="metric-content">
             <div className="metric-value">{estimatedReach}</div>
             <div className="metric-change">
@@ -245,7 +284,7 @@ export default function OSINTIntelligenceDashboard() {
           </div>
         </div>
         <div className="metric-card">
-          <div className="metric-icon">🎯</div>
+          <div className="metric-icon"><Target size={18} /></div>
           <div className="metric-content">
             <div className="metric-value">{engagementRate}%</div>
             <div className="metric-change">{t('metrics.engagementRate')}</div>
@@ -253,17 +292,15 @@ export default function OSINTIntelligenceDashboard() {
           </div>
         </div>
         <div className="metric-card critical">
-          <div className="metric-icon">⚠️</div>
+          <div className="metric-icon"><Bell size={18} /></div>
           <div className="metric-content">
             <div className="metric-value">{criticalAlerts}</div>
-            <div className="metric-change">
-              {metrics?.critical_alerts?.change ?? 0} alertes noves
-            </div>
+            <div className="metric-change">{metrics?.critical_alerts?.change ?? 0} alertes noves</div>
             <div className="metric-label">{t('metrics.criticalAlerts')}</div>
           </div>
         </div>
         <div className={`metric-card ${triggeredMonitors > 0 ? 'critical' : ''}`}>
-          <div className="metric-icon">🔔</div>
+          <div className="metric-icon"><Radio size={18} /></div>
           <div className="metric-content">
             <div className="metric-value">{triggeredMonitors}</div>
             <div className="metric-change">
@@ -272,14 +309,12 @@ export default function OSINTIntelligenceDashboard() {
                 : t('metrics.triggeredMonitorsNote')}
             </div>
             <div className="metric-label">
-              <Link to="/alert-monitors" style={{ color: 'inherit', textDecoration: 'none' }}>
-                {t('metrics.triggeredMonitors')}
-              </Link>
+              <Link to="/alert-monitors">{t('metrics.triggeredMonitors')}</Link>
             </div>
           </div>
         </div>
         <div className="metric-card">
-          <div className="metric-icon">#️⃣</div>
+          <div className="metric-icon"><Hash size={18} /></div>
           <div className="metric-content">
             <div className="metric-value">{trendingTopicsCount}</div>
             <div className="metric-change">{t('metrics.trendingTopicsNote')}</div>
@@ -290,16 +325,19 @@ export default function OSINTIntelligenceDashboard() {
 
       <div className="panels-grid">
         <div className="panel-card">
-          <h3 className="panel-title">📡 {t('panels.dataSources')}</h3>
+          <h3 className="panel-title">
+            <span className="panel-title-icon"><Radio size={18} /></span>
+            {t('panels.dataSources')}
+          </h3>
           <div className="panel-status-indicators">
-            <div className="status-dot active">Activo</div>
-            <div className="status-dot inactive">Inactivo</div>
+            <div className="status-dot active">Actiu</div>
+            <div className="status-dot inactive">Inactiu</div>
           </div>
           <div className="sources-list">
             {dataSources?.length ? (
-              dataSources.map((source: any) => (
+              dataSources.map((source: { name: string; mentions: number }) => (
                 <div key={source.name} className="source-item">
-                  <div className="source-icon">🔗</div>
+                  <div className="source-icon"><Link2 size={16} /></div>
                   <div className="source-info">
                     <div className="source-name">{source.name}</div>
                     <div className="source-mentions">{source.mentions} {t('panels.mentionsLabel')}</div>
@@ -314,7 +352,10 @@ export default function OSINTIntelligenceDashboard() {
         </div>
 
         <div className="panel-card">
-          <h3 className="panel-title">🔥 {t('panels.trendingTopics')}</h3>
+          <h3 className="panel-title">
+            <span className="panel-title-icon"><TrendingUp size={18} /></span>
+            {t('panels.trendingTopics')}
+          </h3>
           <div className="topic-filters">
             <button className="topic-filter-btn active">Todo</button>
           </div>
@@ -340,7 +381,10 @@ export default function OSINTIntelligenceDashboard() {
         </div>
 
         <div className="panel-card">
-          <h3 className="panel-title">🚨 {t('panels.alerts')}</h3>
+          <h3 className="panel-title">
+            <span className="panel-title-icon"><Bell size={18} /></span>
+            {t('panels.alerts')}
+          </h3>
           <div className="alerts-list">
             {alertsFeed?.length ? (
               alertsFeed.map((alert: any) => (
@@ -363,8 +407,11 @@ export default function OSINTIntelligenceDashboard() {
       </div>
 
       {selectedCaseId && geographicData?.locations?.length ? (
-        <div className="panel-card" style={{ marginBottom: '2rem' }}>
-          <h3 className="panel-title">🗺️ {t('panels.geographic')}</h3>
+        <div className="panel-card">
+          <h3 className="panel-title">
+            <span className="panel-title-icon"><Globe2 size={18} /></span>
+            {t('panels.geographic')}
+          </h3>
           <GeographicMap
             locations={geographicData.locations.map((loc: any) => ({
               id: loc.id,
@@ -386,9 +433,22 @@ export default function OSINTIntelligenceDashboard() {
       <div className="quick-access-section">
         <h3>{t('quickAccess.title')}</h3>
         <div className="quick-access-buttons">
-          <a className="quick-access-btn" href="/integration">🔌 {t('quickAccess.integrations')}</a>
-          <a className="quick-access-btn" href="/reputation">🛡️ {t('quickAccess.reputation')}</a>
-          <a className="quick-access-btn" href="/public-affairs">🏛️ {t('quickAccess.publicAffairs')}</a>
+          <Link className="quick-access-btn accent" to="/intelligence">
+            <Globe2 size={16} />
+            Intelligence Unit
+          </Link>
+          <Link className="quick-access-btn" to="/integration">
+            <Plug size={16} />
+            {t('quickAccess.integrations')}
+          </Link>
+          <Link className="quick-access-btn" to="/reputation">
+            <Shield size={16} />
+            {t('quickAccess.reputation')}
+          </Link>
+          <Link className="quick-access-btn" to="/public-affairs">
+            <Landmark size={16} />
+            {t('quickAccess.publicAffairs')}
+          </Link>
         </div>
       </div>
     </div>

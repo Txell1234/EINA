@@ -38,6 +38,7 @@ export default function EditCaseModal({ caseId, isOpen, onClose, onSuccess }: Ed
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cases'] })
+      queryClient.invalidateQueries({ queryKey: ['cases-list'] })
       queryClient.invalidateQueries({ queryKey: ['case', caseId] })
       onClose()
       setName('')
@@ -65,6 +66,7 @@ export default function EditCaseModal({ caseId, isOpen, onClose, onSuccess }: Ed
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cases'] })
+      queryClient.invalidateQueries({ queryKey: ['cases-list'] })
       queryClient.invalidateQueries({ queryKey: ['case', caseId] })
       onClose()
       if (onSuccess) onSuccess()
@@ -166,8 +168,9 @@ export default function EditCaseModal({ caseId, isOpen, onClose, onSuccess }: Ed
                   setError(null)
                 }}
                 placeholder="Descripció del cas"
-                rows={5}
+                rows={12}
                 disabled={updateMutation.isPending}
+                style={{ minHeight: '220px', fontFamily: 'inherit' }}
               />
             </div>
 

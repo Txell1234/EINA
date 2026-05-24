@@ -23,6 +23,7 @@ research_status_store: Dict[int, Dict[str, Any]] = {}
 @router.post("/plan/{case_id}")
 async def generate_research_plan(
     case_id: int,
+    osint_only: bool = False,
     db: AsyncSession = Depends(get_db)
 ):
     """Generate comprehensive research plan for a case"""
@@ -56,7 +57,8 @@ async def generate_research_plan(
             case_type=case_type_str,
             case_description=case.description or case.name,
             case_name=case.name,
-            existing_queries=existing_queries_list
+            existing_queries=existing_queries_list,
+            osint_only=osint_only,
         )
         
         # Store plan
@@ -110,8 +112,16 @@ async def approve_and_execute_research_plan(
             "executed_queries": 0,
             "successful_queries": 0,
             "failed_queries": 0,
-            "message": "Starting research execution..."
+            "message": "Starting research execution...",
+            "run_extraction": approved_plan.get("run_extraction", False),
         }
+
+        await db.execute(
+            Case.__table__.update()
+            .where(Case.id == case_id)
+            .values(status="analyzing")
+        )
+        await db.commit()
         
         # Execute in background
         async def execute_research(case_id: int, plan: Dict[str, Any]):
@@ -137,6 +147,41 @@ async def approve_and_execute_research_plan(
                         research_plan=plan,
                         progress_callback=progress_callback
                     )
+
+                    extraction_summary = None
+                    if plan.get("run_extraction", False):
+                        if case_id in research_status_store:
+                            research_status_store[case_id].update({
+                                "status": "extracting",
+                                "message": "Extraient factors i variables del OSINT recollit…",
+                            })
+                        try:
+                            from services.extract_service import ExtractService
+                            extract_svc = ExtractService(bg_db)
+                            extracted_count = 0
+                            validation = None
+                            async for event in extract_svc.extract_from_case(case_id):
+                                if event.get("event") == "done":
+                                    extracted_count = event.get("total_extracted", extracted_count)
+                                    validation = event.get("validation")
+                            cleanup = await extract_svc.cleanup_pass(case_id)
+                            if validation is None:
+                                validation = await extract_svc.validate_case(case_id)
+                            variables = await extract_svc.get_suggested_variables(case_id)
+                            actors = await extract_svc.get_suggested_actors(case_id)
+                            extraction_summary = {
+                                "statements_extracted": extracted_count,
+                                "cleanup": cleanup,
+                                "validation": validation,
+                                "suggested_variables": variables,
+                                "suggested_actors": actors,
+                            }
+                            plan["suggested_variables"] = variables or plan.get("suggested_variables", [])
+                            plan["suggested_actors"] = actors or plan.get("suggested_actors", [])
+                            research_plans_store[case_id] = plan
+                        except Exception as extract_err:
+                            logger.warning(f"Extracció post-OSINT fallida per cas {case_id}: {extract_err}")
+                            extraction_summary = {"error": str(extract_err)}
                     
                     # Update final status
                     research_status_store[case_id] = {
@@ -147,8 +192,17 @@ async def approve_and_execute_research_plan(
                         "successful_queries": results["successful_queries"],
                         "failed_queries": results["failed_queries"],
                         "message": f"Research completed: {results['successful_queries']}/{results['total_queries']} queries successful",
-                        "results": results
+                        "results": results,
+                        "extraction": extraction_summary,
                     }
+
+                    # Marcar cas com completat després d'aprovació
+                    await bg_db.execute(
+                        Case.__table__.update()
+                        .where(Case.id == case_id)
+                        .values(status="completed")
+                    )
+                    await bg_db.commit()
                     
                     logger.info(f"Research execution completed for case {case_id}")
                     

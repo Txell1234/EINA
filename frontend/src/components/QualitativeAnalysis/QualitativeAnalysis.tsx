@@ -1,17 +1,15 @@
 import { useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useCase } from '../../contexts/CaseContext'
-import { casesService, qualitativeService } from '../../services/api'
+import { useCasesList } from '../../hooks/useCasesList'
+import { qualitativeService } from '../../services/api'
 
 export default function QualitativeAnalysis() {
   const { activeCase, setActiveCase } = useCase()
   const [frameworkId, setFrameworkId] = useState<number | ''>('')
   const [result, setResult] = useState<unknown>(null)
 
-  const { data: cases } = useQuery({
-    queryKey: ['cases-list'],
-    queryFn: () => casesService.list(),
-  })
+  const { data: cases } = useCasesList()
 
   const { data: frameworks = [] } = useQuery({
     queryKey: ['qualitative-frameworks'],

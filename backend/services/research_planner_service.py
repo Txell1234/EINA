@@ -4,9 +4,17 @@ Acts as: Geopolitical Analyst, Investment Advisor, Social Public Affairs Consult
 """
 from typing import Dict, Any, List, Optional
 from services.ai_service import AIService
+from services.osint_data_utils import extract_search_keywords, normalize_search_query
+from app.config import settings
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def _news_api_configured() -> bool:
+    key = getattr(settings, "NEWS_API_KEY", "").strip()
+    return bool(key and key != "your-news-api-key")
+
 
 class ResearchPlannerService:
     """Service to generate comprehensive, expert-level research plans"""
@@ -20,22 +28,25 @@ class ResearchPlannerService:
         case_type: str,
         case_description: str,
         case_name: str,
-        existing_queries: List[Dict] = None
+        existing_queries: List[Dict] = None,
+        osint_only: bool = False,
     ) -> Dict[str, Any]:
-        """Generate comprehensive research plan based on case type
-        
-        Args:
-            case_id: Case ID
-            case_type: Type of case (geopolitical, business, social, political, investigation, general)
-            case_description: Case description
-            case_name: Case name
-            existing_queries: List of already executed queries to avoid duplicates
-            
-        Returns:
-            Comprehensive research plan with phases, queries, and metadata
-        """
+        """Generate comprehensive research plan based on case type"""
+        if osint_only:
+            plan = self.generate_osint_only_plan(
+                case_id=case_id,
+                case_type=case_type,
+                case_description=case_description,
+                case_name=case_name,
+            )
+            return self._sanitize_plan(plan, case_name, case_description)
+
         if not self.ai_service.client:
-            return self._get_fallback_plan(case_type, case_description)
+            return self._sanitize_plan(
+                self._get_fallback_plan(case_type, case_description, guided=True),
+                case_name,
+                case_description,
+            )
         
         # Get expert prompt based on case type
         expert_prompt = self._get_expert_prompt(case_type, case_description, case_name)
@@ -62,16 +73,197 @@ class ResearchPlannerService:
             plan["estimated_duration"] = self._estimate_duration(plan.get("research_phases", []))
             plan["data_sources"] = self._extract_data_sources(plan.get("research_phases", []))
             plan["research_depth"] = "comprehensive"
+            plan.setdefault("run_extraction", True)
+            plan.setdefault("suggested_variables", [])
+            plan.setdefault("suggested_actors", [])
+            plan["creation_mode"] = "guided"
             
             # Filter out duplicates if existing_queries provided
             if existing_queries:
                 plan = self._filter_duplicates(plan, existing_queries)
-            
-            return plan
+
+            return self._sanitize_plan(plan, case_name, case_description)
             
         except Exception as e:
             logger.error(f"Error generating research plan: {e}", exc_info=True)
-            return self._get_fallback_plan(case_type, case_description)
+            return self._sanitize_plan(
+                self._get_fallback_plan(case_type, case_description, guided=True),
+                case_name,
+                case_description,
+            )
+
+    def generate_osint_only_plan(
+        self,
+        case_id: int,
+        case_type: str,
+        case_description: str,
+        case_name: str,
+    ) -> Dict[str, Any]:
+        """Pla mínim només OSINT per casos manuals (sense variables IA prèvies)."""
+        keywords = case_name
+        if case_description and case_description != case_name:
+            keywords = f"{case_name} {case_description[:200]}"
+
+        plan = {
+            "case_id": case_id,
+            "case_type": case_type,
+            "creation_mode": "manual",
+            "run_extraction": False,
+            "research_strategy": "Recollida OSINT bàsica a partir del cas definit manualment",
+            "key_entities": [],
+            "suggested_variables": [],
+            "suggested_actors": [],
+            "temporal_scope": {
+                "historical": "30 dies",
+                "current": "actualitat",
+                "monitoring": "opcional",
+            },
+            "research_phases": [
+                {
+                    "phase": "initial",
+                    "phase_name": "Recollida OSINT inicial",
+                    "queries": [
+                        {
+                            "type": "google_news",
+                            "params": {
+                                "query": keywords[:200],
+                                "language": "en",
+                                "max_results": 30,
+                            },
+                            "rationale": "Notícies recents relacionades amb el cas",
+                        },
+                        {
+                            "type": "google_news",
+                            "params": {
+                                "query": keywords[:200],
+                                "language": "es",
+                                "max_results": 20,
+                            },
+                            "rationale": "Cobertura en castellà/català",
+                        },
+                    ],
+                }
+            ],
+            "estimated_duration": "2-5 minuts",
+            "data_sources": ["news"],
+            "research_depth": "basic",
+        }
+        return plan
+
+    def _sanitize_query_params(
+        self, query_type: str, params: dict[str, Any], case_name: str
+    ) -> dict[str, Any]:
+        params = dict(params or {})
+        q = str(params.get("query") or params.get("q") or "").strip()
+
+        if query_type in ("google_news", "gdelt", "reddit", "github"):
+            if len(q) > 80 or not q:
+                q = extract_search_keywords(q or case_name, case_name)
+            else:
+                q = normalize_search_query(q, max_len=100)
+            params["query"] = q
+
+        if query_type == "gdelt":
+            params["days"] = max(1, min(int(params.get("days", 30)), 90))
+            params["max_results"] = max(1, min(int(params.get("max_results", 50)), 75))
+
+        if query_type == "google_news":
+            params.setdefault("language", "en")
+            if not _news_api_configured():
+                params["_note"] = "Usarà Google News RSS (NEWS_API_KEY no configurada)"
+
+        if query_type == "rss_feed":
+            params.setdefault("source", "cfr")
+            params["max_items"] = max(1, min(int(params.get("max_items", 20)), 30))
+
+        if query_type == "rss_all":
+            params["max_items"] = max(1, min(int(params.get("max_items", 10)), 15))
+
+        if query_type == "rss_url":
+            params["max_items"] = max(1, min(int(params.get("max_items", 20)), 40))
+            params.setdefault("label", "curated")
+
+        return params
+
+    def _curated_rss_queries(self, case_name: str, case_description: str) -> list[dict[str, Any]]:
+        from integrations.rss_feeds import match_curated_feeds
+
+        queries = []
+        for feed in match_curated_feeds(case_name, case_description, max_feeds=3):
+            queries.append(
+                {
+                    "type": "rss_url",
+                    "params": {
+                        "url": feed["url"],
+                        "label": feed.get("label", "curated"),
+                        "category": feed.get("category", "curated"),
+                        "max_items": 15,
+                    },
+                    "rationale": f"Font curada: {feed.get('label', feed['url'])} (RSS/Substack)",
+                }
+            )
+        return queries
+
+    def _sanitize_plan(
+        self, plan: dict[str, Any], case_name: str, case_description: str = ""
+    ) -> dict[str, Any]:
+        """Post-process AI plan: short queries, valid GDELT params, diversify sources."""
+        phases = plan.get("research_phases") or []
+        has_gdelt = False
+        has_rss = False
+
+        for phase in phases:
+            sanitized_queries = []
+            for query in phase.get("queries") or []:
+                qtype = query.get("type", "")
+                params = self._sanitize_query_params(qtype, query.get("params") or {}, case_name)
+                sanitized_queries.append({**query, "params": params})
+                if qtype == "gdelt":
+                    has_gdelt = True
+                if qtype in ("rss_feed", "rss_all", "rss_url"):
+                    has_rss = True
+            phase["queries"] = sanitized_queries
+
+        if phases and not has_gdelt:
+            initial = phases[0]
+            keywords = extract_search_keywords(
+                str(plan.get("research_strategy") or case_name), case_name
+            )
+            initial.setdefault("queries", []).append(
+                {
+                    "type": "gdelt",
+                    "params": {"query": keywords, "days": 30, "max_results": 40},
+                    "rationale": "Monitorització d'esdeveniments globals (GDELT, gratuït)",
+                }
+            )
+
+        if phases and not has_rss:
+            phases[0].setdefault("queries", []).append(
+                {
+                    "type": "rss_all",
+                    "params": {"max_items": 7},
+                    "rationale": "Think-tanks i analistes (RSS, sense clau API)",
+                }
+            )
+
+        curated = self._curated_rss_queries(case_name, case_description)
+        if curated and phases:
+            existing_urls = {
+                str(q.get("params", {}).get("url", ""))
+                for phase in phases
+                for q in phase.get("queries", [])
+                if q.get("type") == "rss_url"
+            }
+            for cq in curated:
+                url = cq["params"]["url"]
+                if url not in existing_urls:
+                    phases[0].setdefault("queries", []).append(cq)
+                    existing_urls.add(url)
+
+        plan["research_phases"] = phases
+        plan["curated_feeds"] = [q["params"]["url"] for q in curated]
+        plan["news_api_configured"] = _news_api_configured()
+        return plan
     
     def _get_expert_prompt(self, case_type: str, case_description: str, case_name: str) -> Dict[str, str]:
         """Get expert-level prompt based on case type"""
@@ -127,7 +319,23 @@ Return ONLY valid JSON with this structure:
     "historical": "How far back to search",
     "current": "Current period focus",
     "monitoring": "Ongoing monitoring strategy"
-  }
+  },
+  "suggested_variables": [
+    {
+      "code": "V1",
+      "name": "Variable name for MIC-MAC",
+      "description": "Why this variable matters",
+      "var_type": "independent|dependent|regulator"
+    }
+  ],
+  "suggested_actors": [
+    {
+      "code": "A1",
+      "name": "Actor or stakeholder",
+      "strategic_goals": ["goal1", "goal2"]
+    }
+  ],
+  "run_extraction": true
 }""",
                 "user": f"""{base_context}
 
@@ -335,7 +543,9 @@ Include queries across multiple sources and platforms to gather comprehensive in
         plan["research_phases"] = filtered_phases
         return plan
     
-    def _get_fallback_plan(self, case_type: str, case_description: str) -> Dict[str, Any]:
+    def _get_fallback_plan(
+        self, case_type: str, case_description: str, guided: bool = True
+    ) -> Dict[str, Any]:
         """Fallback plan when AI is not available"""
         return {
             "research_phases": [
@@ -353,6 +563,10 @@ Include queries across multiple sources and platforms to gather comprehensive in
             ],
             "research_strategy": "Basic research plan (AI unavailable)",
             "key_entities": [],
+            "suggested_variables": [],
+            "suggested_actors": [],
+            "run_extraction": guided,
+            "creation_mode": "guided" if guided else "manual",
             "temporal_scope": {
                 "historical": "30 days",
                 "current": "current",

@@ -66,6 +66,42 @@
   flex: 1;
 }
 
+.plan-permission-notice {
+  background: #fff8e6;
+  border: 1px solid #f0d78c;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 1rem;
+  color: #6b4e00;
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.suggestion-list {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.suggestion-list li {
+  margin-bottom: 0.75rem;
+}
+
+.suggestion-meta {
+  color: #666;
+  font-size: 0.85rem;
+}
+
+.suggestion-desc {
+  margin: 4px 0 0;
+  color: #555;
+  font-size: 0.9rem;
+}
+
+.suggested-variables,
+.suggested-actors {
+  margin-bottom: 1.5rem;
+}
+
 .plan-summary {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));

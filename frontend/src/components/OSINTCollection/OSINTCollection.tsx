@@ -1,7 +1,11 @@
 import { useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useCase } from '../../contexts/CaseContext'
-import { casesService, osintService } from '../../services/api'
+import { toActiveCase } from '../../utils/caseUtils'
+import { osintService } from '../../services/api'
+import { formatApiErrorDetail } from '../../utils/apiErrors'
+import CreateCaseModal from '../Dashboard/CreateCaseModal'
+import { useCasesList } from '../../hooks/useCasesList'
 import './OSINTCollection.css'
 
 interface OSINTResult {
@@ -33,12 +37,32 @@ const SOURCES: SourceConfig[] = [
     requiresKey: false,
     fields: [
       { name: 'query', label: 'Cerca', placeholder: 'Ex.: China BRI Indo-Pacific' },
-      { name: 'days', label: 'Dies enrere', placeholder: '7', type: 'number' },
+      { name: 'days', label: 'Dies enrere (màx. 90)', placeholder: '7', type: 'number' },
     ],
     endpoint: 'gdelt',
     buildParams: (v, caseId) => ({
       query: v.query,
-      days: parseInt(v.days || '7', 10),
+      days: Math.min(parseInt(v.days || '7', 10) || 7, 90),
+      case_id: caseId,
+    }),
+  },
+  {
+    id: 'rss_url',
+    label: 'RSS/Substack (URL curada)',
+    category: 'geopolitica',
+    description:
+      'Butlletins Substack o feeds RSS personalitzats. Ideal per fonts curades com Tracking People\'s Daily.',
+    requiresKey: false,
+    fields: [
+      { name: 'url', label: 'URL del feed', placeholder: 'https://example.substack.com/feed' },
+      { name: 'label', label: 'Etiqueta', placeholder: 'Nom de la font' },
+      { name: 'max_items', label: 'Màx. articles', placeholder: '15', type: 'number' },
+    ],
+    endpoint: 'rss/url',
+    buildParams: (v, caseId) => ({
+      url: v.url,
+      label: v.label || 'custom',
+      max_items: parseInt(v.max_items || '15', 10),
       case_id: caseId,
     }),
   },
@@ -185,7 +209,7 @@ const CATEGORIES = [
 ] as const
 
 export default function OSINTCollection() {
-  const { activeCase, setActiveCase } = useCase()
+  const { activeCase, setActiveCase, clearActiveCase } = useCase()
   const [selectedCategory, setSelectedCategory] = useState<string>('geopolitica')
   const [selectedSource, setSelectedSource] = useState<string>('gdelt')
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({})
@@ -194,10 +218,32 @@ export default function OSINTCollection() {
 
   const source = SOURCES.find((s) => s.id === selectedSource) || SOURCES[0]
 
-  const { data: cases } = useQuery({
-    queryKey: ['cases-list'],
-    queryFn: () => casesService.list(),
+  const validateFields = (): string | null => {
+    for (const field of source.fields) {
+      if (field.type === 'select') continue
+      const val = fieldValues[field.name]?.trim()
+      if (!val) {
+        return `Omple el camp «${field.label}» abans de cercar.`
+      }
+    }
+    return null
+  }
+
+  const canSearch = source.fields.every((field) => {
+    if (field.type === 'select') return true
+    return Boolean(fieldValues[field.name]?.trim())
   })
+
+  const runSearch = () => {
+    const validationError = validateFields()
+    if (validationError) {
+      setResultError(validationError)
+      return
+    }
+    searchMutation.mutate()
+  }
+
+  const { data: cases } = useCasesList()
 
   const { data: recentSearches, refetch: refetchHistory } = useQuery({
     queryKey: ['osint-recent-searches'],
@@ -212,26 +258,55 @@ export default function OSINTCollection() {
       return osintService.search(source.endpoint, params)
     },
     onSuccess: (data) => {
-      setResults((prev) => [data as OSINTResult, ...prev].slice(0, 50))
+      const payload = data as OSINTResult
+      const inner = (payload.data ?? {}) as Record<string, unknown>
+      const failed =
+        payload.status === 'error' ||
+        payload.status === 'failed' ||
+        inner.status === 'error'
+
+      if (failed) {
+        const raw = String(
+          inner.error ?? inner.message ?? payload.data?.error ?? 'Error de la font OSINT',
+        )
+        const userMsg =
+          raw.includes('429') || raw.toLowerCase().includes('rate limit')
+            ? 'GDELT ha limitat les peticions. Espera 1-2 minuts i torna-ho a provar (màx. 90 dies).'
+            : raw
+        setResultError(userMsg)
+        return
+      }
+
+      setResultError(null)
+      setResults((prev) => [payload, ...prev].slice(0, 50))
       refetchHistory()
     },
     onError: (err: unknown) => {
-      const axiosErr = err as { response?: { data?: { detail?: string } }; message?: string }
-      const raw = axiosErr?.response?.data?.detail ?? axiosErr?.message ?? ''
+      const axiosErr = err as {
+        response?: { data?: { detail?: unknown }; status?: number }
+        message?: string
+      }
+      const raw = formatApiErrorDetail(
+        axiosErr?.response?.data?.detail ?? axiosErr?.message,
+        'Error inesperat. Revisa la consola per a més detalls.',
+      )
 
-      const userMsg = raw.includes('timeout') || raw.includes('TIMEOUT')
-        ? 'La font OSINT no ha respost a temps. Torna a intentar-ho en uns segons.'
-        : raw.includes('429') || raw.includes('rate')
-        ? 'La font OSINT ha limitat les peticions. Espera 1 minut i torna a intentar-ho.'
-        : raw.includes('403') || raw.includes('Forbidden')
-        ? 'Accés denegat a la font OSINT. Comprova la configuració de la clau API.'
-        : raw.includes('404') || raw.includes('Not Found')
-        ? 'La font OSINT no ha trobat resultats per a aquesta cerca.'
-        : raw.includes('Network') || raw.includes('ECONNREFUSED')
-        ? 'Error de connexió. Comprova que el servidor backend és accessible.'
-        : raw.length > 0
-        ? raw
-        : 'Error inesperat. Revisa la consola per a més detalls.'
+      const userMsg =
+        axiosErr?.response?.status === 422
+          ? raw.includes('query') || raw.includes('Field required')
+            ? 'Omple tots els camps obligatoris abans de cercar.'
+            : raw
+          : raw.includes('timeout') || raw.includes('TIMEOUT')
+          ? 'La font OSINT no ha respost a temps. Torna a intentar-ho en uns segons.'
+          : raw.includes('429') || raw.includes('rate')
+          ? 'La font OSINT ha limitat les peticions. Espera 1 minut i torna a intentar-ho.'
+          : raw.includes('403') || raw.includes('Forbidden')
+          ? 'Accés denegat a la font OSINT. Comprova la configuració de la clau API.'
+          : raw.includes('404') || raw.includes('Not Found')
+          ? 'La font OSINT no ha trobat resultats per a aquesta cerca.'
+          : raw.includes('Network') || raw.includes('ECONNREFUSED')
+          ? 'Error de connexió. Comprova que el servidor backend és accessible.'
+          : raw
 
       setResultError(userMsg)
     },
@@ -248,18 +323,31 @@ export default function OSINTCollection() {
             className="osint-select"
             value={activeCase?.id ?? ''}
             onChange={(e) => {
-              const id = Number(e.target.value)
-              const c = (cases as { id: number; name: string }[])?.find((x) => x.id === id)
-              if (c) setActiveCase({ id: c.id, name: c.name, case_type: '', status: 'actiu' })
+              const value = e.target.value
+              if (!value) {
+                clearActiveCase()
+                return
+              }
+              const id = Number(value)
+              const c = cases?.find((x) => x.id === id)
+              if (c) {
+                setActiveCase(toActiveCase(c))
+              }
             }}
           >
             <option value="">— Sense cas —</option>
-            {((cases as { id: number; name: string }[]) ?? []).map((c) => (
+            {(cases ?? []).map((c) => (
               <option key={c.id} value={c.id}>
                 #{c.id} — {c.name}
               </option>
             ))}
           </select>
+          {!activeCase && (
+            <p className="osint-case-hint">
+              Crea un cas nou o selecciona&apos;n un per associar les cerques OSINT.
+            </p>
+          )}
+          <CreateCaseModal className="btn-create-case-osint" />
           {activeCase && (
             <div className="osint-case-badge">
               Cas: <strong>{activeCase.name}</strong>
@@ -342,7 +430,7 @@ export default function OSINTCollection() {
                       setFieldValues((v) => ({ ...v, [field.name]: e.target.value }))
                     }
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') searchMutation.mutate()
+                      if (e.key === 'Enter') runSearch()
                     }}
                   />
                 )}
@@ -354,8 +442,8 @@ export default function OSINTCollection() {
             <button
               type="button"
               className="btn btn-accent"
-              disabled={searchMutation.isPending}
-              onClick={() => searchMutation.mutate()}
+              disabled={searchMutation.isPending || !canSearch}
+              onClick={runSearch}
             >
               {searchMutation.isPending ? 'Cercant...' : `Cercar amb ${source.label}`}
             </button>

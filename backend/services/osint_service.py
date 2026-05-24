@@ -147,6 +147,16 @@ class OSINTService:
                 result_data = await rss.fetch_all(
                     max_items_per_feed=int(query_params.get("max_items", 10)),
                 )
+            elif query_type == "rss_url":
+                from integrations.rss_feeds import RSSFeedsService
+
+                rss = RSSFeedsService()
+                result_data = await rss.fetch_url(
+                    feed_url=query_params.get("url", query_params.get("feed_url", "")),
+                    max_items=int(query_params.get("max_items", 20)),
+                    source_label=str(query_params.get("label", "curated")),
+                    category=str(query_params.get("category", "curated")),
+                )
             elif query_type == "opensanctions":
                 from integrations.opensanctions_api import OpenSanctionsService
 
@@ -175,7 +185,11 @@ class OSINTService:
                 query_id=query.id,
                 data=result_data,
                 status=result_status,
-                error_message=result_data.get("error") if has_error else None,
+                error_message=(
+                    result_data.get("error") or result_data.get("message")
+                    if has_error
+                    else None
+                ),
             )
             self.db.add(result)
             await self.db.flush()
@@ -201,7 +215,11 @@ class OSINTService:
                 "result_id": result.id,
                 "data": result_data,
                 "status": result_status,
-                "error": result_data.get("error") if has_error else None,
+                "error": (
+                    (result_data.get("error") or result_data.get("message"))
+                    if has_error
+                    else None
+                ),
             }
 
         except Exception as e:

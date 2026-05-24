@@ -12,12 +12,13 @@ from models.osint import OSINTResult, OSINTQuery
 from models.investments import InvestmentRecommendation
 from services.case_service import CaseService
 from services.ai_service import AIService
+from utils.prompt_utils import derive_case_name, prompt_stats
 from sqlalchemy import select, func
 import logging
 
 logger = logging.getLogger(__name__)
 
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_optional_user
 from models.user import User
 
 router = APIRouter()
@@ -105,7 +106,8 @@ async def suggest_kpis_for_case(
 @router.post("/from-prompt", response_model=CaseResponse, status_code=status.HTTP_201_CREATED)
 async def create_case_from_prompt(
     prompt_data: CasePromptRequest,
-    background_tasks: BackgroundTasks
+    background_tasks: BackgroundTasks,
+    current_user: User | None = Depends(get_optional_user),
 ):
     """Create case from AI prompt - Respuesta inmediata sin esperar commit"""
     import time
@@ -115,7 +117,11 @@ async def create_case_from_prompt(
     logger.info("=" * 60)
     logger.info("=== INICIO create_case_from_prompt ===")
     logger.info(f"Tiempo inicio: {start_time}")
-    logger.info("Creant cas sense autenticació")
+    logger.info("Creant cas des de prompt")
+    if current_user:
+        logger.info(f"Usuari autenticat: {current_user.id} ({current_user.email})")
+    else:
+        logger.info("Sense usuari autenticat — cas sense propietari")
     logger.info(f"Prompt recibido: {prompt_data.prompt[:100] if prompt_data.prompt else 'None'}...")
     logger.info("=" * 60)
     
@@ -131,12 +137,21 @@ async def create_case_from_prompt(
                 detail="El prompt no puede estar vacío"
             )
         
-        # Preparar nombre del caso
-        prompt_name = prompt_data.prompt[:50] + "..." if len(prompt_data.prompt) > 50 else prompt_data.prompt
-        if not prompt_name.strip():
-            prompt_name = "Caso generado"
+        # Preparar nom i descripció segons mode
+        normalized_prompt = prompt_data.prompt
+        stats = prompt_stats(normalized_prompt)
+        creation_mode = prompt_data.creation_mode or "guided"
+
+        if creation_mode == "manual":
+            prompt_name = prompt_data.name.strip()
+            case_type_value = prompt_data.case_type or "general"
+        else:
+            prompt_name = derive_case_name(normalized_prompt)
+            case_type_value = "general"
         
+        logger.info(f"Mode creació: {creation_mode}")
         logger.info(f"Nombre del caso: {prompt_name}")
+        logger.info(f"Briefing: {stats['lines']} línies, {stats['chars']} caràcters")
         logger.info(f"Tiempo antes de crear sesión DB: {time.time() - start_time:.3f}s")
         
         # Crear sesión independiente (no usar get_db para evitar commit automático)
@@ -149,10 +164,10 @@ async def create_case_from_prompt(
                 logger.info(f"Paso 1: Creando caso en DB (tiempo: {time.time() - start_time:.3f}s)")
                 new_case = Case(
                     name=prompt_name,
-                    case_type="general",
-                    description=prompt_data.prompt,
+                    case_type=case_type_value,
+                    description=normalized_prompt,
                     status="pending",
-                    user_id=None,  # Autenticació eliminada
+                    user_id=current_user.id if current_user else None,
                 )
                 db.add(new_case)
                 
@@ -161,6 +176,18 @@ async def create_case_from_prompt(
                 await db.flush()
                 case_id = new_case.id
                 logger.info(f"Paso 2: OK - ID obtenido: {case_id} (tiempo: {time.time() - start_time:.3f}s)")
+
+                # Guardar briefing + mode (espera aprovació abans d'executar res)
+                db.add(
+                    CasePrompt(
+                        case_id=case_id,
+                        prompt=normalized_prompt,
+                        ai_analysis={
+                            "status": "awaiting_approval",
+                            "creation_mode": creation_mode,
+                        },
+                    )
+                )
                 
                 # Paso 3: Hacer commit inmediatamente (debería ser rápido)
                 logger.info(f"Paso 3: Haciendo commit (tiempo: {time.time() - start_time:.3f}s)")
@@ -193,108 +220,10 @@ async def create_case_from_prompt(
                 logger.info(f"Paso 6: Preparando respuesta (tiempo: {time.time() - start_time:.3f}s)")
                 response = CaseResponse.model_validate(loaded_case)
                 logger.info(f"Paso 6: OK - Respuesta preparada (tiempo: {time.time() - start_time:.3f}s)")
-            
-                # Paso 7: Background task para análisis (commit ya hecho) - NO bloquea
-                async def analyze_in_background(case_id: int, prompt_text: str, initial_name: str):
-                    """Background task que hace análisis de IA"""
-                    logger.info(f"Background análisis iniciado para caso {case_id}")
-                    
-                    # Pequeña pausa para asegurar que el commit se complete
-                    await asyncio.sleep(0.1)
-                    
-                    # Análisis en nueva sesión
-                    async with AsyncSessionLocal() as bg_db:
-                        try:
-                            # Cambiar status a analyzing
-                            await bg_db.execute(
-                                Case.__table__.update()
-                                .where(Case.id == case_id)
-                                .values(status="analyzing")
-                            )
-                            await bg_db.commit()
-                            
-                            # Analizar con IA
-                            ai_service = AIService()
-                            analysis_plan = await ai_service.analyze_case_prompt(prompt_text)
-                            
-                            # Actualizar caso
-                            await bg_db.execute(
-                                Case.__table__.update()
-                                .where(Case.id == case_id)
-                                .values(
-                                    name=analysis_plan.get("name", initial_name),
-                                    case_type=analysis_plan.get("type", "general")
-                                )
-                            )
-                            
-                            # Also suggest KPIs
-                            case_type_from_plan = analysis_plan.get("type", "general")
-                            kpi_suggestions = await ai_service.suggest_kpis_for_case(
-                                case_type=case_type_from_plan,
-                                case_description=prompt_text
-                            )
-                            # Add suggestions to analysis plan
-                            if "suggested_kpis" in kpi_suggestions:
-                                analysis_plan["suggested_kpis"] = kpi_suggestions["suggested_kpis"]
-                            
-                            # Guardar prompt
-                            case_prompt = CasePrompt(
-                                case_id=case_id,
-                                prompt=prompt_text,
-                                ai_analysis=analysis_plan,
-                            )
-                            bg_db.add(case_prompt)
-                            await bg_db.commit()
-                            
-                            # Create suggested KPIs if analysis_plan contains kpi suggestions
-                            if "suggested_kpis" in analysis_plan or "kpis" in analysis_plan:
-                                from models.qualitative import KPI
-                                
-                                kpis_to_create = analysis_plan.get("suggested_kpis") or analysis_plan.get("kpis", [])
-                                for kpi_data in kpis_to_create:
-                                    if isinstance(kpi_data, dict):
-                                        # Check if KPI already exists
-                                        kpi_name = kpi_data.get("name", "")
-                                        existing_kpi = await bg_db.execute(
-                                            select(KPI).where(KPI.name == kpi_name)
-                                        )
-                                        kpi_obj = existing_kpi.scalar_one_or_none()
-                                        
-                                        if not kpi_obj:
-                                            # Create new KPI template
-                                            kpi_obj = KPI(
-                                                name=kpi_name,
-                                                kpi_type=kpi_data.get("kpi_type", "quantitative"),
-                                                metric_type=kpi_data.get("metric_type"),
-                                                description=kpi_data.get("description"),
-                                                measurement_unit=kpi_data.get("measurement_unit"),
-                                                case_type_filter=case_type_from_plan,
-                                                is_template=True
-                                            )
-                                            bg_db.add(kpi_obj)
-                                            await bg_db.flush()
-                                        
-                                        # Link KPI to case
-                                        case_kpi = CaseKPI(
-                                            case_id=case_id,
-                                            kpi_id=kpi_obj.id,
-                                            target_value=kpi_data.get("target_value"),
-                                            measurement_unit=kpi_data.get("measurement_unit"),
-                                            is_tracked=True
-                                        )
-                                        bg_db.add(case_kpi)
-                                
-                                await bg_db.commit()
-                            
-                            # Ejecutar análisis completo
-                            case_service = CaseService(bg_db)
-                            await case_service.execute_case_analysis(case_id, analysis_plan)
-                            
-                        except Exception as e:
-                            logger.error(f"Error en background análisis: {e}", exc_info=True)
-                
-                # Agregar tarea en background (análisis) - NO bloquea la respuesta
-                background_tasks.add_task(analyze_in_background, case_id, prompt_data.prompt, prompt_name)
+                # No s'executa anàlisi automàtic: mode guiat → pla + aprovació; manual → OSINT sota demanda
+                logger.info(
+                    f"Cas {case_id} creat en mode '{creation_mode}' — pendent d'aprovació o recollida OSINT"
+                )
                 
                 total_time = time.time() - start_time
                 logger.info("=" * 60)
@@ -364,15 +293,13 @@ async def create_case_auto(
             )
         
         # Crear caso base INMEDIATAMENTE (sin esperar IA)
-        # Extraer nombre básico del prompt para respuesta rápida
-        prompt_name = prompt_data.prompt[:50] + "..." if len(prompt_data.prompt) > 50 else prompt_data.prompt
-        if not prompt_name.strip():
-            prompt_name = "Caso generado"
+        normalized_prompt = prompt_data.prompt
+        prompt_name = derive_case_name(normalized_prompt)
         
         new_case = Case(
             name=prompt_name,
             case_type="general",  # Se actualizará después del análisis IA
-            description=prompt_data.prompt,
+            description=normalized_prompt,
             status="analyzing",
             user_id=None,  # Autenticació eliminada
         )
@@ -380,6 +307,15 @@ async def create_case_auto(
         await db.commit()
         await db.refresh(new_case)
         logger.info(f"Caso creado con ID: {new_case.id}")
+
+        db.add(
+            CasePrompt(
+                case_id=new_case.id,
+                prompt=normalized_prompt,
+                ai_analysis={"status": "pending"},
+            )
+        )
+        await db.commit()
         
         # Analizar prompt con IA en background (no bloquea la respuesta)
         async def analyze_and_update_case(case_id: int, prompt_text: str, initial_name: str):
@@ -390,24 +326,37 @@ async def create_case_auto(
                     logger.info(f"Analizando prompt con IA en background para caso {case_id}...")
                     analysis_plan = await ai_service.analyze_case_prompt(prompt_text)
                     logger.info(f"Plan de análisis generado: {analysis_plan.get('name', 'Sin nombre')}")
+                    ai_name = (analysis_plan.get("name") or "").strip()
+                    final_name = ai_name or initial_name
                     
                     # Actualizar caso con información de IA
                     await bg_db.execute(
                         Case.__table__.update()
                         .where(Case.id == case_id)
                         .values(
-                            name=analysis_plan.get("name", initial_name),
-                            case_type=analysis_plan.get("type", "general")
+                            name=final_name,
+                            case_type=analysis_plan.get("type", "general"),
+                            description=prompt_text,
                         )
                     )
                     
-                    # Guardar prompt con análisis
-                    case_prompt = CasePrompt(
-                        case_id=case_id,
-                        prompt=prompt_text,
-                        ai_analysis=analysis_plan,
+                    prompt_result = await bg_db.execute(
+                        select(CasePrompt)
+                        .where(CasePrompt.case_id == case_id)
+                        .order_by(CasePrompt.created_at.desc())
+                        .limit(1)
                     )
-                    bg_db.add(case_prompt)
+                    existing_prompt = prompt_result.scalar_one_or_none()
+                    if existing_prompt:
+                        existing_prompt.prompt = prompt_text
+                        existing_prompt.ai_analysis = analysis_plan
+                    else:
+                        case_prompt = CasePrompt(
+                            case_id=case_id,
+                            prompt=prompt_text,
+                            ai_analysis=analysis_plan,
+                        )
+                        bg_db.add(case_prompt)
                     await bg_db.commit()
                     
                     # Create KPIs if provided in request or suggested by AI
@@ -487,7 +436,7 @@ async def create_case_auto(
                         logger.error(f"Error guardando fallback plan: {commit_error}", exc_info=True)
         
         # Ejecutar análisis en background (no bloquea)
-        background_tasks.add_task(analyze_and_update_case, new_case.id, prompt_data.prompt, prompt_name)
+        background_tasks.add_task(analyze_and_update_case, new_case.id, normalized_prompt, prompt_name)
         logger.info(f"Análisis en background programado para caso {new_case.id}")
         
         return CaseResponse.model_validate(new_case)
@@ -509,14 +458,16 @@ async def list_cases(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """List all cases - Autenticació eliminada"""
-    from sqlalchemy import select
+    """List cases for the authenticated user (includes legacy unassigned cases)."""
+    from sqlalchemy import or_, select
     import logging
     
     logger = logging.getLogger(__name__)
     
     try:
-        query = select(Case).where(Case.user_id == current_user.id)
+        query = select(Case).where(
+            or_(Case.user_id == current_user.id, Case.user_id.is_(None))
+        )
 
         if status_filter:
             query = query.where(Case.status == status_filter)

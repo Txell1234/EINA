@@ -50,7 +50,10 @@ class DiplomaticEventResponse(BaseModel):
     countries: List[str]
     impact_score: float
     sentiment_score: Optional[float]
-    
+    location: Optional[str] = None
+    location_coordinates: Optional[Any] = None
+    source_references: Optional[List[str]] = None
+
     model_config = ConfigDict(from_attributes=True)
 
 class GeopoliticalRiskResponse(BaseModel):
