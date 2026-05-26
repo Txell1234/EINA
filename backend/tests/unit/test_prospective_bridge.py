@@ -12,6 +12,19 @@ class TestGeopoliticalBridge:
     def test_variable_matches_country(self):
         var = {"code": "A", "name": "Expansió BRI", "desc": "Xina belt and road"}
         assert variable_matches_country(var, "Xina")
+        assert variable_matches_country(var, "China")
+
+    def test_variable_matches_japan_english_label(self):
+        var = {"code": "V1", "name": "Rearmament japonès", "desc": "defensa regional"}
+        assert variable_matches_country(var, "Japan")
+        assert variable_matches_country(var, "Govern del Japó")
+
+    def test_event_importance_enum(self):
+        from models.geopolitical import EventImportance
+        from services.prospective_geopolitical_service import _enum_value
+
+        assert _enum_value(EventImportance.HIGH) == "high"
+        assert _enum_value(EventImportance.MEDIUM) == "medium"
 
     def test_relation_influence_deteriorating(self):
         class Rel:

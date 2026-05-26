@@ -145,10 +145,47 @@
 }
 
 .osint-source-desc {
-  font-size: var(--font-size-sm);
+  margin: 0 0 var(--spacing-md);
   color: var(--color-gray-600);
-  margin-bottom: var(--spacing-lg);
-  line-height: 1.6;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.osint-case-concepts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  margin-bottom: var(--spacing-md);
+  padding: 0.65rem 0.75rem;
+  background: var(--color-gray-50, #f8f9fa);
+  border-radius: var(--radius-md, 6px);
+  border: 1px solid var(--color-gray-200, #e9ecef);
+}
+
+.osint-case-concepts__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-gray-700);
+  margin-right: 0.25rem;
+}
+
+.osint-case-concepts__chip {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: var(--color-primary-light, #e8eef5);
+  color: var(--color-primary, #1a365d);
+}
+
+.osint-case-concepts__chip--geo {
+  background: #e6f4ea;
+  color: #1e5631;
+}
+
+.osint-case-concepts__apply {
+  font-size: 0.75rem;
+  margin-left: auto;
 }
 
 .osint-fields {
@@ -168,6 +205,27 @@
   display: flex;
   gap: var(--spacing-sm);
   flex-wrap: wrap;
+  margin-top: var(--space-4);
+}
+
+.osint-tavily-companion {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  font-size: var(--font-size-sm);
+  color: var(--color-gray-700);
+  cursor: pointer;
+}
+
+.osint-tavily-companion input {
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+
+.osint-tavily-companion-hint {
+  color: var(--color-gray-500);
+  font-size: var(--font-size-xs);
 }
 
 .osint-alert {
@@ -181,6 +239,33 @@
   background: rgba(220, 53, 69, 0.08);
   color: var(--color-danger);
   border: 1px solid rgba(220, 53, 69, 0.2);
+}
+
+.osint-alert--info {
+  background: rgba(30, 58, 95, 0.06);
+  color: var(--color-primary);
+  border: 1px solid rgba(30, 58, 95, 0.15);
+}
+
+.osint-view-tabs {
+  display: flex;
+  gap: 8px;
+  margin: var(--spacing-md) 0 var(--spacing-sm);
+}
+
+.osint-view-tabs button {
+  padding: 6px 14px;
+  border: 1px solid var(--color-gray-300);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+}
+
+.osint-view-tabs button.active {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
 }
 
 .osint-results-title {

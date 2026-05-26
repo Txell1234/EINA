@@ -3,7 +3,7 @@
  */
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { financialService, investmentsService } from '../../services/api'
+import { financialService, geopoliticalService, investmentsService } from '../../services/api'
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer } from 'recharts'
 
 interface FinancialIntelWidgetProps {
@@ -16,6 +16,16 @@ interface InvestmentRisk {
   risk_percentage?: number
   risk_level?: string
   description?: string
+  country?: string
+  source?: 'investment' | 'geopolitical'
+}
+
+interface GeoRisk {
+  country: string
+  overall_risk_score?: number
+  political_stability_risk?: number
+  conflict_risk?: number
+  economic_risk?: number
 }
 
 const DEFAULT_WATCHLIST = ['EUR', 'CNY', 'JPY', 'GBP']
@@ -27,11 +37,20 @@ export default function FinancialIntelWidget({
   const [activeTab, setActiveTab] = useState<'risk' | 'forex' | 'radar' | 'sanctions'>('risk')
   const [sanctionQuery, setSanctionQuery] = useState('')
 
-  const { data: risks, isLoading: risksLoading } = useQuery({
+  const { data: invRisks, isLoading: invRisksLoading } = useQuery({
     queryKey: ['inv-risks', caseId],
     queryFn: () => investmentsService.getRisks(caseId),
     refetchInterval: 120_000,
+    enabled: !!caseId,
   })
+
+  const { data: geoRisks, isLoading: geoRisksLoading } = useQuery({
+    queryKey: ['geo-risks-financial', caseId],
+    queryFn: () => geopoliticalService.getRisks(caseId),
+    enabled: !!caseId,
+  })
+
+  const risksLoading = invRisksLoading || geoRisksLoading
 
   const { data: fxData, isLoading: fxLoading } = useQuery({
     queryKey: ['currency-rates'],
@@ -46,7 +65,22 @@ export default function FinancialIntelWidget({
     enabled: sanctionQuery.length >= 3,
   })
 
-  const riskList: InvestmentRisk[] = Array.isArray(risks) ? risks : []
+  const riskList: InvestmentRisk[] = (() => {
+    const inv = Array.isArray(invRisks) ? invRisks : []
+    if (inv.length > 0) {
+      return inv.map((r: InvestmentRisk) => ({ ...r, source: 'investment' as const }))
+    }
+    const geo = (Array.isArray(geoRisks) ? geoRisks : []) as GeoRisk[]
+    return geo.map((r) => ({
+      risk_type: r.country,
+      risk_percentage: Math.round(r.overall_risk_score ?? 0),
+      risk_level:
+        (r.overall_risk_score ?? 0) > 70 ? 'critical' : (r.overall_risk_score ?? 0) > 40 ? 'high' : 'medium',
+      description: `Polític ${Math.round(r.political_stability_risk ?? 0)} · Conflicte ${Math.round(r.conflict_risk ?? 0)} · Econòmic ${Math.round(r.economic_risk ?? 0)}`,
+      country: r.country,
+      source: 'geopolitical' as const,
+    }))
+  })()
 
   const radarData = ['political', 'economic', 'security', 'regulatory', 'social'].map((cat) => ({
     category: cat.charAt(0).toUpperCase() + cat.slice(1),
@@ -160,7 +194,9 @@ export default function FinancialIntelWidget({
             <div className="empty-state">
               <div className="empty-state-icon">📊</div>
               <h3 className="empty-state-title">Sense riscos calculats</h3>
-              <p className="empty-state-desc">Calcula els riscos des del dashboard geopolític.</p>
+              <p className="empty-state-desc">
+                Executa el pipeline des de Intelligence Unit (riscos geopolítics o recomanació d&apos;inversió).
+              </p>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

@@ -13,6 +13,7 @@ const OSINTIntelligenceDashboard = lazy(
 const OSINTCollection = lazy(() => import('./components/OSINTCollection/OSINTCollection'))
 const AIAnalysis = lazy(() => import('./components/AIAnalysis/AIAnalysis'))
 const QualitativeAnalysis = lazy(() => import('./components/QualitativeAnalysis/QualitativeAnalysis'))
+const ReasoningFrameworks = lazy(() => import('./components/QualitativeAnalysis/ReasoningFrameworks'))
 const InvestmentRecommendations = lazy(
   () => import('./components/InvestmentRecommendations/InvestmentRecommendations'),
 )
@@ -52,6 +53,7 @@ function AppRoutes() {
           <Route path="osint-collection" element={<OSINTCollection />} />
           <Route path="ai-analysis" element={<AIAnalysis />} />
           <Route path="qualitative-analysis" element={<QualitativeAnalysis />} />
+          <Route path="reasoning-frameworks" element={<ReasoningFrameworks />} />
           <Route path="investment-recommendations" element={<InvestmentRecommendations />} />
           <Route path="data-synchronization" element={<ProspectiveAnalysis entryStep={0} />} />
           <Route path="direct-analysis" element={<DirectAnalysis />} />

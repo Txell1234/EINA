@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Dict, Any, Optional
 from app.database import get_db
 from sqlalchemy import select, func, desc, String, cast
+from services.db_json_filters import json_array_contains_column
 from models.ai_classification import (
     AIClassification, 
     ClassificationCategory, 
@@ -525,14 +526,11 @@ async def get_category_stats(
         result = await db.execute(
             select(
                 ClassificationCategory.name,
-                func.count(AIClassification.id).label("usage_count")
+                func.count(AIClassification.id).label("usage_count"),
             )
             .join(
                 AIClassification,
-                func.json_contains(
-                    AIClassification.categories,
-                    func.json_quote(ClassificationCategory.name)
-                )
+                json_array_contains_column(AIClassification.categories, ClassificationCategory.name),
             )
             .group_by(ClassificationCategory.name)
         )

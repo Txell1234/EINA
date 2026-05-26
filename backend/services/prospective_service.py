@@ -95,7 +95,7 @@ class ProspectiveService:
                     order_index=i,
                 )
             )
-        await self.db.commit()
+        await self.db.flush()
 
     async def save_actors(self, project_id: int, actors: List[dict]) -> None:
         await self.db.execute(
@@ -115,7 +115,7 @@ class ProspectiveService:
                     order_index=i,
                 )
             )
-        await self.db.commit()
+        await self.db.flush()
 
     async def save_objectives(self, project_id: int, objectives: List[dict]) -> None:
         await self.db.execute(
@@ -305,7 +305,14 @@ class ProspectiveService:
         stats = morph_space_stats(components, incompatibilities)
         specs = build_scenario_specs(components, incompatibilities)
         stats["scenario_configs"] = [
-            {"scenario_type": s["scenario_type"], "config": s["config"]} for s in specs
+            {
+                "scenario_type": s["scenario_type"],
+                "config": s["config"],
+                "possibility": s.get("possibility"),
+                "possibility_rationale": s.get("possibility_rationale"),
+                "probability": s.get("probability"),
+            }
+            for s in specs
         ]
         return stats
 
@@ -458,25 +465,33 @@ class ProspectiveService:
         }
 
     async def get_scenarios(self, project_id: int) -> List[dict]:
+        from services.scenario_milestone_service import list_milestones_for_project
+
         result = await self.db.execute(
             select(ProspectiveScenario)
             .where(ProspectiveScenario.project_id == project_id)
             .order_by(ProspectiveScenario.id)
         )
         rows = result.scalars().all()
+        milestones_by_scenario = await list_milestones_for_project(self.db, project_id)
         return [
             {
                 "id": s.id,
                 "name": s.name,
                 "scenario_type": s.scenario_type,
+                "possibility": getattr(s, "possibility", None) or "PLAUSIBLE",
+                "possibility_rationale": getattr(s, "possibility_rationale", None) or "",
                 "probability": s.probability,
                 "narrative": s.narrative,
                 "morphological_config": s.morphological_config,
+                "milestones": milestones_by_scenario.get(s.id, []),
             }
             for s in rows
         ]
 
-    async def _build_context(self, project_id: int) -> str:
+    async def _build_context(
+        self, project_id: int, *, include_temporal_context: bool = False
+    ) -> str:
         """Build rich Godet context for scenario generation LLM prompt."""
         project = await self.get_project(project_id)
         if not project:
@@ -592,15 +607,43 @@ class ProspectiveService:
                 if sc.get("config"):
                     parts.append(f"  → {sc['scenario_type']}: {sc['config']}")
 
+        if include_temporal_context and project.case_id:
+            from services.retrospective_service import RetrospectiveService
+
+            retro = await RetrospectiveService(self.db).build_retrospective(
+                project.case_id, project_id
+            )
+            if retro.get("has_data"):
+                parts += ["", "RETROSPECTIVA I TENDÈNCIES (seqüència temporal):"]
+                for ev in (retro.get("key_events") or [])[:10]:
+                    if isinstance(ev, dict):
+                        parts.append(
+                            f"  - {ev.get('date', '')} {ev.get('title', ev.get('summary', ''))}"[:200]
+                        )
+                    else:
+                        parts.append(f"  - {ev}")
+                for ap in (retro.get("actor_posture_summary") or [])[:8]:
+                    if isinstance(ap, dict):
+                        parts.append(
+                            f"  - Actor {ap.get('actor', '?')}: tendència {ap.get('trend', '—')}"
+                        )
+
         return "\n".join(parts)
 
-    async def stream_scenarios(self, project_id: int) -> AsyncGenerator[dict[str, Any], None]:
+    async def stream_scenarios(
+        self,
+        project_id: int,
+        *,
+        include_temporal_context: bool = False,
+    ) -> AsyncGenerator[dict[str, Any], None]:
         llm = LLMService(mode="scenario")
         if not llm.configured:
             yield {"event": "error", "message": llm_config_error_message()}
             return
 
-        context = await self._build_context(project_id)
+        context = await self._build_context(
+            project_id, include_temporal_context=include_temporal_context
+        )
         components = await self._load_morph_components(project_id)
         incompatibilities = await self.get_incompatibilities(project_id)
         smic = await self.get_smic(project_id)
@@ -629,6 +672,7 @@ class ProspectiveService:
                 "event": "scenario_start",
                 "index": idx,
                 "name": spec["name"],
+                "possibility": spec.get("possibility"),
                 "prob": spec["probability"],
                 "config": spec["config"],
             }
@@ -637,13 +681,20 @@ class ProspectiveService:
                 "Ets un analista d'intel·ligència estratègica expert en prospectiva (escola Godet). "
                 "Escriu narratives analítiques en català, 380-440 paraules, amb condicions inicials, "
                 "seqüència d'events (any 1, anys 2-3, anys 4-5), actors impulsors, indicadors d'alerta "
-                "(format → indicador) i probabilitat justificada."
+                "(format → indicador), possibilitat morfològica justificada i probabilitat estimada "
+                "clarament diferenciades."
             )
             user_prompt = f"""Context de l'anàlisi:
 {context}
 
 Genera la narrativa de l'{spec['name']} ({spec['config']}).
-Probabilitat assignada: {spec['probability']}.
+
+DISTINGEIX OBLIGATÒRIAMENT:
+- POSSIBILITAT (viabilitat lògica Zwicky): {spec.get('possibility', 'PLAUSIBLE')} — {spec.get('possibility_rationale', '')}
+  Respon: aquest estat futur pot existir dins l'espai morfològic? Quines condicions lògiques el fan assolible?
+- PROBABILITAT (likelihood SMIC/tendències): {spec['probability']}.
+  Respon: quina és la probabilitat estimada que el sistema arribi realment a aquest escenari?
+
 Inclou 4-5 indicadors d'alerta primerenca observables."""
 
             narrative = ""
@@ -663,12 +714,27 @@ Inclou 4-5 indicadors d'alerta primerenca observables."""
                 name=spec["name"],
                 scenario_type=spec["scenario_type"],
                 morphological_config=spec["config"],
+                possibility=spec.get("possibility", "PLAUSIBLE"),
+                possibility_rationale=spec.get("possibility_rationale", ""),
                 probability=spec["probability"],
                 narrative=narrative,
             )
             self.db.add(scenario)
             await self.db.commit()
             await self.db.refresh(scenario)
+
+            from services.scenario_milestone_service import persist_milestones_for_scenario
+
+            milestones = await persist_milestones_for_scenario(
+                self.db, scenario.id, narrative
+            )
+            if milestones:
+                yield {
+                    "event": "milestones_saved",
+                    "index": idx,
+                    "scenario_id": scenario.id,
+                    "count": len(milestones),
+                }
 
             from services.event_bus_service import get_event_bus
 

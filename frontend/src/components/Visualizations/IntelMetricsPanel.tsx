@@ -4,6 +4,8 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { extractService, geopoliticalService } from '../../services/api'
+import ExtractStatementsTable from '../shared/ExtractStatementsTable'
+import '../shared/Traceability.css'
 import {
   AreaChart,
   Area,
@@ -29,6 +31,7 @@ interface GeoRisk {
 
 export default function IntelMetricsPanel({ caseId }: IntelMetricsPanelProps) {
   const [tab, setTab] = useState<'sources' | 'sentiment' | 'predictions'>('sources')
+  const [selectedDomain, setSelectedDomain] = useState<string | null>(null)
 
   const { data: sourceData, isLoading: srcLoading } = useQuery({
     queryKey: ['source-reliability', caseId],
@@ -40,6 +43,12 @@ export default function IntelMetricsPanel({ caseId }: IntelMetricsPanelProps) {
     queryKey: ['statements-sentiment', caseId],
     queryFn: () => extractService.getStatements(caseId, 'KEEP', 0, 200),
     enabled: !!caseId && tab === 'sentiment',
+  })
+
+  const { data: domainStatements, isLoading: domainLoading } = useQuery({
+    queryKey: ['statements-by-domain', caseId, selectedDomain],
+    queryFn: () => extractService.getStatements(caseId, 'KEEP', 0, 100, selectedDomain!),
+    enabled: !!caseId && !!selectedDomain,
   })
 
   const { data: risks } = useQuery({
@@ -110,7 +119,10 @@ export default function IntelMetricsPanel({ caseId }: IntelMetricsPanelProps) {
           <button
             key={t.id}
             type="button"
-            onClick={() => setTab(t.id)}
+            onClick={() => {
+              setTab(t.id)
+              if (t.id !== 'sources') setSelectedDomain(null)
+            }}
             style={{
               padding: '8px 16px',
               border: 'none',
@@ -139,85 +151,105 @@ export default function IntelMetricsPanel({ caseId }: IntelMetricsPanelProps) {
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {sources.slice(0, 10).map((src, i) => (
-              <div
-                key={i}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 'var(--spacing-sm)',
-                  padding: '6px 0',
-                  borderBottom: '1px solid var(--color-gray-100)',
-                  fontSize: 'var(--font-size-xs)',
-                }}
-              >
-                <span
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: '50%',
-                    flexShrink: 0,
-                    background:
-                      src.avg_grounding > 0.6
-                        ? 'var(--color-success)'
-                        : src.avg_grounding > 0.3
-                          ? 'var(--color-warning)'
-                          : 'var(--color-danger)',
-                  }}
-                />
-                <span
-                  style={{
-                    flex: 1,
-                    fontWeight: 500,
-                    color: 'var(--color-gray-800)',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
+            {sources.slice(0, 10).map((src, i) => {
+              const isSelected = selectedDomain === src.domain
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  className={`intel-domain-btn${isSelected ? ' intel-domain-btn--selected' : ''}`}
+                  onClick={() => setSelectedDomain(isSelected ? null : src.domain)}
                 >
-                  {src.domain}
-                </span>
-                <span style={{ color: 'var(--color-gray-400)', minWidth: 50 }}>{src.n_statements} decl.</span>
-                <div
-                  style={{
-                    width: 80,
-                    height: 6,
-                    background: 'var(--color-gray-200)',
-                    borderRadius: 3,
-                    overflow: 'hidden',
-                  }}
-                >
-                  <div
+                  <span
                     style={{
-                      width: `${src.avg_grounding * 100}%`,
-                      height: '100%',
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      flexShrink: 0,
                       background:
                         src.avg_grounding > 0.6
                           ? 'var(--color-success)'
                           : src.avg_grounding > 0.3
                             ? 'var(--color-warning)'
                             : 'var(--color-danger)',
-                      borderRadius: 3,
                     }}
                   />
+                  <span
+                    style={{
+                      flex: 1,
+                      fontWeight: 500,
+                      color: 'var(--color-gray-800)',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {src.domain}
+                  </span>
+                  <span style={{ color: 'var(--color-gray-400)', minWidth: 50 }}>{src.n_statements} decl.</span>
+                  <div
+                    style={{
+                      width: 80,
+                      height: 6,
+                      background: 'var(--color-gray-200)',
+                      borderRadius: 3,
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: `${src.avg_grounding * 100}%`,
+                        height: '100%',
+                        background:
+                          src.avg_grounding > 0.6
+                            ? 'var(--color-success)'
+                            : src.avg_grounding > 0.3
+                              ? 'var(--color-warning)'
+                              : 'var(--color-danger)',
+                        borderRadius: 3,
+                      }}
+                    />
+                  </div>
+                  <span
+                    style={{
+                      fontWeight: 700,
+                      minWidth: 30,
+                      textAlign: 'right',
+                      color:
+                        src.avg_grounding > 0.6
+                          ? 'var(--color-success)'
+                          : src.avg_grounding > 0.3
+                            ? '#856404'
+                            : 'var(--color-danger)',
+                    }}
+                  >
+                    {Math.round(src.avg_grounding * 100)}%
+                  </span>
+                </button>
+              )
+            })}
+
+            {selectedDomain ? (
+              <div className="intel-domain-panel">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <h4 style={{ margin: 0, fontSize: 'var(--font-size-sm)', color: 'var(--color-primary)' }}>
+                    Declaracions de {selectedDomain}
+                  </h4>
+                  <button type="button" className="btn" style={{ fontSize: 10, padding: '4px 8px' }} onClick={() => setSelectedDomain(null)}>
+                    Tancar
+                  </button>
                 </div>
-                <span
-                  style={{
-                    fontWeight: 700,
-                    minWidth: 30,
-                    textAlign: 'right',
-                    color:
-                      src.avg_grounding > 0.6
-                        ? 'var(--color-success)'
-                        : src.avg_grounding > 0.3
-                          ? '#856404'
-                          : 'var(--color-danger)',
-                  }}
-                >
-                  {Math.round(src.avg_grounding * 100)}%
-                </span>
+                {domainLoading ? (
+                  <div className="spinner" style={{ margin: '1rem auto' }} />
+                ) : (
+                  <ExtractStatementsTable statements={domainStatements?.items ?? []} />
+                )}
               </div>
-            ))}
+            ) : (
+              <p style={{ fontSize: 10, color: 'var(--color-gray-400)', margin: '4px 0 0' }}>
+                Clica un domini per veure les declaracions d&apos;aquesta font.
+              </p>
+            )}
           </div>
         ))}
 

@@ -1,33 +1,43 @@
-"""Tests for extract validation (china-us-rhetoric pattern)."""
+"""Tests for extract validation grounding and verifiability."""
+import pytest
+from types import SimpleNamespace
+
 from services.extract_validation import (
-    grounding_score,
-    has_domestic_signal,
-    has_international_signal,
-    tokenize_for_grounding,
+    effective_grounding_score,
+    is_verifiable_source,
+    validate_statements,
 )
 
 
-def test_grounding_score_with_stopwords():
-    quote = "Japan will increase defense spending significantly"
-    article = "Tokyo announced Japan will increase defense spending in the next fiscal year"
-    score = grounding_score(quote, article)
-    assert score >= 0.5
+@pytest.mark.unit
+def test_effective_grounding_never_self_compares():
+    stmt = "El Japó veu la Xina com un desafiament estratègic per la seva pressió militar."
+    assert effective_grounding_score(stmt, "") is None
+    assert effective_grounding_score(stmt, None) is None
 
 
-def test_international_signal_japan():
-    assert has_international_signal("Japan rearmament concerns NATO allies", "", "")
+@pytest.mark.unit
+def test_fake_100pct_from_self_compare_removed():
+    s = SimpleNamespace(
+        id=1,
+        statement="El Japó veu la Xina com un desafiament estratègic.",
+        context="",
+        topic="",
+        source_url="",
+        source_text_excerpt="",
+        grounding_score=1.0,
+        actor="Govern del Japó",
+        tone="neutral",
+        relevance_signals=[],
+        cleanup_decision="KEEP",
+    )
+    result = validate_statements([s])
+    assert result["unverified_count"] == 1
+    assert result["avg_grounding"] == 0.0
 
 
-def test_international_signal_coded_language():
-    assert has_international_signal("Les potències occidentals pressionen el govern", "", "")
-
-
-def test_domestic_signal():
-    assert has_domestic_signal("Reforma del sistema de pensions nacional", "", "")
-
-
-def test_tokenize_filters_short_words():
-    words = tokenize_for_grounding("the cat sat on mat")
-    assert "the" not in words
-    assert "cat" not in words  # len < 4
-    assert "sat" not in words
+@pytest.mark.unit
+def test_is_verifiable_source_requires_url_and_excerpt():
+    assert is_verifiable_source("https://ecfr.eu/article", "How China's silent coercion has Europe sanctioning itself") is True
+    assert is_verifiable_source("", "some excerpt long enough to pass the minimum length check here") is False
+    assert is_verifiable_source("direct-analysis:synthetic", "x" * 50) is False

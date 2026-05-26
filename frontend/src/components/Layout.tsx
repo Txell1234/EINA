@@ -1,8 +1,10 @@
+// @refresh reset
 import { useEffect, useMemo, useState } from 'react'
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   Bell,
+  Brain,
   ChartScatter,
   ChevronLeft,
   ChevronRight,
@@ -53,6 +55,7 @@ type NavLabelKey =
   | 'nav.alertMonitorsTriggered'
   | 'nav.aiAnalysis'
   | 'nav.qualitativeAnalysis'
+  | 'nav.reasoningFrameworks'
   | 'nav.investmentRecommendations'
   | 'nav.reputation'
   | 'nav.publicAffairs'
@@ -103,6 +106,7 @@ const NAV_GROUPS: {
     items: [
       { path: '/ai-analysis', labelKey: 'nav.aiAnalysis', icon: Sparkles },
       { path: '/qualitative-analysis', labelKey: 'nav.qualitativeAnalysis', icon: MessageSquareText },
+      { path: '/reasoning-frameworks', labelKey: 'nav.reasoningFrameworks', icon: Brain },
       { path: '/investment-recommendations', labelKey: 'nav.investmentRecommendations', icon: TrendingUp },
       { path: '/reputation', labelKey: 'nav.reputation', icon: Shield },
       { path: '/public-affairs', labelKey: 'nav.publicAffairs', icon: Landmark },
@@ -127,6 +131,7 @@ const PAGE_TITLES: Record<string, NavLabelKey | 'nav.intelligence'> = {
   '/alert-monitors': 'nav.alertMonitors',
   '/ai-analysis': 'nav.aiAnalysis',
   '/qualitative-analysis': 'nav.qualitativeAnalysis',
+  '/reasoning-frameworks': 'nav.reasoningFrameworks',
   '/investment-recommendations': 'nav.investmentRecommendations',
   '/reputation': 'nav.reputation',
   '/public-affairs': 'nav.publicAffairs',
@@ -178,7 +183,12 @@ export default function Layout() {
   const { data: monitorSummary } = useQuery({
     queryKey: ['monitor-summary', activeCase?.id],
     queryFn: () => prospectiveService.getMonitorSummary(activeCase?.id),
-    refetchInterval: 60_000,
+    enabled: Boolean(activeCase?.id),
+    retry: 1,
+    retryDelay: 10_000,
+    refetchOnWindowFocus: false,
+    staleTime: 90_000,
+    refetchInterval: (query) => (query.state.error ? false : 120_000),
   })
 
   const triggeredMonitors = monitorSummary?.triggered_count ?? 0

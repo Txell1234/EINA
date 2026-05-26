@@ -2,6 +2,7 @@
 Prospective Analysis Router - MIC-MAC, MACTOR, morphological, scenarios
 """
 import json
+import logging
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -22,6 +23,8 @@ from services.prospective_service import ProspectiveService
 from app.dependencies import get_current_user
 from app.limiter import limiter
 from models.user import User
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -478,6 +481,9 @@ async def get_scenarios(project_id: int, current_user: User = Depends(get_curren
 async def stream_scenarios(
     request: Request,
     project_id: int,
+    include_temporal_context: bool = Query(
+        False, description="Incloure retrospectiva i tendències al context (opt-in)"
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -487,7 +493,9 @@ async def stream_scenarios(
 
     async def event_generator():
         try:
-            async for event in svc.stream_scenarios(project_id):
+            async for event in svc.stream_scenarios(
+                project_id, include_temporal_context=include_temporal_context
+            ):
                 yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'event': 'error', 'message': str(e)}, ensure_ascii=False)}\n\n"
@@ -530,7 +538,13 @@ async def apply_consensus(project_id: int, current_user: User = Depends(get_curr
 
 
 @router.get("/projects/{project_id}/export/pdf")
-async def export_project_pdf(project_id: int, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def export_project_pdf(
+    project_id: int,
+    lang: str = Query("ca", pattern="^(ca|es|en)$"),
+    include_decision_annex: bool = Query(False),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """Export prospective project as PDF. Requires weasyprint + libpango."""
     from pathlib import Path
 
@@ -539,7 +553,9 @@ async def export_project_pdf(project_id: int, current_user: User = Depends(get_c
     try:
         from services.report_export_service import export_pdf as _pdf
 
-        meta = await _pdf(db, project_id)
+        meta = await _pdf(
+            db, project_id, lang=lang, include_decision_annex=include_decision_annex
+        )
         data = Path(meta["file_path"]).read_bytes()
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -555,7 +571,13 @@ async def export_project_pdf(project_id: int, current_user: User = Depends(get_c
 
 
 @router.get("/projects/{project_id}/export/docx")
-async def export_project_docx(project_id: int, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def export_project_docx(
+    project_id: int,
+    lang: str = Query("ca", pattern="^(ca|es|en)$"),
+    include_decision_annex: bool = Query(False),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """Export prospective project as DOCX."""
     from pathlib import Path
 
@@ -564,7 +586,9 @@ async def export_project_docx(project_id: int, current_user: User = Depends(get_
     try:
         from services.report_export_service import export_docx as _docx
 
-        meta = await _docx(db, project_id)
+        meta = await _docx(
+            db, project_id, lang=lang, include_decision_annex=include_decision_annex
+        )
         data = Path(meta["file_path"]).read_bytes()
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -580,7 +604,13 @@ async def export_project_docx(project_id: int, current_user: User = Depends(get_
 
 
 @router.get("/projects/{project_id}/export/html")
-async def export_project_html(project_id: int, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def export_project_html(
+    project_id: int,
+    lang: str = Query("ca", pattern="^(ca|es|en)$"),
+    include_decision_annex: bool = Query(False),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """Export prospective project as HTML (recomanat per imprimir a PDF a Windows)."""
     from pathlib import Path
 
@@ -589,7 +619,9 @@ async def export_project_html(project_id: int, current_user: User = Depends(get_
     try:
         from services.report_export_service import export_html as _html
 
-        meta = await _html(db, project_id)
+        meta = await _html(
+            db, project_id, lang=lang, include_decision_annex=include_decision_annex
+        )
         data = Path(meta["file_path"]).read_bytes()
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -602,6 +634,43 @@ async def export_project_html(project_id: int, current_user: User = Depends(get_
             "Content-Disposition": f"attachment; filename=informe_prospectiu_{project_id}.html"
         },
     )
+
+
+@router.get("/matches/{match_id}/provenance")
+async def get_match_provenance(
+    match_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from services.source_provenance_service import match_provenance
+
+    try:
+        return await match_provenance(db, match_id)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Coincidència no trobada")
+
+
+@router.get("/projects/{project_id}/export-readiness")
+async def project_export_readiness(
+    project_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from models.prospective import ProspectiveProject
+    from services.source_provenance_service import export_readiness
+
+    r = await db.execute(select(ProspectiveProject.case_id).where(ProspectiveProject.id == project_id))
+    case_id = r.scalar_one_or_none()
+    if not case_id:
+        return {
+            "project_id": project_id,
+            "export_ready": False,
+            "issues": [{"type": "no_case", "message": "Projecte sense cas OSINT associat"}],
+            "warnings": [],
+        }
+    data = await export_readiness(db, case_id)
+    data["project_id"] = project_id
+    return data
 
 
 @router.post("/projects/{project_id}/scenarios/{scenario_id}/monitors")
@@ -631,6 +700,75 @@ async def create_scenario_monitors(
     return {"created": len(monitors), "monitors": monitors}
 
 
+@router.get("/projects/{project_id}/scenarios/{scenario_id}/milestones")
+async def get_scenario_milestones(
+    project_id: int,
+    scenario_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from models.prospective import ProspectiveScenario
+    from services.scenario_milestone_service import list_milestones_for_scenario
+
+    r = await db.execute(
+        select(ProspectiveScenario).where(
+            ProspectiveScenario.id == scenario_id,
+            ProspectiveScenario.project_id == project_id,
+        )
+    )
+    if not r.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Escenari no trobat")
+    items = await list_milestones_for_scenario(db, scenario_id)
+    return {"scenario_id": scenario_id, "milestones": items}
+
+
+@router.post("/projects/{project_id}/scenarios/{scenario_id}/milestones/parse")
+async def parse_scenario_milestones(
+    project_id: int,
+    scenario_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Re-parse milestones from scenario narrative (best-effort)."""
+    from models.prospective import ProspectiveScenario
+    from services.scenario_milestone_service import persist_milestones_for_scenario
+
+    r = await db.execute(
+        select(ProspectiveScenario).where(
+            ProspectiveScenario.id == scenario_id,
+            ProspectiveScenario.project_id == project_id,
+        )
+    )
+    sc = r.scalar_one_or_none()
+    if not sc:
+        raise HTTPException(status_code=404, detail="Escenari no trobat")
+    milestones = await persist_milestones_for_scenario(db, scenario_id, sc.narrative or "")
+    return {"scenario_id": scenario_id, "count": len(milestones), "milestones": milestones}
+
+
+@router.post("/projects/{project_id}/scenarios/{scenario_id}/milestones/monitors")
+async def create_milestone_monitors(
+    project_id: int,
+    scenario_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create OSINT monitors from persisted milestones (additive)."""
+    from models.prospective import ProspectiveScenario
+    from services.scenario_milestone_service import create_monitors_from_milestones
+
+    r = await db.execute(
+        select(ProspectiveScenario).where(
+            ProspectiveScenario.id == scenario_id,
+            ProspectiveScenario.project_id == project_id,
+        )
+    )
+    if not r.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Escenari no trobat")
+    monitors = await create_monitors_from_milestones(db, project_id, scenario_id)
+    return {"created": len(monitors), "monitors": monitors}
+
+
 @router.get("/monitors/summary")
 async def monitors_summary(
     case_id: Optional[int] = Query(None),
@@ -640,7 +778,17 @@ async def monitors_summary(
     """Summary of alert monitors with OSINT matches (match_count > 0)."""
     from services.alert_monitor_service import list_triggered_summary
 
-    return await list_triggered_summary(db, user_id=current_user.id, case_id=case_id)
+    try:
+        return await list_triggered_summary(db, user_id=current_user.id, case_id=case_id)
+    except Exception as exc:
+        logger.exception("monitors/summary failed for case_id=%s: %s", case_id, exc)
+        return {
+            "triggered_count": 0,
+            "total_matches": 0,
+            "total_monitors": 0,
+            "unread_count": 0,
+            "new_matches": 0,
+        }
 
 
 @router.get("/projects/{project_id}/monitors")
@@ -686,6 +834,42 @@ class ManualMonitorRequest(BaseModel):
     indicator: str
     keywords: List[str] = []
     osint_sources: List[str] = ["gdelt", "google_news", "reddit"]
+    lookback_days: Optional[int] = None
+    horizon_label: Optional[str] = None
+    min_match_score: Optional[float] = None
+    min_keywords_matched: Optional[int] = None
+
+
+class MonitorSettingsRequest(BaseModel):
+    lookback_days: Optional[int] = None
+    horizon_label: Optional[str] = None
+    min_match_score: Optional[float] = None
+    min_keywords_matched: Optional[int] = None
+    clear_thresholds: bool = False
+
+
+@router.patch("/monitors/{monitor_id}/settings")
+async def patch_monitor_settings(
+    monitor_id: int,
+    data: MonitorSettingsRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update optional monitor thresholds (NULL fields = legacy behavior)."""
+    from services.alert_monitor_service import update_monitor_settings
+
+    result = await update_monitor_settings(
+        db,
+        monitor_id,
+        lookback_days=data.lookback_days,
+        horizon_label=data.horizon_label,
+        min_match_score=data.min_match_score,
+        min_keywords_matched=data.min_keywords_matched,
+        clear_thresholds=data.clear_thresholds,
+    )
+    if result.get("error"):
+        raise HTTPException(status_code=404, detail=result["error"])
+    return result
 
 
 @router.post("/projects/{project_id}/monitors/manual")
@@ -700,23 +884,240 @@ async def add_manual_monitor(
     from services.alert_monitor_service import _keywords as _kw
 
     kws = data.keywords if data.keywords else _kw(data.indicator)
+    from models.prospective import ProspectiveProject
+    proj_r = await db.execute(select(ProspectiveProject.case_id).where(ProspectiveProject.id == project_id))
+    case_id = proj_r.scalar_one_or_none()
     monitor = AlertMonitor(
         project_id=project_id,
+        case_id=case_id,
         indicator=data.indicator,
         keywords=kws,
         osint_sources=data.osint_sources,
         is_active=1,
+        lookback_days=data.lookback_days,
+        horizon_label=data.horizon_label,
+        min_match_score=data.min_match_score,
+        min_keywords_matched=data.min_keywords_matched,
     )
     db.add(monitor)
     await db.commit()
     await db.refresh(monitor)
-    return {
-        "id": monitor.id,
-        "indicator": monitor.indicator,
-        "keywords": monitor.keywords,
-        "osint_sources": monitor.osint_sources,
-        "is_active": True,
-        "match_count": 0,
-        "last_checked": None,
-        "last_match": None,
-    }
+    from services.alert_monitor_service import _monitor_to_dict
+
+    return _monitor_to_dict(monitor)
+
+
+class MatchStatusRequest(BaseModel):
+    status: str
+    action_taken: str = ""
+
+
+@router.get("/monitors/{monitor_id}/matches")
+async def get_monitor_matches(
+    monitor_id: int,
+    status: Optional[str] = Query(None),
+    include_archived: bool = Query(False),
+    date_from: Optional[str] = Query(None, description="YYYY-MM-DD"),
+    date_to: Optional[str] = Query(None, description="YYYY-MM-DD"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from services.alert_monitor_service import list_matches, repair_monitor_counts
+
+    await repair_monitor_counts(db, monitor_id=monitor_id)
+    return await list_matches(
+        db,
+        monitor_id=monitor_id,
+        status=status,
+        include_archived=include_archived,
+        date_from=date_from,
+        date_to=date_to,
+        skip=skip,
+        limit=limit,
+    )
+
+
+@router.get("/projects/{project_id}/matches")
+async def get_project_matches(
+    project_id: int,
+    include_archived: bool = Query(False),
+    date_from: Optional[str] = Query(None, description="YYYY-MM-DD"),
+    date_to: Optional[str] = Query(None, description="YYYY-MM-DD"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from services.alert_monitor_service import list_matches
+
+    return await list_matches(
+        db,
+        project_id=project_id,
+        include_archived=include_archived,
+        date_from=date_from,
+        date_to=date_to,
+        skip=skip,
+        limit=limit,
+    )
+
+
+@router.get("/cases/{case_id}/alert-matches")
+async def get_case_alert_matches(
+    case_id: int,
+    include_archived: bool = Query(False),
+    date_from: Optional[str] = Query(None, description="YYYY-MM-DD"),
+    date_to: Optional[str] = Query(None, description="YYYY-MM-DD"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=500),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from services.alert_monitor_service import list_matches
+
+    return await list_matches(
+        db,
+        case_id=case_id,
+        include_archived=include_archived,
+        date_from=date_from,
+        date_to=date_to,
+        skip=skip,
+        limit=limit,
+    )
+
+
+@router.patch("/matches/{match_id}/status")
+async def patch_match_status(
+    match_id: int,
+    data: MatchStatusRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from services.alert_monitor_service import update_match_status
+
+    try:
+        return await update_match_status(db, match_id, data.status, data.action_taken)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Coincidència no trobada")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/matches/{match_id}/archive")
+async def archive_alert_match(
+    match_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from services.alert_monitor_service import archive_match
+
+    try:
+        return await archive_match(db, match_id)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Coincidència no trobada")
+
+
+@router.post("/matches/bulk-extract")
+async def bulk_extract_alert_matches(
+    case_id: int | None = Query(None),
+    monitor_id: int | None = Query(None),
+    limit: int = Query(25, ge=1, le=50),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from services.alert_monitor_service import bulk_extract_matches
+
+    if case_id is None and monitor_id is None:
+        raise HTTPException(status_code=400, detail="Cal case_id o monitor_id")
+    return await bulk_extract_matches(db, case_id=case_id, monitor_id=monitor_id, limit=limit)
+
+
+@router.post("/matches/{match_id}/extract")
+async def extract_alert_match(
+    match_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from services.alert_monitor_service import extract_from_match
+
+    try:
+        return await extract_from_match(db, match_id)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Coincidència no trobada")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/matches/{match_id}/analyze")
+async def analyze_alert_match(
+    match_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from services.alert_monitor_service import analyze_match
+
+    try:
+        return await analyze_match(db, match_id)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Coincidència no trobada")
+
+
+@router.get("/monitors/{monitor_id}/matches/export")
+async def export_monitor_matches(
+    monitor_id: int,
+    fmt: str = Query("json", pattern="^(json|csv)$"),
+    include_archived: bool = Query(True),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from services.alert_monitor_service import export_matches
+
+    content, media_type, filename = await export_matches(
+        db, monitor_id=monitor_id, include_archived=include_archived, fmt=fmt
+    )
+    return StreamingResponse(
+        iter([content]),
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/projects/{project_id}/matches/export")
+async def export_project_matches(
+    project_id: int,
+    fmt: str = Query("json", pattern="^(json|csv)$"),
+    include_archived: bool = Query(True),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from services.alert_monitor_service import export_matches
+
+    content, media_type, filename = await export_matches(
+        db, project_id=project_id, include_archived=include_archived, fmt=fmt
+    )
+    return StreamingResponse(
+        iter([content]),
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/cases/{case_id}/alert-matches/export")
+async def export_case_alert_matches(
+    case_id: int,
+    fmt: str = Query("json", pattern="^(json|csv)$"),
+    include_archived: bool = Query(True),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from services.alert_monitor_service import export_matches
+
+    content, media_type, filename = await export_matches(
+        db, case_id=case_id, include_archived=include_archived, fmt=fmt
+    )
+    return StreamingResponse(
+        iter([content]),
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

@@ -276,6 +276,8 @@ async def seed() -> None:
                 {
                     "name": "Escenari Infern",
                     "scenario_type": "infern",
+                    "possibility": "CONDICIONAL",
+                    "possibility_rationale": "Combinació morfològica vàlida però extrema; possible lògicament però requereix convergència de condicions adverses.",
                     "probability": "BAIXA-MITJA",
                     "morphological_config": "Expansió plena BRI + Progrés parcial corredors + Divisió interna QUAD",
                     "narrative": """La Xina consolida la Belt and Road Initiative a l'Indo-Pacífic mentre el QUAD experimenta divisions internes que limiten la seva capacitat de resposta coordinada. Els corredors alternatius progressen parcialment però sense prou capital polític per a competir.
@@ -296,6 +298,8 @@ Probabilitat BAIXA-MITJA: Requereix la coincidència de disfuncionalitat del QUA
                 {
                     "name": "Escenari Tensió Crònica",
                     "scenario_type": "tensio",
+                    "possibility": "PLAUSIBLE",
+                    "possibility_rationale": "Extrapolació de tendències actuals dins l'espai morfològic; coherent i estructuralment assolible.",
                     "probability": "ALTA",
                     "morphological_config": "Estancament BRI + Progrés parcial corredors + Alta cohesió QUAD",
                     "narrative": """L'Indo-Pacífic s'estabilitza en un equilibri de competència crònica sense resolució definitiva. La BRI s'estanca davant la pressió del QUAD cohesionat, però els corredors alternatius progressen a ritme insuficient per a omplir el buit.
@@ -316,6 +320,8 @@ Probabilitat ALTA: Representa l'extrapolació de les tendències actuals sense r
                 {
                     "name": "Escenari Equilibri Dinàmic",
                     "scenario_type": "equilibri",
+                    "possibility": "PLAUSIBLE",
+                    "possibility_rationale": "Combinació vàlida Zwicky amb cohesió regional i corredors alternatius; assolible amb esforç polític moderat.",
                     "probability": "MITJA",
                     "morphological_config": "Estancament BRI + Consolidació corredors + Alta cohesió QUAD",
                     "narrative": """El QUAD cohesionat i els corredors alternatius consolidades ofereixen una alternativa creïble a la BRI, estabilitzant la regió en un equilibri multipolier dinàmic però gestionable.
@@ -336,6 +342,8 @@ Probabilitat MITJA: Requereix manteniment de la cohesió occidental i implementa
                 {
                     "name": "Escenari Cel",
                     "scenario_type": "cel",
+                    "possibility": "CONDICIONAL",
+                    "possibility_rationale": "Combinació extrema favorable; possible dins l'espai morfològic però depèn de condicions simultànies poc freqüents.",
                     "probability": "BAIXA",
                     "morphological_config": "Retrocés BRI + Consolidació corredors + Alta cohesió QUAD",
                     "narrative": """El retrocés de la BRI combinat amb la plena consolidació dels corredors alternatius i la màxima cohesió del QUAD transforma l'arquitectura de l'Indo-Pacífic de forma definitiva.

@@ -1,12 +1,14 @@
 """
 AI Analysis router
 """
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
+import logging
 from app.database import get_db
 # Autenticació eliminada
 from schemas.ai_analysis import AIAnalysisRequest, AIAnalysisResponse, ConceptResponse, TrendResponse, SentimentResponse
+from schemas.analysis_brief import ExpertAnalysisRequest
 from models.ai_analysis import AIAnalysis, Concept, Trend, Sentiment
 from services.ai_service import AIService
 
@@ -14,6 +16,7 @@ from app.dependencies import get_current_user
 from models.user import User
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 @router.post("/taranis/analyze", response_model=AIAnalysisResponse)
 async def analyze_taranis(
@@ -30,7 +33,10 @@ async def analyze_taranis(
         analysis_type="taranis",
         case_id=request.case_id,
         osint_results=osint_results,
-        db=db  # Pass db to fetch all linked OSINT data
+        db=db,
+        user_direction=request.user_direction,
+        focus_entity=request.focus_entity,
+        focus_topic=request.focus_topic,
     )
     
     # Save to database
@@ -62,7 +68,10 @@ async def analyze_osintgpt(
         analysis_type="osintgpt",
         case_id=request.case_id,
         osint_results=osint_results,
-        db=db  # Pass db to fetch all linked OSINT data
+        db=db,
+        user_direction=request.user_direction,
+        focus_entity=request.focus_entity,
+        focus_topic=request.focus_topic,
     )
     
     # Save to database
@@ -93,7 +102,10 @@ async def analyze_ominis(
         analysis_type="ominis",
         case_id=request.case_id,
         osint_results=osint_results,
-        db=db  # Pass db to fetch all linked OSINT data
+        db=db,
+        user_direction=request.user_direction,
+        focus_entity=request.focus_entity,
+        focus_topic=request.focus_topic,
     )
     
     # Save to database
@@ -198,23 +210,23 @@ async def analyze_with_ai(
 @router.post("/expert/reputation-manager/{case_id}")
 async def analyze_as_reputation_manager(
     case_id: int,
-    entity_name: Optional[str] = None,
+    payload: ExpertAnalysisRequest = Body(...),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Análisis experto de reputación"""
+    _ = current_user
     try:
         ai_service = AIService()
-        
-        # Obtener datos OSINT del caso (el método lo hace automáticamente si no se proporcionan)
         result = await ai_service.analyze_as_reputation_manager(
             case_id=case_id,
-            osint_data=None,  # Se obtendrá automáticamente desde BD
-            api_data=None,  # Se puede obtener automáticamente si es necesario
-            entity_name=entity_name,
-            db=db
+            osint_data=None,
+            api_data=None,
+            entity_name=payload.entity_name or payload.focus_entity,
+            db=db,
+            user_direction=payload.user_direction,
+            focus_topic=payload.focus_topic,
         )
-        
         return result
     except Exception as e:
         logger.error(f"Error in reputation manager analysis: {e}", exc_info=True)
@@ -226,22 +238,23 @@ async def analyze_as_reputation_manager(
 @router.post("/expert/public-affairs-consultant/{case_id}")
 async def analyze_as_public_affairs_consultant(
     case_id: int,
-    policy_topic: Optional[str] = None,
+    payload: ExpertAnalysisRequest = Body(...),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Análisis experto de asuntos públicos"""
+    _ = current_user
     try:
         ai_service = AIService()
-        
         result = await ai_service.analyze_as_public_affairs_consultant(
             case_id=case_id,
-            osint_data=None,  # Se obtendrá automáticamente desde BD
-            api_data=None,  # Se puede obtener automáticamente si es necesario
-            policy_topic=policy_topic,
-            db=db
+            osint_data=None,
+            api_data=None,
+            policy_topic=payload.policy_topic or payload.focus_topic,
+            db=db,
+            user_direction=payload.user_direction,
+            focus_entity=payload.focus_entity,
         )
-        
         return result
     except Exception as e:
         logger.error(f"Error in public affairs consultant analysis: {e}", exc_info=True)
@@ -279,20 +292,21 @@ async def analyze_as_geopolitical_analyst(
 @router.post("/expert/investment-advisor/{case_id}")
 async def analyze_as_investment_advisor(
     case_id: int,
+    payload: ExpertAnalysisRequest = Body(...),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Análisis experto de inversiones"""
+    _ = current_user
     try:
         ai_service = AIService()
-        
-        result = await ai_service.analyze_as_investment_advisor(
+        result = await ai_service.generate_investment_recommendation(
             case_id=case_id,
-            osint_data=None,  # Se obtendrá automáticamente desde BD
-            api_data=None,  # Se puede obtener automáticamente si es necesario
-            db=db
+            db=db,
+            user_direction=payload.user_direction,
+            focus_entity=payload.entity_name or payload.focus_entity,
+            focus_topic=payload.focus_topic,
         )
-        
         return result
     except Exception as e:
         logger.error(f"Error in investment advisor analysis: {e}", exc_info=True)

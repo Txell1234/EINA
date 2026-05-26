@@ -1,13 +1,16 @@
 """
 AI Analysis schemas
 """
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 class AIAnalysisRequest(BaseModel):
     case_id: int
     osint_results: Optional[List[Dict[str, Any]]] = None
+    user_direction: str = Field(..., min_length=30, max_length=8000)
+    focus_entity: Optional[str] = Field(None, max_length=200)
+    focus_topic: Optional[str] = Field(None, max_length=300)
 
 class AIAnalysisResponse(BaseModel):
     id: int

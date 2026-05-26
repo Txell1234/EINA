@@ -1,6 +1,7 @@
 """
 Database configuration and session management
 """
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import declarative_base
 from app.config import settings
@@ -10,8 +11,8 @@ from app.config import settings
 connect_args = {}
 if "sqlite" in settings.DATABASE_URL:
     connect_args = {
-        "timeout": 5.0,  # 5 segundos timeout para SQLite
-        "check_same_thread": False
+        "timeout": 30.0,
+        "check_same_thread": False,
     }
 
 engine = create_async_engine(
@@ -20,6 +21,18 @@ engine = create_async_engine(
     future=True,
     connect_args=connect_args,
 )
+
+
+def _configure_sqlite(dbapi_connection, _connection_record) -> None:
+    """WAL mode reduces lock contention under concurrent reads/writes."""
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA busy_timeout=30000")
+    cursor.close()
+
+
+if "sqlite" in settings.DATABASE_URL:
+    event.listen(engine.sync_engine, "connect", _configure_sqlite)
 
 # Create async session factory
 AsyncSessionLocal = async_sessionmaker(

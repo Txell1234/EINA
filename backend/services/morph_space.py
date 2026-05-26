@@ -237,6 +237,51 @@ def compute_smic_final(
     return final, labels
 
 
+def assess_scenario_possibility(
+    combo: list[ComboEntry],
+    incompatibilities: list[dict] | None,
+    components: list[dict] | None,
+    scenario_type: str,
+) -> dict[str, str]:
+    """Possibilitat lògica (Zwicky): l'escenari pot existir dins l'espai morfològic?
+
+    Distint de probabilitat (likelihood SMIC/OSINT).
+    """
+    normalized = normalize_components(components or [])
+    if not combo:
+        return {
+            "possibility": "PLAUSIBLE",
+            "possibility_rationale": (
+                "Sense configuració morfològica explícita; escenari qualitatiu per defecte."
+            ),
+        }
+    if not is_combo_valid(combo, incompatibilities or []):
+        return {
+            "possibility": "EXCLOS",
+            "possibility_rationale": (
+                "La combinació viola incompatibilitats Zwicky i queda fora de l'espai possible."
+            ),
+        }
+    config_counts = [len(c["configs"]) for c in normalized] if normalized else None
+    score = combo_score(combo, config_counts)
+    config_str = format_morph_config(combo)
+    if scenario_type in ("infern", "cel") or score <= 0.15 or score >= 0.85:
+        return {
+            "possibility": "CONDICIONAL",
+            "possibility_rationale": (
+                f"Combinació vàlida però extrema ({config_str}). "
+                "Possibilitat lògica verificada; la realització depèn de condicions concretes simultànies."
+            ),
+        }
+    return {
+        "possibility": "PLAUSIBLE",
+        "possibility_rationale": (
+            f"Combinació vàlida dins l'espai morfològic ({config_str}). "
+            "Sense incompatibilitats Zwicky; l'estat futur és estructuralment assolible."
+        ),
+    }
+
+
 def build_scenario_specs(
     components: list[dict],
     incompatibilities: list[dict] | None = None,
@@ -254,11 +299,14 @@ def build_scenario_specs(
             else tpl["default_probability"]
         )
         config_str = format_morph_config(combo) if combo else ""
+        poss = assess_scenario_possibility(combo, incompatibilities, components, st)
         specs.append(
             {
                 "index": idx,
                 "name": tpl["name"],
                 "scenario_type": st,
+                "possibility": poss["possibility"],
+                "possibility_rationale": poss["possibility_rationale"],
                 "probability": prob,
                 "config": config_str or f"Configuració {st}",
                 "combo": combo,

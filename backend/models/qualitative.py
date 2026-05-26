@@ -12,6 +12,7 @@ class ReasoningFrameworkType(str, enum.Enum):
     INDUCTIVE = "inductive"
     ABDUCTIVE = "abductive"
     CAUSAL = "causal"
+    CUSTOM = "custom"
 
 class KPIType(str, enum.Enum):
     QUANTITATIVE = "quantitative"
@@ -47,8 +48,12 @@ class ReasoningFramework(Base):
     name = Column(String, unique=True, nullable=False)
     framework_type = Column(Enum(ReasoningFrameworkType), nullable=False)
     description = Column(Text)
+    definition = Column(JSON)  # doctrine, methodology, steps, criteria, prompts…
+    is_custom = Column(Boolean, default=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     # Relationships
     premises = relationship("Premise", back_populates="framework")

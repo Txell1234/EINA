@@ -8,6 +8,9 @@ from models.osint import OSINTQuery, OSINTResult
 from models.case import Case
 from integrations.nominatim_api import NominatimAPIService
 from integrations.ipstack_api import IPStackAPIService
+from services.geo_keywords import find_geo_hits
+from services.geo_ner import extract_geo_entities
+from services.osint_geo_utils import bump_osint_source_counts, osint_provider_from_query_type, article_provider
 import re
 import logging
 
@@ -33,6 +36,44 @@ class HeatmapService:
         self.nominatim = NominatimAPIService()
         self.ipstack = IPStackAPIService()
     
+    def _collect_posts_from_result(self, data: Any) -> List[Dict[str, Any]]:
+        """Flatten OSINT result payloads (RSS bundles, social APIs, single posts)."""
+        posts: List[Dict[str, Any]] = []
+
+        if isinstance(data, list):
+            for item in data:
+                posts.extend(self._collect_posts_from_result(item))
+            return posts
+
+        if not isinstance(data, dict):
+            return posts
+
+        if data.get("status") == "success" and isinstance(data.get("data"), list):
+            for item in data["data"]:
+                if isinstance(item, dict):
+                    posts.append(item)
+            return posts
+
+        for key in ("items", "articles", "posts", "results"):
+            nested = data.get(key)
+            if isinstance(nested, list):
+                for item in nested:
+                    if isinstance(item, dict):
+                        posts.append(item)
+                if posts:
+                    return posts
+
+        sources = data.get("sources")
+        if isinstance(sources, dict):
+            for source_data in sources.values():
+                if isinstance(source_data, dict):
+                    posts.extend(self._collect_posts_from_result(source_data))
+
+        if any(data.get(k) for k in ("title", "text", "description", "content", "summary")):
+            posts.append(data)
+
+        return posts
+
     def _extract_ip_addresses(self, data: Dict[str, Any]) -> List[str]:
         """Extract IP addresses from post data"""
         ips = []
@@ -85,13 +126,19 @@ class HeatmapService:
         for post in posts:
             if not isinstance(post, dict):
                 continue
-            
+
+            post_id = post.get("id") or post.get("post_id")
+            if not post_id:
+                post_id = post.get("url") or post.get("link") or post.get("title")
+            if not post_id:
+                continue
+
             # FIRST: Try to extract IP addresses and geolocate them
             ips = self._extract_ip_addresses(post)
             for ip in ips:
                 ip_addresses_to_geocode.append({
                     "ip": ip,
-                    "post_id": post.get("id") or post.get("post_id")
+                    "post_id": post_id,
                 })
             
             # Extract from various fields
@@ -101,6 +148,8 @@ class HeatmapService:
                 post.get("caption", ""),
                 post.get("content", ""),
                 post.get("title", ""),
+                post.get("summary", ""),
+                post.get("body", ""),
             ]
             
             # Extract from hashtags
@@ -157,7 +206,7 @@ class HeatmapService:
                 locations.append({
                     "location_name": location_name,
                     "source": "coordinates",
-                    "post_id": post.get("id") or post.get("post_id"),
+                    "post_id": post_id,
                     "coordinates": location_coords,
                     "granularity": "city" if post.get("city") else "region" if post.get("region") else "country"
                 })
@@ -181,7 +230,7 @@ class HeatmapService:
                         locations.append({
                             "location_name": comu_name.title(),
                             "source": "text",
-                            "post_id": post.get("id") or post.get("post_id"),
+                            "post_id": post_id,
                             "coordinates": coords,
                             "granularity": "municipality"
                         })
@@ -201,9 +250,46 @@ class HeatmapService:
                             locations.append({
                                 "location_name": match,
                                 "source": "text",
-                                "post_id": post.get("id") or post.get("post_id"),
+                                "post_id": post_id,
                                 "coordinates": None,  # Will be geocoded later
                                 "granularity": "country" if match in ["Andorra", "Spain", "France", "Germany", "Italy", "UK", "United Kingdom", "USA", "United States", "India", "UAE", "United Arab Emirates"] else "city"
+                            })
+
+                for label, lat, lng in find_geo_hits(text):
+                    if label.lower() not in [loc.get("location_name", "").lower() for loc in locations]:
+                        locations.append({
+                            "location_name": label,
+                            "source": "geo_keyword",
+                            "post_id": post_id,
+                            "coordinates": (lat, lng),
+                            "granularity": "country",
+                            "osint_provider": post.get("_osint_provider"),
+                        })
+
+                for ent in extract_geo_entities(text):
+                    label = str(ent["label"])
+                    if label.lower() not in [loc.get("location_name", "").lower() for loc in locations]:
+                        locations.append({
+                            "location_name": label,
+                            "source": "geo_ner",
+                            "post_id": post_id,
+                            "coordinates": (float(ent["lat"]), float(ent["lng"])),
+                            "granularity": "country",
+                            "osint_provider": post.get("_osint_provider"),
+                        })
+            
+            # Extract from title/summary fields common in RSS OSINT
+            for extra_field in ("title", "summary", "url"):
+                val = post.get(extra_field)
+                if isinstance(val, str):
+                    for label, lat, lng in find_geo_hits(val):
+                        if label.lower() not in [loc.get("location_name", "").lower() for loc in locations]:
+                            locations.append({
+                                "location_name": label,
+                                "source": "geo_keyword",
+                                "post_id": post_id,
+                                "coordinates": (lat, lng),
+                                "granularity": "country",
                             })
             
             # Extract from hashtags
@@ -215,7 +301,7 @@ class HeatmapService:
                         locations.append({
                             "location_name": hashtag.title(),
                             "source": "hashtag",
-                            "post_id": post.get("id") or post.get("post_id"),
+                            "post_id": post_id,
                             "coordinates": None,
                             "granularity": "city"
                         })
@@ -416,7 +502,7 @@ class HeatmapService:
         
         # Find posts that mention multiple locations (indicating relationship)
         for post in posts:
-            post_id = post.get("id") or post.get("post_id")
+            post_id = post.get("id") or post.get("post_id") or post.get("url") or post.get("link") or post.get("title")
             if post_id not in post_locations:
                 continue
             
@@ -483,8 +569,8 @@ class HeatmapService:
         location_metrics = {}
         
         for post in posts:
-            post_id = post.get("id") or post.get("post_id")
-            if post_id not in post_locations:
+            post_id = post.get("id") or post.get("post_id") or post.get("url") or post.get("link") or post.get("title")
+            if not post_id or post_id not in post_locations:
                 continue
             
             for loc in post_locations[post_id]:
@@ -499,11 +585,16 @@ class HeatmapService:
                         "count": 0,
                         "sentiment_scores": [],
                         "total_engagement": 0,
-                        "posts": []
+                        "posts": [],
+                        "source_breakdown": {},
                     }
                 
                 location_metrics[loc_name]["count"] += 1
                 location_metrics[loc_name]["posts"].append(post_id)
+
+                provider = loc.get("osint_provider") or post.get("_osint_provider") or "other"
+                sb = location_metrics[loc_name]["source_breakdown"]
+                sb[provider] = sb.get(provider, 0) + 1
                 
                 # Extract sentiment if metric includes sentiment
                 if metric in ["sentiment", "all"]:
@@ -545,7 +636,8 @@ class HeatmapService:
                 "engagement": metrics["total_engagement"],
                 "posts_count": len(set(metrics["posts"])),
                 "themes": themes,
-                "dominant_theme": dominant_theme
+                "dominant_theme": dominant_theme,
+                "source_breakdown": metrics.get("source_breakdown") or {},
             }
         
         return aggregated
@@ -603,35 +695,33 @@ class HeatmapService:
         # Collect all posts
         all_posts = []
         for query in queries:
+            provider = osint_provider_from_query_type(query.query_type or "")
             results_result = await self.db.execute(
                 select(OSINTResult).where(OSINTResult.query_id == query.id)
             )
             results = results_result.scalars().all()
-            
+
             for result in results:
                 if not result.data:
                     continue
-                
-                # Extract posts from result data
-                data = result.data
-                if isinstance(data, dict):
-                    if data.get("status") == "success" and "data" in data:
-                        posts = data["data"]
-                        if isinstance(posts, list):
-                            all_posts.extend(posts)
-                        elif isinstance(posts, dict):
-                            all_posts.append(posts)
-                    else:
-                        # Single post
-                        all_posts.append(data)
-                elif isinstance(data, list):
-                    all_posts.extend(data)
+                for post in self._collect_posts_from_result(result.data):
+                    if isinstance(post, dict):
+                        post = {
+                            **post,
+                            "_osint_provider": article_provider(post, provider),
+                        }
+                    all_posts.append(post)
         
         # Filter by time range if provided
         if time_range:
             filtered_posts = []
             for post in all_posts:
-                post_date = post.get("created_time") or post.get("created_at") or post.get("date")
+                post_date = (
+                    post.get("created_time")
+                    or post.get("created_at")
+                    or post.get("date")
+                    or post.get("published_date")
+                )
                 if post_date:
                     # Simple date comparison (can be enhanced)
                     if isinstance(post_date, str):
@@ -686,7 +776,10 @@ class HeatmapService:
                     "location_name": metrics["location_name"],
                     "count": metrics["count"],
                     "sentiment": metrics.get("sentiment", 0),
-                    "engagement": metrics.get("engagement", 0)
+                    "engagement": metrics.get("engagement", 0),
+                    "themes": metrics.get("themes", []),
+                    "dominant_theme": metrics.get("dominant_theme"),
+                    "source_breakdown": metrics.get("source_breakdown") or {},
                 }
             })
         

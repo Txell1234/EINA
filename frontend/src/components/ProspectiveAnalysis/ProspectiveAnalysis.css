@@ -77,7 +77,73 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--spacing-sm);
-  margin-top: var(--spacing-lg);
+  align-items: center;
+  margin-top: var(--spacing-md);
+}
+
+.prospective-opt-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-size-xs);
+  color: var(--color-gray-700);
+}
+
+.scenario-monitor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+}
+
+.scenario-milestone-timeline {
+  list-style: none;
+  margin: var(--spacing-sm) 0 0;
+  padding: 0;
+  border-left: 2px solid var(--color-gray-300);
+}
+
+.scenario-milestone {
+  position: relative;
+  margin-left: 12px;
+  padding: 6px 0 6px 12px;
+  font-size: var(--font-size-xs);
+}
+
+.scenario-milestone::before {
+  content: '';
+  position: absolute;
+  left: -7px;
+  top: 10px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-primary);
+}
+
+.scenario-milestone--low::before {
+  background: #c0392b;
+}
+
+.scenario-milestone--high::before {
+  background: #27ae60;
+}
+
+.scenario-milestone__time {
+  display: inline-block;
+  min-width: 4rem;
+  font-weight: 600;
+  color: var(--color-gray-600);
+  margin-right: 8px;
+}
+
+.scenario-milestone__title {
+  color: var(--color-gray-800);
+}
+
+.scenario-milestone__rev {
+  margin-left: 8px;
+  color: var(--color-gray-500);
+  font-size: 10px;
 }
 
 .prospective-alert {

@@ -111,7 +111,10 @@ class AIService:
         analysis_type: str,
         case_id: int,
         osint_results: List[Dict] = None,
-        db = None
+        db = None,
+        user_direction: str | None = None,
+        focus_entity: str | None = None,
+        focus_topic: str | None = None,
     ) -> Dict[str, Any]:
         """Analyze data using specified AI analysis type
         
@@ -156,13 +159,27 @@ class AIService:
             )
         ]
         useful_entries = len(useful_results)
+
+        direction_block = ""
+        if user_direction:
+            from services.analysis_context import case_brief, format_user_analysis_block
+
+            brief = await case_brief(db, case_id) if db else {}
+            direction_block = format_user_analysis_block(
+                user_direction,
+                case_name=brief.get("name", ""),
+                case_description=brief.get("description", ""),
+                latest_prompt=brief.get("latest_prompt", ""),
+                focus_entity=focus_entity,
+                focus_topic=focus_topic,
+            )
         
         if analysis_type == "taranis":
-            analysis = await self._taranis_analysis(useful_results)
+            analysis = await self._taranis_analysis(useful_results, direction_block)
         elif analysis_type == "osintgpt":
-            analysis = await self._osintgpt_analysis(useful_results)
+            analysis = await self._osintgpt_analysis(useful_results, direction_block)
         elif analysis_type == "ominis":
-            analysis = await self._ominis_analysis(useful_results)
+            analysis = await self._ominis_analysis(useful_results, direction_block)
         else:
             analysis = {}
 
@@ -172,7 +189,15 @@ class AIService:
         }
         return analysis
     
-    async def _taranis_analysis(self, data: List[Dict]) -> Dict[str, Any]:
+    def _compose_user_content(self, combined_text: str, direction_block: str = "") -> str:
+        parts = []
+        if direction_block:
+            parts.append(direction_block)
+        if combined_text.strip():
+            parts.append("\n=== DADES OSINT ===\n" + combined_text[:6000])
+        return "\n".join(parts)[:8000] or direction_block[:8000]
+
+    async def _taranis_analysis(self, data: List[Dict], direction_block: str = "") -> Dict[str, Any]:
         """Taranis AI analysis - Situational analysis and predictions"""
         # Combine data for analysis
         combined_text = "\n".join([
@@ -200,7 +225,7 @@ class AIService:
                 model=self.model,
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": combined_text[:4000]}  # Limit length
+                    {"role": "user", "content": self._compose_user_content(combined_text, direction_block)}
                 ],
                 temperature=0.5,
                 timeout=30.0,
@@ -219,7 +244,7 @@ class AIService:
             "confidence": 0.85
         }
     
-    async def _osintgpt_analysis(self, data: List[Dict]) -> Dict[str, Any]:
+    async def _osintgpt_analysis(self, data: List[Dict], direction_block: str = "") -> Dict[str, Any]:
         """OSINTGPT analysis - Concept extraction and embeddings"""
         combined_text = "\n".join([
             str(result.get("data", "")) for result in data
@@ -256,7 +281,7 @@ class AIService:
                 model=self.model,
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": combined_text[:4000]}
+                    {"role": "user", "content": self._compose_user_content(combined_text, direction_block)}
                 ],
                 temperature=0.7,
                 timeout=30.0,
@@ -277,7 +302,7 @@ class AIService:
             "confidence": 0.80
         }
     
-    async def _ominis_analysis(self, data: List[Dict]) -> Dict[str, Any]:
+    async def _ominis_analysis(self, data: List[Dict], direction_block: str = "") -> Dict[str, Any]:
         """Ominis-OSINT analysis - Predictive risk analysis"""
         combined_text = "\n".join([
             str(result.get("data", "")) for result in data
@@ -304,7 +329,7 @@ class AIService:
                 model=self.model,
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": combined_text[:4000]}
+                    {"role": "user", "content": self._compose_user_content(combined_text, direction_block)}
                 ],
                 temperature=0.6,
                 timeout=30.0,
@@ -525,26 +550,32 @@ Suggest relevant KPIs for this case."""
         self,
         premise: str,
         framework: str,
-        kpis: List[Dict] = None
+        kpis: List[Dict] = None,
+        framework_definition: dict | None = None,
+        system_prompt_override: str | None = None,
     ) -> Dict[str, Any]:
         """Analyze data using specific reasoning framework"""
-        framework_descriptions = {
-            "deductive": "Aplica principios generales a casos específicos. Progresión lógica de lo general a lo particular.",
-            "inductive": "Infiere reglas generales a partir de observaciones específicas. Detección de patrones.",
-            "abductive": "Formula hipótesis más probables a partir de datos incompletos. Mejor explicación posible.",
-            "causal": "Identifica relaciones de causa y efecto. Determina impacto y consecuencias."
-        }
-        
-        framework_desc = framework_descriptions.get(framework, framework_descriptions["deductive"])
-        
-        kpi_text = ""
-        if kpis:
-            kpi_text = "\nKPIs a considerar:\n" + "\n".join([
-                f"- {kpi.get('name', '')}: {kpi.get('type', '')}"
-                for kpi in kpis
-            ])
-        
-        system_prompt = f"""Eres un analista experto usando el framework de razonamiento {framework.upper()}.
+        from services.reasoning_framework_service import build_system_prompt
+
+        if system_prompt_override:
+            system_prompt = system_prompt_override
+        elif framework_definition:
+            system_prompt = build_system_prompt(
+                framework_name=framework,
+                framework_type=framework,
+                description=None,
+                definition=framework_definition,
+            )
+        else:
+            framework_descriptions = {
+                "deductive": "Aplica principios generales a casos específicos. Progresión lógica de lo general a lo particular.",
+                "inductive": "Infiere reglas generales a partir de observaciones específicas. Detección de patrones.",
+                "abductive": "Formula hipótesis más probables a partir de datos incompletos. Mejor explicación posible.",
+                "causal": "Identifica relaciones de causa y efecto. Determina impacto y consecuencias.",
+            }
+            framework_key = framework.lower()
+            framework_desc = framework_descriptions.get(framework_key, framework_descriptions["deductive"])
+            system_prompt = f"""Eres un analista experto usando el framework de razonamiento {framework.upper()}.
         {framework_desc}
         
         Analiza la premisa proporcionada y genera:
@@ -553,6 +584,13 @@ Suggest relevant KPIs for this case."""
         - confidence: Nivel de confianza (0-1)
         
         Responde en JSON válido."""
+
+        kpi_text = ""
+        if kpis:
+            kpi_text = "\nKPIs a considerar:\n" + "\n".join([
+                f"- {kpi.get('name', '')}: {kpi.get('type', '')}"
+                for kpi in kpis
+            ])
         
         user_prompt = f"Premisa: {premise}{kpi_text}"
         
@@ -576,11 +614,15 @@ Suggest relevant KPIs for this case."""
             
             try:
                 result = json.loads(response.choices[0].message.content)
-                return {
+                output: Dict[str, Any] = {
                     "conclusions": result.get("conclusions", ""),
                     "evidence": result.get("evidence", []),
-                    "confidence": float(result.get("confidence", 0.5))
+                    "confidence": float(result.get("confidence", 0.5)),
                 }
+                for key, value in result.items():
+                    if key not in output:
+                        output[key] = value
+                return output
             except json.JSONDecodeError:
                 return {
                     "conclusions": response.choices[0].message.content,
@@ -1642,7 +1684,9 @@ Return JSON with:
         osint_data: List[Dict] = None,
         api_data: Dict[str, Any] = None,
         entity_name: Optional[str] = None,
-        db = None
+        db = None,
+        user_direction: str | None = None,
+        focus_topic: str | None = None,
     ) -> Dict[str, Any]:
         """Analyze as a Reputation Management Expert
         
@@ -1818,6 +1862,17 @@ Return JSON with:
 }"""
         
         context = case_context
+        if user_direction:
+            from services.analysis_context import format_user_analysis_block, latest_case_prompt
+
+            latest = await latest_case_prompt(db, case_id) if db else None
+            context = format_user_analysis_block(
+                user_direction,
+                case_name=case_context.split("\n")[0].replace("CASE: ", "") if case_context else "",
+                latest_prompt=latest or "",
+                focus_entity=entity_name,
+                focus_topic=focus_topic,
+            ) + "\n\n" + context
         context += f"\nEntity: {entity_name or 'Not specified'}\n"
         context += f"Reputation Metrics Extracted:\n{str(reputation_metrics)}\n\n"
         context += f"OSINT Data Summary: {len(osint_data or [])} sources analyzed\n"
@@ -1855,7 +1910,9 @@ Return JSON with:
         osint_data: List[Dict] = None,
         api_data: Dict[str, Any] = None,
         policy_topic: Optional[str] = None,
-        db = None
+        db = None,
+        user_direction: str | None = None,
+        focus_entity: str | None = None,
     ) -> Dict[str, Any]:
         """Analyze as a Public Affairs Consultant
         
@@ -2011,6 +2068,16 @@ Return JSON with:
 }"""
         
         context = case_context
+        if user_direction:
+            from services.analysis_context import format_user_analysis_block, latest_case_prompt
+
+            latest = await latest_case_prompt(db, case_id) if db else None
+            context = format_user_analysis_block(
+                user_direction,
+                latest_prompt=latest or "",
+                focus_entity=focus_entity,
+                focus_topic=policy_topic,
+            ) + "\n\n" + context
         context += f"\nPolicy Topic: {policy_topic or 'Not specified'}\n"
         context += f"Public Affairs Metrics Extracted:\n{str(public_affairs_metrics)}\n\n"
         context += f"OSINT Data Summary: {len(osint_data or [])} sources analyzed\n"
@@ -2200,21 +2267,78 @@ Return JSON with:
                 "metrics_extracted": advanced_metrics
             }
     
-    async def generate_investment_recommendation(self, case_id: int) -> Dict[str, Any]:
-        """Generate investment recommendation based on OSINT data"""
-        system_prompt = """Eres un experto en análisis de inversiones basado en OSINT.
-        Analiza los datos y genera una recomendación con:
-        - type: BUY, HOLD, o SELL
-        - confidence: Nivel de confianza (0-100)
-        - rationale: Justificación de la recomendación
-        - risks: Lista de riesgos (geopolítico, político, social) con level y percentage
-        - opportunities: Lista de oportunidades con title, description, confidence, impact
-        
-        Responde en JSON válido."""
-        
-        # TODO: Get actual case data
-        context = f"Caso ID: {case_id}"
-        
+    async def generate_investment_recommendation(
+        self,
+        case_id: int,
+        db=None,
+        user_direction: str | None = None,
+        focus_entity: str | None = None,
+        focus_topic: str | None = None,
+    ) -> Dict[str, Any]:
+        """Strategic impact recommendation grounded in OSINT and actor impact."""
+        from sqlalchemy import select
+        from models.case import Case
+        from models.extract import ExtractedStatement
+
+        case_context = f"Caso ID: {case_id}"
+        case = None
+        if db:
+            case_r = await db.execute(select(Case).where(Case.id == case_id))
+            case = case_r.scalar_one_or_none()
+            if case:
+                case_context = (
+                    f"CASE: {case.name}\nType: {case.case_type}\n"
+                    f"Description: {(case.description or '')[:2000]}\n"
+                )
+            stmts_r = await db.execute(
+                select(ExtractedStatement)
+                .where(ExtractedStatement.case_id == case_id)
+                .limit(15)
+            )
+            stmts = list(stmts_r.scalars().all())
+            if stmts:
+                case_context += "\nDECLARACIONS OSINT (mostra):\n"
+                for s in stmts[:10]:
+                    case_context += f"- {s.actor} ({s.posture_value:+d}): {(s.statement or '')[:120]}\n"
+            try:
+                from services.actor_impact_service import ActorImpactService
+
+                impact = await ActorImpactService(db).get_latest(case_id)
+                if not impact:
+                    impact = await ActorImpactService(db).build_assessment(case_id)
+                if impact.get("claims"):
+                    case_context += "\nIMPACTE ACTORS (resum):\n"
+                    for c in impact["claims"][:5]:
+                        case_context += f"* {c.get('claim')} [{c.get('confidence')}%]\n"
+            except Exception:
+                pass
+
+        if user_direction:
+            from services.analysis_context import format_user_analysis_block, latest_case_prompt
+
+            latest = await latest_case_prompt(db, case_id) if db else None
+            case_context = format_user_analysis_block(
+                user_direction,
+                case_name=case.name if case else "",
+                case_description=(case.description or "") if case else "",
+                latest_prompt=latest or "",
+                focus_entity=focus_entity,
+                focus_topic=focus_topic,
+            ) + "\n\n" + case_context
+
+        system_prompt = """Eres un analista de inteligencia estratégica (no un bróker).
+Prioriza: qué actores se verán afectados, exposición geopolítica, escenarios plausibles.
+Responde JSON:
+{
+  "type": "hold|buy|sell",
+  "confidence": 0-100,
+  "rationale": "justificación con actores y escenarios",
+  "risks": [{"type": "geopolitical|market|operational", "level": "low|medium|high", "percentage": 0-100, "description": "...", "factors": []}],
+  "opportunities": [{"title": "...", "description": "...", "confidence": 0-100, "impact": "high|medium|low"}],
+  "affected_actors": ["actor1", "actor2"],
+  "key_scenario": "nombre escenario más probable"
+}"""
+
         if not self.client:
             return {
                 "type": "hold",
@@ -2229,7 +2353,7 @@ Return JSON with:
                 model=self.model,
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": context[:4000]}
+                    {"role": "user", "content": case_context[:8000]}
                 ],
                 temperature=0.7,
                 timeout=30.0,

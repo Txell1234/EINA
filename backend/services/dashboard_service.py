@@ -259,7 +259,7 @@ class DashboardService:
     async def get_critical_alerts(self, days: int = 7, case_id: Optional[int] = None) -> Dict[str, Any]:
         """Get count of critical alerts (high-risk predictions)"""
         try:
-            from models.ai_analysis import AIPrediction
+            from models.ai_analysis import AIPrediction, AIAnalysis
             
             cutoff_date = datetime.now() - timedelta(days=days)
             previous_cutoff = datetime.now() - timedelta(days=days * 2)
@@ -313,16 +313,7 @@ class DashboardService:
     async def get_trending_topics(self, days: int = 7, case_id: Optional[int] = None) -> Dict[str, Any]:
         """Get count of unique trending topics"""
         try:
-            from models.ai_analysis import Concept
-            
-            cutoff_date = datetime.now() - timedelta(days=days)
-            previous_cutoff = datetime.now() - timedelta(days=days * 2)
-            
-            from models.ai_analysis import AIAnalysis
-            
-            from models.ai_analysis import AIAnalysis
-            
-            from models.ai_analysis import AIAnalysis
+            from models.ai_analysis import Concept, AIAnalysis
             
             # Count unique concepts (Concept model uses 'concept_name' field)
             current_query = (
@@ -457,46 +448,99 @@ class DashboardService:
         self,
         days: int = 7,
         case_id: Optional[int] = None,
-        limit: int = 5
+        limit: int = 8
     ) -> List[Dict[str, Any]]:
-        """Get recent critical alerts with context"""
+        """OSINT alert matches (with evidence) + AI risk predictions."""
+        alerts: list[dict[str, Any]] = []
         try:
-            from models.ai_analysis import AIPrediction, AIAnalysis
+            from models.prospective import AlertMatch, AlertMonitor, ProspectiveScenario
 
-            cutoff_date = datetime.now() - timedelta(days=days)
-            alerts_query = (
-                select(AIPrediction, AIAnalysis)
-                .join(AIAnalysis, AIPrediction.analysis_id == AIAnalysis.id)
-                .where(
-                    and_(
-                        AIPrediction.prediction_type == "risk",
-                        AIPrediction.created_at >= cutoff_date
-                    )
-                )
-                .order_by(AIPrediction.created_at.desc())
+            cutoff = datetime.now() - timedelta(days=days)
+            match_q = (
+                select(AlertMatch, AlertMonitor, ProspectiveScenario)
+                .join(AlertMonitor, AlertMatch.monitor_id == AlertMonitor.id)
+                .outerjoin(ProspectiveScenario, AlertMatch.scenario_id == ProspectiveScenario.id)
+                .where(AlertMatch.first_seen_at >= cutoff)
+                .where(AlertMatch.status.in_(["new", "reviewed", "actioned"]))
+                .order_by(AlertMatch.first_seen_at.desc())
                 .limit(limit)
             )
             if case_id:
-                alerts_query = alerts_query.where(AIAnalysis.case_id == case_id)
+                match_q = match_q.where(AlertMatch.case_id == case_id)
 
-            result = await self.db.execute(alerts_query)
-            alerts = []
-            for prediction, analysis in result.all():
-                confidence = prediction.confidence_percentage or 0
-                level = "high" if confidence >= 80 else "medium" if confidence >= 60 else "low"
+            for match, monitor, scenario in (await self.db.execute(match_q)).all():
+                score = match.match_score or 0
+                confidence = min(95, max(40, int(score * 100) + 40))
+                level = "high" if confidence >= 75 else "medium" if confidence >= 55 else "low"
                 alerts.append({
-                    "id": prediction.id,
-                    "title": prediction.prediction_text[:120],
+                    "id": f"osint-{match.id}",
+                    "match_id": match.id,
+                    "source_kind": "osint_match",
+                    "title": (match.title or monitor.indicator or "")[:140],
+                    "excerpt": (match.excerpt or "")[:220],
+                    "url": match.url,
                     "confidence": confidence,
                     "level": level,
-                    "prediction_type": prediction.prediction_type,
-                    "created_at": prediction.created_at.isoformat() if prediction.created_at else None,
-                    "case_id": analysis.case_id
+                    "prediction_type": "osint_alert",
+                    "created_at": match.first_seen_at.isoformat() if match.first_seen_at else None,
+                    "case_id": match.case_id,
+                    "has_source": bool(match.url),
+                    "monitor_indicator": monitor.indicator,
+                    "scenario_name": scenario.name if scenario else None,
+                    "matched_keywords": match.matched_keywords or [],
+                    "source_type": match.source_type,
+                    "status": match.status,
                 })
-            return alerts
         except Exception as e:
-            logger.error(f"Error getting alerts feed: {e}", exc_info=True)
-            return []
+            logger.warning(f"OSINT alert matches feed: {e}")
+
+        remaining = max(0, limit - len(alerts))
+        if remaining > 0:
+            try:
+                from models.ai_analysis import AIPrediction, AIAnalysis
+
+                cutoff_date = datetime.now() - timedelta(days=days)
+                ai_q = (
+                    select(AIPrediction, AIAnalysis)
+                    .join(AIAnalysis, AIPrediction.analysis_id == AIAnalysis.id)
+                    .where(
+                        and_(
+                            AIPrediction.prediction_type == "risk",
+                            AIPrediction.created_at >= cutoff_date,
+                        )
+                    )
+                    .order_by(AIPrediction.created_at.desc())
+                    .limit(remaining)
+                )
+                if case_id:
+                    ai_q = ai_q.where(AIAnalysis.case_id == case_id)
+
+                for prediction, analysis in (await self.db.execute(ai_q)).all():
+                    confidence = prediction.confidence_percentage or 0
+                    level = "high" if confidence >= 80 else "medium" if confidence >= 60 else "low"
+                    alerts.append({
+                        "id": f"ai-{prediction.id}",
+                        "source_kind": "ai_prediction",
+                        "title": prediction.prediction_text[:120],
+                        "excerpt": prediction.prediction_text[:220],
+                        "url": None,
+                        "confidence": confidence,
+                        "level": level,
+                        "prediction_type": prediction.prediction_type,
+                        "created_at": prediction.created_at.isoformat() if prediction.created_at else None,
+                        "case_id": analysis.case_id,
+                        "has_source": False,
+                        "monitor_indicator": None,
+                        "scenario_name": None,
+                        "matched_keywords": [],
+                        "source_type": "ai",
+                        "status": None,
+                    })
+            except Exception as e:
+                logger.error(f"Error getting AI alerts feed: {e}", exc_info=True)
+
+        alerts.sort(key=lambda x: x.get("created_at") or "", reverse=True)
+        return alerts[:limit]
 
     async def get_trending_topics_list(
         self,

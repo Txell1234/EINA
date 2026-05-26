@@ -1,5 +1,16 @@
 """
-Alerts router - Alertas inteligentes
+Alerts router — DEPRECATED / NOT MOUNTED.
+
+This module references `services.alert_service.AlertService`, which does not exist.
+It is intentionally NOT included in `app.main` to avoid import errors and route
+collisions with the working alert system.
+
+Use instead:
+  - OSINT monitors:  GET/POST /api/prospective/monitors
+  - Alert matches:   GET      /api/prospective/alerts
+  - Dashboard feed:  GET      /api/dashboard/alerts (via dashboard router)
+
+Do not mount this router until AlertService is implemented or routes are migrated.
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession

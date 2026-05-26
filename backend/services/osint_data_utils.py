@@ -59,29 +59,78 @@ def _strip_accents(text: str) -> str:
 def extract_search_keywords(query: str, case_name: str = "", max_words: int = 10) -> str:
     """
     Reduce long briefing text to short keyword query for OSINT APIs.
-    Prefers case_name tokens and known geo terms.
+    Uses case topic profile (geos, themes, entities) instead of raw token soup.
     """
+    from services.case_topic_relevance import build_case_topic_profile
+
     combined = f"{case_name} {query}".strip()
+    if not combined:
+        return "geopolitics"
+
+    profile = build_case_topic_profile(case_name, query, "")
+    tokens: list[str] = []
+    seen: set[str] = set()
+
+    def _add(word: str) -> None:
+        w = word.strip()
+        if not w:
+            return
+        key = _strip_accents(w.lower())
+        if key in seen or len(key) < 3:
+            return
+        seen.add(key)
+        tokens.append(w)
+
+    # English geo names first — prioritize geos mentioned in case name, cap at 3
     lower = _strip_accents(combined.lower())
-
-    geo_english: list[str] = []
+    name_lower = _strip_accents(case_name.lower())
+    geo_hits: list[str] = []
     for local, english in _GEO_TERMS.items():
-        if local in lower and english not in geo_english:
-            geo_english.append(english)
+        local_n = _strip_accents(local)
+        if local_n in lower or english.lower() in lower:
+            geo_hits.append((local_n in name_lower or english.lower() in name_lower, english))
+    geo_hits.sort(key=lambda x: (not x[0], x[1]))
+    for _, english in geo_hits[:3]:
+        _add(english)
 
-    tokens: list[str] = list(geo_english)
-    seen: set[str] = {w.lower() for w in tokens}
+    # One thematic anchor
+    theme_priority = [
+        "rearmament",
+        "military buildup",
+        "defense budget",
+        "indo-pacific",
+        "geoeconomic",
+        "sanctions",
+        "diplomatic",
+        "geopolitical",
+    ]
+    for term in theme_priority:
+        if _strip_accents(term) in lower:
+            _add(term)
+            break
 
-    for raw in re.findall(r"[A-Za-zÀ-ÿ0-9][A-Za-zÀ-ÿ0-9\-']*", combined):
-        word = raw.lower()
-        norm = _strip_accents(word)
-        if len(norm) < 3 or norm in _STOPWORDS or word in seen or norm in seen:
+    # Named entities (Trump, Xi…) — max 2
+    entity_added = 0
+    for kw in sorted(profile.keywords, key=len, reverse=True):
+        if entity_added >= 2:
+            break
+        if any(c.isdigit() for c in kw):
             continue
-        if raw.isupper() and len(raw) > 5:
+        if kw in profile.primary_geos or _strip_accents(kw) in {
+            _strip_accents(g) for g in profile.primary_geos
+        }:
             continue
-        seen.add(word)
-        seen.add(norm)
-        tokens.append(raw if raw[0].isupper() and not raw.isupper() else norm)
+        if len(kw) >= 4 and " " in kw or (len(kw) >= 5 and kw.isalpha()):
+            _add(kw)
+            entity_added += 1
+        if len(tokens) >= max_words:
+            return " ".join(tokens[:max_words])
+
+    # Residual meaningful tokens from case name
+    for raw in re.findall(r"[A-Za-zÀ-ÿ0-9][A-Za-zÀ-ÿ0-9\-']*", case_name):
+        norm = _strip_accents(raw.lower())
+        if len(norm) >= 4 and norm not in _STOPWORDS and not raw.isupper():
+            _add(raw if raw[0].isupper() else norm)
         if len(tokens) >= max_words:
             break
 
@@ -90,6 +139,131 @@ def extract_search_keywords(query: str, case_name: str = "", max_words: int = 10
         return fallback or "geopolitics"
 
     return " ".join(tokens[:max_words])
+
+
+def _rank_geos_for_case(case_name: str, description: str, geos: list[str]) -> list[str]:
+    """Prioritize geos mentioned in case title, then description header."""
+    name_l = _strip_accents(case_name.lower())
+    head_l = _strip_accents((description or "")[:400].lower())
+
+    def priority(english: str) -> tuple[int, str]:
+        for local, eng in _GEO_TERMS.items():
+            if eng != english:
+                continue
+            local_n = _strip_accents(local)
+            if local_n in name_l or eng.lower() in name_l:
+                return (0, english)
+            if local_n in head_l or eng.lower() in head_l:
+                return (1, english)
+        return (2, english)
+
+    return sorted(geos, key=priority)
+
+
+def build_primary_osint_query(
+    case_name: str,
+    case_description: str = "",
+    extra_context: str = "",
+    *,
+    max_words: int = 8,
+) -> str:
+    """Single best OSINT query: primary geo from case focus + main theme + key entity."""
+    raw = " ".join(filter(None, [case_name, case_description, extra_context])).strip()
+    if not raw:
+        return "geopolitics"
+
+    lower = _strip_accents(raw.lower())
+    en_geos: list[str] = []
+    for local, english in _GEO_TERMS.items():
+        if _strip_accents(local) in lower or english.lower() in lower:
+            if english not in en_geos:
+                en_geos.append(english)
+    en_geos = _rank_geos_for_case(case_name, case_description, en_geos)
+
+    theme: str | None = None
+    for term in (
+        "rearmament",
+        "military buildup",
+        "defense budget",
+        "indo-pacific",
+        "geoeconomic",
+        "sanctions",
+        "diplomatic",
+    ):
+        if _strip_accents(term) in lower:
+            theme = term
+            break
+
+    parts: list[str] = []
+    if en_geos:
+        parts.append(en_geos[0])
+    if theme:
+        parts.append(theme)
+    if "trump" in lower and ("xi" in lower or "china" in lower or "xina" in lower):
+        parts.extend(["Trump", "Xi"])
+
+    if parts:
+        return normalize_search_query(" ".join(parts), max_len=120)
+
+    return extract_search_keywords(
+        f"{case_description} {extra_context}".strip(),
+        case_name,
+        max_words=max_words,
+    )
+
+
+def build_osint_search_queries(
+    case_name: str,
+    case_description: str = "",
+    extra_context: str = "",
+    *,
+    max_queries: int = 3,
+    max_words: int = 8,
+) -> list[str]:
+    """Build 1–3 focused OSINT queries from case premise/description."""
+    from services.case_topic_relevance import build_case_topic_profile
+
+    raw = " ".join(filter(None, [case_name, case_description, extra_context])).strip()
+    if not raw:
+        return ["geopolitics"]
+
+    primary = build_primary_osint_query(
+        case_name, case_description, extra_context, max_words=max_words
+    )
+    queries: list[str] = [primary]
+    seen = {_strip_accents(primary.lower())}
+
+    lower = _strip_accents(raw.lower())
+    en_geos: list[str] = []
+    for local, english in _GEO_TERMS.items():
+        if _strip_accents(local) in lower or english.lower() in lower:
+            if english not in en_geos:
+                en_geos.append(english)
+    en_geos = _rank_geos_for_case(case_name, case_description, en_geos)
+
+    def _push(q: str) -> None:
+        key = _strip_accents(q.lower())
+        if q and key not in seen:
+            seen.add(key)
+            queries.append(q)
+
+    if "trump" in lower and ("xi" in lower or "china" in lower or "xina" in lower):
+        _push(
+            normalize_search_query(
+                f"Trump Xi geoeconomic {en_geos[0] if en_geos else ''}".strip(),
+                max_len=120,
+            )
+        )
+
+    if len(en_geos) >= 2:
+        alt = extract_search_keywords(
+            f"{case_description} {extra_context}".strip(),
+            case_name,
+            max_words=max_words,
+        )
+        _push(alt)
+
+    return queries[:max_queries]
 
 
 def osint_has_error(data: Any) -> bool:
@@ -144,13 +318,27 @@ def _normalize_item(raw: dict[str, Any], source_hint: str = "") -> dict[str, Any
         src_obj = raw["source"]
         source = source or str(src_obj.get("name") or src_obj.get("id") or "")
 
-    return {
+    out: dict[str, Any] = {
         "title": title,
         "url": url,
         "date": date,
         "source": source,
         "summary": summary[:500] if summary else "",
     }
+    for extra in (
+        "body",
+        "frontpage_score",
+        "importance_score",
+        "link_percent_max_id",
+        "from_frontpage_url",
+        "link_text",
+        "authors",
+        "enriched",
+        "enrichment_source",
+    ):
+        if raw.get(extra) is not None:
+            out[extra] = raw.get(extra)
+    return out
 
 
 def _items_from_list(items: list[Any], source_hint: str = "") -> list[dict[str, Any]]:

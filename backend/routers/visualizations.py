@@ -470,6 +470,7 @@ async def get_trend_analysis(
         )
         concepts = concepts_result.scalars().all()
         
+        concepts_extracted: List[Dict[str, Any]] = []
         # Extract concepts data
         for concept in concepts:
             concepts_extracted.append({
@@ -490,7 +491,6 @@ async def get_trend_analysis(
         
         # Análisis de comentarios por red social
         comments_by_social_network: Dict[str, Dict[str, int]] = {}  # {network: {positive: X, negative: Y, neutral: Z}}
-        concepts_extracted: List[Dict[str, Any]] = []  # Conceptos extraídos del caso
         tool_names_map = {
             "google_news": "Google News",
             "reddit": "Reddit",

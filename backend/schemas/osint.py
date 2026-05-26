@@ -28,6 +28,7 @@ class OSINTResultResponse(BaseModel):
     data: Dict[str, Any]
     status: str
     error: Optional[str] = None
+    coverage: Optional[Dict[str, Any]] = None
     
     model_config = ConfigDict(from_attributes=True)
 

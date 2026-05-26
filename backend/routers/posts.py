@@ -5,7 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Dict, Any, Optional
 from app.database import get_db
-from sqlalchemy import select, and_, or_, func, String, cast
+from sqlalchemy import select, func, and_
+from services.db_json_filters import json_array_contains
 from models.ai_classification import AIClassification
 from models.osint import OSINTResult, OSINTQuery
 from models.case import Case
@@ -61,22 +62,10 @@ async def get_case_posts(
             query = query.where(AIClassification.sentiment == sentiment)
         
         if category:
-            # Filter by category in JSON array
-            query = query.where(
-                func.json_contains(
-                    AIClassification.categories,
-                    func.json_quote(category)
-                )
-            )
-        
+            query = query.where(json_array_contains(AIClassification.categories, category))
+
         if concept:
-            # Filter by concept in JSON array
-            query = query.where(
-                func.json_contains(
-                    AIClassification.concepts,
-                    func.json_quote(concept)
-                )
-            )
+            query = query.where(json_array_contains(AIClassification.concepts, concept))
         
         if content_type:
             query = query.where(AIClassification.content_type == content_type)

@@ -1,7 +1,7 @@
 """
 OSINT Collection router
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 from app.database import get_db
@@ -205,6 +205,115 @@ async def search_gdelt(
     result = await osint_service.execute_query(
         query_type="gdelt",
         query_params={"query": query, "days": days, "max_results": max_results},
+        case_id=case_id,
+    )
+    return OSINTResultResponse.model_validate(result)
+
+
+@router.post("/tavily", response_model=OSINTResultResponse)
+async def search_tavily(
+    query: str,
+    max_results: int = 10,
+    search_depth: str = "advanced",
+    topic: str = "news",
+    case_id: Optional[int] = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Search the web via Tavily (requires TAVILY_API_KEY)."""
+    from integrations.tavily_api import TavilyAPIService
+
+    if not TavilyAPIService().configured():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="TAVILY_API_KEY no configurada al backend (.env)",
+        )
+    osint_service = OSINTService(db)
+    result = await osint_service.execute_query(
+        query_type="tavily",
+        query_params={
+            "query": query,
+            "max_results": max_results,
+            "search_depth": search_depth,
+            "topic": topic,
+        },
+        case_id=case_id,
+    )
+    return OSINTResultResponse.model_validate(result)
+
+
+@router.post("/gdelt-gfg", response_model=OSINTResultResponse)
+async def search_gdelt_gfg(
+    query: str,
+    max_results: int = 40,
+    domain: Optional[str] = None,
+    case_id: Optional[int] = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Search GDELT Global Frontpage Graph — editorial prominence on news homepages."""
+    osint_service = OSINTService(db)
+    result = await osint_service.execute_query(
+        query_type="gdelt_gfg",
+        query_params={"query": query, "max_results": max_results, "domain": domain or ""},
+        case_id=case_id,
+    )
+    return OSINTResultResponse.model_validate(result)
+
+
+@router.get("/bloomberg/editions")
+async def list_bloomberg_editions(
+    current_user: User = Depends(get_current_user),
+):
+    """List Bloomberg RSS editions/topics available for scraping."""
+    from integrations.bloomberg_service import BloombergService
+
+    return {"editions": BloombergService.list_editions()}
+
+
+@router.post("/bloomberg", response_model=OSINTResultResponse)
+async def scrape_bloomberg(
+    edition: str = "global",
+    mode: Optional[str] = None,
+    url: Optional[str] = None,
+    max_results: int = 15,
+    case_id: Optional[int] = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Fetch Bloomberg articles via official RSS (feeds.bloomberg.com). Regional: asia, europe, us."""
+    osint_service = OSINTService(db)
+    result = await osint_service.execute_query(
+        query_type="bloomberg",
+        query_params={
+            "edition": edition,
+            "mode": mode or ("latest" if not url else ""),
+            "url": url or "",
+            "max_results": max_results,
+        },
+        case_id=case_id,
+    )
+    return OSINTResultResponse.model_validate(result)
+
+
+@router.post("/nikkei", response_model=OSINTResultResponse)
+async def scrape_nikkei(
+    url: Optional[str] = None,
+    mode: Optional[str] = None,
+    max_results: int = 10,
+    case_id: Optional[int] = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Fetch Nikkei Asia articles (own HTTP/RSS scraper; Apify optional fallback)."""
+    osint_service = OSINTService(db)
+    result = await osint_service.execute_query(
+        query_type="nikkei",
+        query_params={
+            "url": url or "",
+            "mode": mode or ("latest" if not url else ""),
+            "max_results": max_results,
+        },
         case_id=case_id,
     )
     return OSINTResultResponse.model_validate(result)
@@ -430,6 +539,9 @@ async def get_osint_tools(
         {"id": "wayback", "name": "Wayback Machine", "description": "Historical website snapshots"},
         {"id": "rss", "name": "RSS/Atom", "description": "Monitor RSS/Atom feeds"},
         {"id": "gdelt", "name": "GDELT", "description": "Global event/news monitoring (GDELT)"},
+        {"id": "gdelt_gfg", "name": "GDELT Frontpage Graph", "description": "Editorial prominence on news homepages (GFG)"},
+        {"id": "nikkei", "name": "Nikkei Asia", "description": "Nikkei Asia articles (own scraper; Apify optional)"},
+        {"id": "bloomberg", "name": "Bloomberg", "description": "Bloomberg RSS (global, asia, europe, us, topics)"},
         {"id": "dns", "name": "DNS Lookup", "description": "DNS record queries"},
         {"id": "whois", "name": "WHOIS Lookup", "description": "Domain registration information"},
         {"id": "ip_geolocation", "name": "IP Geolocation", "description": "Geolocate IP addresses (country, city, coordinates, ISP)"},
@@ -470,6 +582,41 @@ async def collect_osint(
     )
     
     return OSINTResultResponse.model_validate(result)
+
+@router.post("/repair-orphans")
+async def repair_orphan_osint_queries(
+    case_id: int = Query(..., description="Cas on assignar consultes orfes"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Assign case_id to OSINT queries that were saved without a case."""
+    from services.osint_repair_service import repair_orphan_queries
+
+    return await repair_orphan_queries(db, case_id)
+
+
+@router.get("/coverage/{case_id}")
+async def osint_extraction_coverage(
+    case_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from services.extraction_coverage_service import get_extraction_coverage
+
+    return await get_extraction_coverage(db, case_id)
+
+
+@router.get("/inventory/{case_id}")
+async def get_case_osint_inventory(
+    case_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Inventari llegible de tot el OSINT recollit per un cas (think tanks, Tavily, GDELT…)."""
+    from services.osint_inventory_service import get_case_osint_inventory as _inventory
+
+    return await _inventory(db, case_id)
+
 
 @router.get("/recent-searches", response_model=List[OSINTQueryResponse])
 async def get_recent_searches(

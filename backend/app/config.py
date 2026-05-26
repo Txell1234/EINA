@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     HOST: str = "0.0.0.0"
     PORT: int = 8000
+    ALERT_MONITOR_INTERVAL_HOURS: int = 6
 
     # Database
     DATABASE_URL: str = "sqlite+aiosqlite:///./osint_platform.db"
@@ -89,6 +90,41 @@ class Settings(BaseSettings):
     NEWS_API_KEY: str = ""
     GITHUB_TOKEN: str = ""
     SHODAN_API_KEY: str = ""
+
+    # Tavily — cerca web en temps real (https://tavily.com)
+    TAVILY_API_KEY: str = ""
+    TAVILY_MAP_EXTRACT_MAX_URLS: int = 8
+    TAVILY_SEARCH_EXTRACT_MAX_URLS: int = 5
+    TAVILY_PREFERRED_CRAWL_LIMIT: int = 25
+    TAVILY_RESEARCH_MAX_WAIT_SECONDS: int = 300
+    TAVILY_AUTO_EXTRACT_EVENTS: bool = True
+
+    # Extraction — minimum case-topic relevance (0..1) to process an OSINT article
+    CASE_ARTICLE_RELEVANCE_MIN_SCORE: float = 0.28
+    CASE_STATEMENT_RELEVANCE_MIN_SCORE: float = 0.22
+
+    # Apify (Nikkei Asia scraper fallback)
+    APIFY_API_TOKEN: str = ""
+    APIFY_NIKKEI_ACTOR: str = "xtracto/nikkei-scraper"
+
+    # Nikkei Asia: own (free HTTP/RSS) | apify | auto (own first, Apify if body short)
+    NIKKEI_PROVIDER: str = "auto"
+    NIKKEI_RATE_LIMIT_SEC: float = 2.0
+
+    # Bloomberg (RSS via feeds.bloomberg.com; HTML often 403)
+    BLOOMBERG_RATE_LIMIT_SEC: float = 2.5
+
+    # Generic article fetcher (enrichment pipeline)
+    ARTICLE_FETCHER_RATE_LIMIT_SEC: float = 1.5
+    ARTICLE_FETCHER_TIMEOUT_SEC: float = 25.0
+    OSINT_POST_ENRICH_MAX_ITEMS: int = 5
+
+    # Domains boosted for enrichment / extraction priority
+    GEOPOLITICS_PREFERRED_DOMAINS: str = (
+        "foreignaffairs.com,reuters.com,csis.org,iiss.org,chathamhouse.org,"
+        "ecfr.eu,brookings.edu,rand.org,crisisgroup.org,nikkei.com,"
+        "asia.nikkei.com,bloomberg.com,japantimes.co.jp,ft.com,economist.com"
+    )
 
     # Financial APIs (optional - for investment recommendations)
     ALPHAVANTAGE_API_KEY: str = ""

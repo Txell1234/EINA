@@ -9,23 +9,49 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-USER_AGENT = "EINA-OSINT/1.0 (RSS reader; +https://github.com/eina-osint)"
+USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+)
+DEFAULT_HEADERS = {
+    "User-Agent": USER_AGENT,
+    "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, */*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9,ca;q=0.8,es;q=0.7",
+    "Cache-Control": "no-cache",
+}
 
 RSS_SOURCES = {
-    "iiss": {"url": "https://www.iiss.org/rss/latest-analysis", "category": "defence"},
-    "chatham_house": {"url": "https://www.chathamhouse.org/rss.xml", "category": "geopolitics"},
+    "iiss": {
+        "url": "https://www.iiss.org/rss/latest-analysis",
+        "fallback_urls": [
+            "https://news.google.com/rss/search?q=site:iiss.org&hl=en-US&gl=US&ceid=US:en",
+        ],
+        "category": "defence",
+    },
+    "chatham_house": {
+        "url": "https://www.chathamhouse.org/rss.xml",
+        "fallback_urls": [
+            "https://news.google.com/rss/search?q=site:chathamhouse.org&hl=en-US&gl=US&ceid=US:en",
+        ],
+        "category": "geopolitics",
+    },
     "rand": {"url": "https://www.rand.org/blog.xml", "category": "policy"},
     "cfr": {
-        "url": "https://www.cfr.org/rss/feed.xml",
+        "url": "https://www.cfr.org/feed",
         "fallback_urls": [
-            "https://www.cfr.org/rss.xml",
-            "https://www.cfr.org/rss/feed",
+            "https://news.google.com/rss/search?q=site:cfr.org&hl=en-US&gl=US&ceid=US:en",
         ],
         "category": "geopolitics",
     },
     "csis": {"url": "https://www.csis.org/rss.xml", "category": "security"},
     "icg": {"url": "https://www.crisisgroup.org/rss.xml", "category": "conflict"},
-    "brookings": {"url": "https://www.brookings.edu/feed/", "category": "policy"},
+    "brookings": {
+        "url": "https://www.brookings.edu/feed/",
+        "fallback_urls": [
+            "https://news.google.com/rss/search?q=site:brookings.edu&hl=en-US&gl=US&ceid=US:en",
+        ],
+        "category": "policy",
+    },
     "elcano": {"url": "https://www.realinstitutoelcano.org/rss/", "category": "geopolitics"},
     "foreign_affairs": {"url": "https://www.foreignaffairs.com/rss.xml", "category": "geopolitics"},
     "ecfr": {"url": "https://ecfr.eu/feed/", "category": "eu_foreign"},
@@ -52,8 +78,8 @@ CURATED_TOPIC_FEEDS: dict[str, list[dict[str, str]]] = {
             "category": "geopolitics",
         },
         {
-            "url": "https://www.iiss.org/rss/latest-analysis",
-            "label": "IISS",
+            "url": "https://news.google.com/rss/search?q=site:iiss.org&hl=en-US&gl=US&ceid=US:en",
+            "label": "IISS (via Google News)",
             "category": "defence",
         },
     ],
@@ -71,7 +97,11 @@ CURATED_TOPIC_FEEDS: dict[str, list[dict[str, str]]] = {
     ],
     "europe": [
         {"url": "https://ecfr.eu/feed/", "label": "ECFR", "category": "eu_foreign"},
-        {"url": "https://www.chathamhouse.org/rss.xml", "label": "Chatham House", "category": "geopolitics"},
+        {
+            "url": "https://news.google.com/rss/search?q=site:chathamhouse.org&hl=en-US&gl=US&ceid=US:en",
+            "label": "Chatham House (via Google News)",
+            "category": "geopolitics",
+        },
     ],
     "ukraine": [
         {
@@ -112,11 +142,70 @@ def match_curated_feeds(case_name: str, case_description: str = "", max_feeds: i
 
 
 class RSSFeedsService:
+    def _is_google_news_feed(self, feed_url: str) -> bool:
+        return "news.google.com/rss" in feed_url
+
+    def _entries_from_feed(
+        self,
+        feed: Any,
+        source_key: str,
+        category: str,
+        max_items: int,
+        *,
+        include_text: bool = False,
+    ) -> list[dict[str, Any]]:
+        items: list[dict[str, Any]] = []
+        for entry in feed.entries[:max_items]:
+            summary = getattr(entry, "summary", "") or getattr(entry, "description", "") or ""
+            publisher = getattr(entry, "source", None)
+            publisher_url = ""
+            if isinstance(publisher, dict):
+                publisher_url = str(publisher.get("href") or "")
+            item: dict[str, Any] = {
+                "title": getattr(entry, "title", ""),
+                "url": getattr(entry, "link", ""),
+                "summary": summary[:500],
+                "date": getattr(entry, "published", "") or getattr(entry, "updated", ""),
+                "source": source_key,
+                "category": category,
+                "publisher_url": publisher_url or None,
+            }
+            if include_text:
+                content_parts: list[str] = []
+                if hasattr(entry, "content") and entry.content:
+                    for block in entry.content[:2]:
+                        if isinstance(block, dict) and block.get("value"):
+                            content_parts.append(str(block["value"])[:2000])
+                item["text"] = (" ".join(content_parts) if content_parts else summary)[:3000]
+            items.append(item)
+        return items
+
     async def _fetch_url(self, url: str) -> str:
         async with httpx.AsyncClient(timeout=25.0, follow_redirects=True) as client:
-            resp = await client.get(url, headers={"User-Agent": USER_AGENT})
+            resp = await client.get(url, headers=DEFAULT_HEADERS)
             resp.raise_for_status()
             return resp.text
+
+    def _parse_feed_entries(
+        self,
+        text: str,
+        feed_url: str,
+        source_key: str,
+        category: str,
+        max_items: int,
+        *,
+        include_text: bool = False,
+    ) -> list[dict[str, Any]]:
+        import feedparser
+
+        feed = feedparser.parse(text)
+        if not feed.entries:
+            bozo_exc = getattr(feed, "bozo_exception", None)
+            detail = str(bozo_exc) if bozo_exc else "Feed buit o sense entrades"
+            raise ValueError(f"Feed invàlid o buit ({feed_url}): {detail}")
+        return self._entries_from_feed(
+            feed, source_key, category, max_items, include_text=include_text
+        )
 
     async def fetch_feed(self, source_key: str, max_items: int = 20) -> dict[str, Any]:
         if source_key not in RSS_SOURCES:
@@ -145,27 +234,22 @@ class RSSFeedsService:
         for feed_url in urls_to_try:
             try:
                 text = await self._fetch_url(feed_url)
-                feed = feedparser.parse(text)
-                if feed.bozo and not feed.entries:
-                    raise ValueError(f"Feed invàlid o buit ({feed_url})")
-                items = []
-                for entry in feed.entries[:max_items]:
-                    items.append(
-                        {
-                            "title": getattr(entry, "title", ""),
-                            "url": getattr(entry, "link", ""),
-                            "summary": getattr(entry, "summary", "")[:500],
-                            "date": getattr(entry, "published", ""),
-                            "source": source_key,
-                            "category": source["category"],
-                        }
-                    )
+                items = self._parse_feed_entries(
+                    text, feed_url, source_key, source["category"], max_items
+                )
+                via = "google_news" if self._is_google_news_feed(feed_url) else "direct"
                 return {
                     "status": "success",
                     "source": source_key,
                     "feed_url": feed_url,
+                    "feed_via": via,
                     "count": len(items),
                     "items": items,
+                    "message": (
+                        "Feed indirecte via Google News (el lloc original bloqueja lectors RSS)"
+                        if via == "google_news"
+                        else None
+                    ),
                 }
             except httpx.HTTPStatusError as e:
                 last_error = e
@@ -223,40 +307,15 @@ class RSSFeedsService:
         max_items = max(1, min(int(max_items), 40))
         try:
             text = await self._fetch_url(feed_url)
-            feed = feedparser.parse(text)
-            if feed.bozo and not feed.entries:
-                return {
-                    "status": "error",
-                    "error": f"Feed buit o invàlid: {feed_url}",
-                    "message": "Empty or invalid feed",
-                    "feed_url": feed_url,
-                    "count": 0,
-                    "items": [],
-                }
-            items = []
-            for entry in feed.entries[:max_items]:
-                summary = getattr(entry, "summary", "") or getattr(entry, "description", "") or ""
-                content_parts = []
-                if hasattr(entry, "content") and entry.content:
-                    for block in entry.content[:2]:
-                        if isinstance(block, dict) and block.get("value"):
-                            content_parts.append(str(block["value"])[:2000])
-                body = " ".join(content_parts) if content_parts else summary
-                items.append(
-                    {
-                        "title": getattr(entry, "title", ""),
-                        "url": getattr(entry, "link", ""),
-                        "summary": summary[:500],
-                        "text": body[:3000],
-                        "date": getattr(entry, "published", "") or getattr(entry, "updated", ""),
-                        "source": source_label,
-                        "category": category,
-                    }
-                )
+            items = self._parse_feed_entries(
+                text, feed_url, source_label, category, max_items, include_text=True
+            )
+            via = "google_news" if self._is_google_news_feed(feed_url) else "direct"
             return {
                 "status": "success",
                 "source": source_label,
                 "feed_url": feed_url,
+                "feed_via": via,
                 "count": len(items),
                 "items": items,
                 "provider": "rss_url",

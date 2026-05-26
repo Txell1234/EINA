@@ -1,0 +1,223 @@
+.case-osint-inv {
+  margin-top: var(--spacing-md);
+  padding: var(--spacing-md);
+  background: #fff;
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-md);
+}
+
+.case-osint-inv__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-sm);
+}
+
+.case-osint-inv__header h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-primary);
+}
+
+.case-osint-inv-loading {
+  font-size: var(--font-size-xs);
+  color: var(--color-gray-500);
+}
+
+.case-osint-inv__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
+}
+
+.case-osint-inv__stat {
+  flex: 1;
+  min-width: 72px;
+  padding: 8px 10px;
+  background: var(--color-gray-50);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+}
+
+.case-osint-inv__stat span {
+  display: block;
+  color: var(--color-gray-500);
+}
+
+.case-osint-inv__stat strong {
+  font-size: var(--font-size-md);
+  color: var(--color-gray-800);
+}
+
+.case-osint-inv__stat.highlight {
+  background: rgba(30, 58, 95, 0.08);
+}
+
+.case-osint-inv__domains {
+  font-size: var(--font-size-xs);
+  color: var(--color-gray-600);
+  margin: 0 0 var(--spacing-sm);
+}
+
+.case-osint-inv__domain-chip {
+  display: inline-block;
+  margin: 2px 4px 2px 0;
+  padding: 2px 6px;
+  background: var(--color-gray-100);
+  border-radius: 4px;
+}
+
+.case-osint-inv__actions {
+  margin: 0 0 var(--spacing-sm);
+  padding-left: 1.1rem;
+  font-size: var(--font-size-xs);
+  color: var(--color-gray-700);
+}
+
+.case-osint-inv__quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: var(--spacing-md);
+}
+
+.case-osint-inv__section h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 var(--spacing-sm);
+  font-size: var(--font-size-sm);
+  color: var(--color-primary);
+}
+
+.case-osint-inv__brief {
+  padding: var(--spacing-sm);
+  background: var(--color-gray-50);
+  border-radius: var(--radius-sm);
+  margin-bottom: 8px;
+  font-size: var(--font-size-xs);
+  line-height: 1.5;
+}
+
+.case-osint-inv__brief-meta {
+  display: block;
+  margin-top: 4px;
+  color: var(--color-gray-500);
+}
+
+.case-osint-inv__group {
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-sm);
+  margin-bottom: 6px;
+  overflow: hidden;
+}
+
+.case-osint-inv__group-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: none;
+  background: var(--color-gray-50);
+  cursor: pointer;
+  text-align: left;
+  font-size: var(--font-size-xs);
+}
+
+.case-osint-inv__group-label {
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.case-osint-inv__group-count {
+  margin-left: auto;
+  color: var(--color-gray-500);
+}
+
+.case-osint-inv__runs {
+  padding: 8px 10px 10px;
+}
+
+.case-osint-inv__run {
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--color-gray-100);
+}
+
+.case-osint-inv__run:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.case-osint-inv__run-title {
+  margin: 0 0 4px;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+}
+
+.case-osint-inv__run-error {
+  color: var(--color-danger);
+  font-size: var(--font-size-xs);
+  margin: 0 0 4px;
+}
+
+.case-osint-inv__run-research {
+  font-size: var(--font-size-xs);
+  color: var(--color-gray-700);
+  margin: 0 0 6px;
+  line-height: 1.45;
+}
+
+.case-osint-inv__articles {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: var(--font-size-xs);
+}
+
+.case-osint-inv__articles li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  padding: 3px 0;
+}
+
+.case-osint-inv__articles .extracted {
+  color: var(--color-success);
+}
+
+.case-osint-inv__articles .pending {
+  color: var(--color-gray-400);
+}
+
+.case-osint-inv__articles a {
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.case-osint-inv__articles em {
+  color: var(--color-gray-500);
+  font-style: normal;
+}
+
+.case-osint-inv__more {
+  color: var(--color-gray-500);
+}
+
+.case-osint-inv__empty {
+  font-size: var(--font-size-xs);
+  color: var(--color-gray-500);
+}
+
+.btn-sm {
+  padding: 4px 10px;
+  font-size: var(--font-size-xs);
+}

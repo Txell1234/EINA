@@ -16,13 +16,15 @@ class QualitativeService:
         case_id: int,
         premise: str,
         framework: str = "deductive",
-        kpi_ids: List[int] = None
+        kpi_ids: List[int] = None,
+        framework_id: int | None = None,
     ) -> Dict[str, Any]:
         """Run qualitative/quantitative analysis"""
+        from sqlalchemy import select
+
         # Get KPIs
         kpis = []
         if kpi_ids:
-            from sqlalchemy import select
             result = await self.db.execute(
                 select(KPI).where(KPI.id.in_(kpi_ids))
             )
@@ -33,7 +35,17 @@ class QualitativeService:
             ]
         
         # Get framework
-        framework_obj = await self._get_framework(framework)
+        framework_obj = None
+        if framework_id:
+            result = await self.db.execute(
+                select(ReasoningFramework).where(ReasoningFramework.id == framework_id)
+            )
+            framework_obj = result.scalar_one_or_none()
+        if not framework_obj:
+            framework_obj = await self._get_framework(framework)
+
+        framework_name = framework_obj.name if framework_obj else framework
+        framework_definition = framework_obj.definition if framework_obj else None
         
         # Create premise
         premise_obj = Premise(
@@ -86,8 +98,9 @@ class QualitativeService:
             
             analysis_result = await self.ai_service.analyze_with_framework(
                 premise=enhanced_premise,
-                framework=framework,
-                kpis=kpis
+                framework=framework_name,
+                kpis=kpis,
+                framework_definition=framework_definition,
             )
         except Exception as e:
             import logging

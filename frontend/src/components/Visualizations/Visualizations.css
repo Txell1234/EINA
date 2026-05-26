@@ -467,6 +467,21 @@
   margin-bottom: 20px;
 }
 
+.map-wrapper .leaflet-container {
+  min-height: 500px;
+  z-index: 0;
+}
+
+.map-empty-hint {
+  margin: 0 0 0.75rem;
+  padding: 0.65rem 0.85rem;
+  background: #f0f7ff;
+  border-left: 3px solid #1e3a5f;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  color: #334155;
+}
+
 .location-popup {
   min-width: 200px;
 }

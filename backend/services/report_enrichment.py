@@ -1,9 +1,11 @@
 """
 Load case-linked context for prospective report exports:
-OSINT sources, extracted statements, retrospective, qualitative/quantitative analyses.
+OSINT sources, extracted statements, retrospective, qualitative/quantitative analyses,
+investment recommendations and financial advisor analysis.
 """
 from __future__ import annotations
 
+import logging
 from typing import Any, Optional
 
 from sqlalchemy import select
@@ -12,13 +14,115 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models.ai_analysis import AIAnalysis
 from models.case import Case, CasePrompt
 from models.extract import ExtractedStatement
+from models.investments import InvestmentRecommendation, Opportunity, RiskAnalysis
 from models.osint import OSINTQuery, OSINTResult
 from models.prospective import MorphIncompatibility, SMICResult
 from models.qualitative import KPI, Premise, QualitativeAnalysis, QuantitativeAnalysis, ReasoningFramework
 from services.extract_service import ExtractService
+from services.osint_data_utils import flatten_osint_items, osint_has_error
 from services.prospective_geopolitical_service import ProspectiveGeopoliticalService
 from services.prospective_service import ProspectiveService
-from services.osint_data_utils import flatten_osint_items, osint_has_error
+from services.retrospective_service import RetrospectiveService
+
+logger = logging.getLogger(__name__)
+
+_INVESTMENT_AI_TYPES = frozenset(
+    {"investment", "investment_advisor", "investment-advisor", "financial", "business"}
+)
+
+
+async def _load_investment_context(
+    db: AsyncSession, case_id: int, ai_analyses: list[dict[str, Any]], has_osint: bool
+) -> dict[str, Any]:
+    recs_r = await db.execute(
+        select(InvestmentRecommendation)
+        .where(InvestmentRecommendation.case_id == case_id)
+        .order_by(InvestmentRecommendation.created_at.desc())
+    )
+    recommendations = list(recs_r.scalars().all())
+
+    rec_payloads: list[dict[str, Any]] = []
+    all_risks: list[dict[str, Any]] = []
+    all_opportunities: list[dict[str, Any]] = []
+
+    for rec in recommendations:
+        risks_r = await db.execute(
+            select(RiskAnalysis).where(RiskAnalysis.recommendation_id == rec.id)
+        )
+        opps_r = await db.execute(
+            select(Opportunity).where(Opportunity.recommendation_id == rec.id)
+        )
+        risks = list(risks_r.scalars().all())
+        opps = list(opps_r.scalars().all())
+
+        rec_type = rec.recommendation_type
+        rec_payloads.append(
+            {
+                "id": rec.id,
+                "type": rec_type.value if hasattr(rec_type, "value") else str(rec_type),
+                "confidence": rec.confidence_percentage,
+                "rationale": rec.rationale or "",
+                "created_at": rec.created_at.isoformat() if rec.created_at else None,
+            }
+        )
+        for risk in risks:
+            level = risk.risk_level
+            all_risks.append(
+                {
+                    "recommendation_id": rec.id,
+                    "risk_type": risk.risk_type,
+                    "risk_level": level.value if hasattr(level, "value") else str(level),
+                    "risk_percentage": risk.risk_percentage,
+                    "description": risk.description or "",
+                    "factors": risk.factors or [],
+                }
+            )
+        for opp in opps:
+            all_opportunities.append(
+                {
+                    "recommendation_id": rec.id,
+                    "title": opp.title,
+                    "description": opp.description or "",
+                    "confidence": opp.confidence_percentage,
+                    "impact_level": opp.impact_level or "",
+                    "extra_data": opp.extra_data or {},
+                }
+            )
+
+    investment_ai = [
+        a
+        for a in ai_analyses
+        if (a.get("analysis_type") or "").lower() in _INVESTMENT_AI_TYPES
+        or "investment" in (a.get("analysis_type") or "").lower()
+        or "financial" in (a.get("analysis_type") or "").lower()
+    ]
+
+    advisor_analysis: dict[str, Any] | None = None
+    if not rec_payloads and not investment_ai and has_osint:
+        try:
+            from services.ai_service import AIService
+
+            ai = AIService()
+            if ai.client:
+                advisor_analysis = await ai.analyze_as_investment_advisor(
+                    case_id=case_id, osint_data=None, api_data=None, db=db
+                )
+        except Exception as exc:
+            logger.warning("No s'ha pogut generar anàlisi d'inversions per l'informe: %s", exc)
+
+    return {
+        "recommendations": rec_payloads,
+        "risks": all_risks,
+        "opportunities": all_opportunities,
+        "ai_analyses": investment_ai,
+        "advisor_analysis": advisor_analysis,
+        "has_data": bool(
+            rec_payloads or all_risks or all_opportunities or investment_ai or advisor_analysis
+        ),
+    }
+
+
+async def enrich_project_bundle(db: AsyncSession, bundle: dict[str, Any]) -> dict[str, Any]:
     """Attach OSINT, extraction, retrospective and analysis context to export bundle."""
     project = bundle["project"]
     case_id: Optional[int] = project.case_id
@@ -33,6 +137,7 @@ from services.osint_data_utils import flatten_osint_items, osint_has_error
     bundle["qualitative_analyses"] = []
     bundle["quantitative_analyses"] = []
     bundle["ai_analyses"] = []
+    bundle["investment"] = {"has_data": False}
     bundle["incompatibilities"] = []
     bundle["smic"] = None
     bundle["morph_space"] = None
@@ -125,6 +230,43 @@ from services.osint_data_utils import flatten_osint_items, osint_has_error
     bundle["osint_articles"] = osint_articles
     bundle["osint_query_errors"] = osint_query_errors
 
+    tavily_research_reports: list[dict[str, Any]] = []
+    for q in queries:
+        if q.query_type not in ("tavily_research", "tavily_research_get"):
+            continue
+        results_r = await db.execute(select(OSINTResult).where(OSINTResult.query_id == q.id))
+        for r in results_r.scalars().all():
+            data = r.data if isinstance(r.data, dict) else {}
+            report = data.get("research_report")
+            if not report:
+                continue
+            tavily_research_reports.append(
+                {
+                    "query_id": q.id,
+                    "result_id": r.id,
+                    "request_id": data.get("request_id"),
+                    "research_status": data.get("research_status"),
+                    "report": report if isinstance(report, str) else str(report),
+                    "source_count": len(data.get("sources") or []),
+                    "created_at": r.created_at.isoformat() if r.created_at else None,
+                }
+            )
+    bundle["tavily_research_reports"] = tavily_research_reports
+
+    if bundle.get("case_prompt") and bundle["case_prompt"]:
+        cp = bundle["case_prompt"]
+        if getattr(cp, "ai_analysis", None) and isinstance(cp.ai_analysis, dict):
+            if cp.ai_analysis.get("tavily_research") and not tavily_research_reports:
+                tavily_research_reports.append(
+                    {
+                        "case_prompt_id": cp.id,
+                        "report": cp.prompt,
+                        "request_id": cp.ai_analysis.get("request_id"),
+                        "source_count": cp.ai_analysis.get("source_count", 0),
+                    }
+                )
+                bundle["tavily_research_reports"] = tavily_research_reports
+
     stmts_r = await db.execute(
         select(ExtractedStatement)
         .where(ExtractedStatement.case_id == case_id)
@@ -192,6 +334,15 @@ from services.osint_data_utils import flatten_osint_items, osint_has_error
         }
         for a in ai_r.scalars().all()
     ]
+
+    bundle["investment"] = await _load_investment_context(
+        db, case_id, bundle["ai_analyses"], has_osint=bool(osint_articles)
+    )
+
+    from services.case_recalc_service import build_report_delta, refresh_actor_impact_for_report
+
+    bundle["actor_impact"] = await refresh_actor_impact_for_report(db, case_id)
+    bundle["report_delta"] = await build_report_delta(db, case_id, bundle["actor_impact"])
 
     if bundle["variables"]:
         vars_payload = [

@@ -40,4 +40,8 @@ class ExtractedStatement(Base):
     source_date = Column(String, default="")
     source_text_excerpt = Column(Text, default="")
 
+    # Optional additive metadata (nullable — legacy rows unchanged)
+    institution_subtype = Column(String, nullable=True, index=True)
+    signal_type = Column(String, nullable=True, index=True)
+
     extracted_at = Column(DateTime(timezone=True), server_default=func.now())

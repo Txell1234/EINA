@@ -134,9 +134,34 @@ class ProspectiveScenario(Base):
     name = Column(String, nullable=False)
     scenario_type = Column(String)
     morphological_config = Column(Text, default="")
+    # Possibilitat = viabilitat lògica dins l'espai morfològic (Zwicky)
+    possibility = Column(String, default="PLAUSIBLE")
+    possibility_rationale = Column(Text, default="")
+    # Probabilitat = likelihood estimada (SMIC, tendències, OSINT)
     probability = Column(String, default="MITJA")
     narrative = Column(Text, default="")
     generated_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class ScenarioMilestone(Base):
+    """Temporal milestones / early-warning signposts for a Godet scenario (additive layer)."""
+
+    __tablename__ = "scenario_milestones"
+
+    id = Column(Integer, primary_key=True, index=True)
+    scenario_id = Column(
+        Integer,
+        ForeignKey("prospective_scenarios.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    order_index = Column(Integer, default=0)
+    time_label = Column(String, default="")
+    horizon_months = Column(Integer, nullable=True)
+    title = Column(String, nullable=False)
+    trigger_indicator = Column(Text, default="")
+    reversibility = Column(String, nullable=True)  # low | medium | high
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
 class MICMACExpertVote(Base):
@@ -167,4 +192,43 @@ class AlertMonitor(Base):
     last_checked = Column(DateTime(timezone=True), nullable=True)
     last_match = Column(DateTime(timezone=True), nullable=True)
     match_count = Column(Integer, default=0)
+    unread_count = Column(Integer, default=0)
+    case_id = Column(Integer, ForeignKey("cases.id"), nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    # Optional thresholds (NULL = legacy behavior: GDELT 7d, any keyword match)
+    lookback_days = Column(Integer, nullable=True)
+    horizon_label = Column(String, nullable=True)  # 3m | 6m | 12m | 18m
+    min_match_score = Column(Float, nullable=True)
+    min_keywords_matched = Column(Integer, nullable=True)
+
+
+class AlertMatch(Base):
+    """OSINT article that triggered an alert monitor — full evidence + traceability."""
+    __tablename__ = "alert_matches"
+
+    id = Column(Integer, primary_key=True, index=True)
+    monitor_id = Column(Integer, ForeignKey("alert_monitors.id"), index=True, nullable=False)
+    project_id = Column(Integer, ForeignKey("prospective_projects.id"), index=True)
+    case_id = Column(Integer, ForeignKey("cases.id"), nullable=True, index=True)
+    scenario_id = Column(Integer, ForeignKey("prospective_scenarios.id"), nullable=True)
+
+    title = Column(String, default="")
+    url = Column(String, default="", index=True)
+    excerpt = Column(Text, default="")
+    source_type = Column(String, default="")
+    published_at = Column(String, default="")
+
+    osint_query_id = Column(Integer, ForeignKey("osint_queries.id"), nullable=True)
+    osint_result_id = Column(Integer, ForeignKey("osint_results.id"), nullable=True)
+    matched_keywords = Column(JSON, default=list)
+    match_score = Column(Float, default=0.0)
+
+    status = Column(String, default="new", index=True)  # new|reviewed|actioned|dismissed|archived
+    reviewed_at = Column(DateTime(timezone=True), nullable=True)
+    action_taken = Column(String, default="")
+    extracted_statement_id = Column(Integer, ForeignKey("extracted_statements.id"), nullable=True)
+    analysis_summary = Column(Text, default="")
+
+    first_seen_at = Column(DateTime(timezone=True), server_default=func.now())
+    last_seen_at = Column(DateTime(timezone=True), server_default=func.now())
+    seen_count = Column(Integer, default=1)

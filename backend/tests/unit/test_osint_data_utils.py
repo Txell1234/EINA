@@ -67,11 +67,34 @@ def test_osint_has_error():
 def test_extract_search_keywords_long_briefing():
     brief = (
         "FOCULAITZACIÓ EN REARMAMENT de japó I TOTS els factors: "
-        "analisis geopolitic de la trobada diplomatica"
+        "analisis geopolitic de la trobada diplomatica Trump amb Xi Jinping"
     )
     kw = extract_search_keywords(brief, "Rearmament Japó")
     assert len(kw.split()) <= 10
-    assert "Japan" in kw or "jap" in kw.lower() or "rearmament" in kw.lower()
+    lower = kw.lower()
+    assert "japan" in lower
+    assert "rearmament" in lower or "geopolitical" in lower or "geoeconomic" in lower
+    assert "1947" not in kw
+    assert "000" not in kw
+
+
+def test_build_osint_search_queries():
+    from services.osint_data_utils import build_osint_search_queries, build_primary_osint_query
+
+    primary = build_primary_osint_query(
+        "Rearmament Japó",
+        "FOCULAITZACIÓ EN REARMAMENT de japó: analisi geopolítica Trump Xi Indo-Pacific",
+    )
+    assert "Japan" in primary
+    assert "rearmament" in primary.lower()
+    assert primary.count(" ") < 8
+
+    qs = build_osint_search_queries(
+        "Rearmament Japó",
+        "FOCULAITZACIÓ EN REARMAMENT de japó: analisi geopolítica Trump Xi Indo-Pacific",
+    )
+    assert qs[0] == primary
+    assert "United States" not in primary or "Japan" in primary
 
 
 def test_text_from_osint_item():

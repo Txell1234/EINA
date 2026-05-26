@@ -30,12 +30,28 @@ async def get_llm_config(current_user: User = Depends(get_current_user)):
 class DirectAnalysisRequest(BaseModel):
     text: str = Field(..., min_length=100, description="Text estratègic a analitzar (mín. 100 caràcters)")
     case_id: Optional[int] = None
+    run_tavily_osint: bool = Field(
+        True,
+        description="Si hi ha cas actiu i TAVILY_API_KEY, recollir fonts web i classificar-les al cas",
+    )
+    run_tavily_research: bool = Field(
+        False,
+        description="Recerca profunda Tavily (informe + fonts) — pot trigar diversos minuts",
+    )
+    run_tavily_crawl: bool = Field(
+        False,
+        description="Crawl de dominis preferits (think tanks, mitjans) relacionats amb el text",
+    )
 
 
 class ApplyAnalysisRequest(BaseModel):
     analysis: dict
     project_title: str
     case_id: Optional[int] = None
+    source_text: Optional[str] = Field(
+        None,
+        description="Text original analitzat (per traçabilitat de declaracions)",
+    )
 
 
 @router.post("/direct")
@@ -50,7 +66,7 @@ async def analyze_text_direct(
     Analyze raw text and extract full Godet analysis structure.
     Returns hypothesis, variables, actors, components, statements.
     """
-    _ = db, current_user, request
+    _ = current_user, request
     from services.direct_analysis_service import DirectAnalysisService
 
     svc = DirectAnalysisService()
@@ -58,6 +74,22 @@ async def analyze_text_direct(
 
     if "error" in result and result.get("confidence", 0) == 0:
         raise HTTPException(status_code=400, detail=result["error"])
+
+    if payload.case_id and (
+        payload.run_tavily_osint or payload.run_tavily_research or payload.run_tavily_crawl
+    ):
+        from services.tavily_osint_service import collect_tavily_for_case
+
+        osint_summary = await collect_tavily_for_case(
+            db,
+            payload.case_id,
+            payload.text,
+            str(result.get("hypothesis") or ""),
+            run_research=payload.run_tavily_research,
+            run_preferred_crawl=payload.run_tavily_crawl,
+            max_queries=3 if payload.run_tavily_osint else 0,
+        )
+        result["osint"] = osint_summary
 
     return result
 
@@ -82,7 +114,10 @@ async def apply_analysis_to_project(
         ProspectiveVariable,
     )
 
+    from services.extract_validation import effective_grounding_score, grounding_score, is_verifiable_source
+
     analysis = payload.analysis
+    source_text = (payload.source_text or analysis.get("source_text") or "").strip()
 
     project = ProspectiveProject(
         case_id=payload.case_id,
@@ -137,19 +172,32 @@ async def apply_analysis_to_project(
         ))
 
     for s in analysis.get("statements", []):
+        statement_text = str(s.get("statement", ""))
+        excerpt = source_text[:500] if source_text else ""
+        score = None
+        if excerpt:
+            score = effective_grounding_score(
+                statement_text,
+                excerpt,
+                grounding_score(statement_text, excerpt),
+            )
+        cleanup = "SYNTHETIC" if not is_verifiable_source("", excerpt) else "KEEP"
         db.add(ExtractedStatement(
             case_id=payload.case_id,
             project_id=project.id,
             actor=str(s.get("actor", "")),
             actor_type="state",
             actor_importance=3,
-            statement=str(s.get("statement", "")),
+            statement=statement_text,
             topic=str(s.get("topic", "")),
             framing=str(s.get("framing", "neutral")),
             posture_toward=str(s.get("posture_toward", "")),
             posture_value=max(-2, min(2, int(s.get("posture_value", 0)))),
-            cleanup_decision="KEEP",
-            grounding_score=1.0,
+            cleanup_decision=cleanup,
+            cleanup_reason="Anàlisi directa (sense article OSINT vinculat)" if cleanup == "SYNTHETIC" else "",
+            grounding_score=score,
+            source_url="direct-analysis:synthetic" if not source_text else "",
+            source_text_excerpt=excerpt,
         ))
 
     await db.commit()

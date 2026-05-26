@@ -1,24 +1,48 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Brain, RefreshCw, Search } from 'lucide-react'
+import { AlertTriangle, Brain, CheckCircle2, Circle, RefreshCw, Search, Zap } from 'lucide-react'
 import { useCase, type ActiveCase } from '../../contexts/CaseContext'
 import { useCasesList } from '../../hooks/useCasesList'
 import { countPromptLines, toActiveCase } from '../../utils/caseUtils'
-import {
-  dashboardService,
-  geopoliticalService,
-  syncService,
-} from '../../services/api'
+import { casesService, dashboardService, intelligenceService, prospectiveService } from '../../services/api'
 import VisualizationsDashboard from '../Visualizations/VisualizationsDashboard'
 import CreateCaseModal from '../Dashboard/CreateCaseModal'
+import AnalysisScopeBar from '../shared/AnalysisScopeBar'
+import { useAnalysisScope } from '../../hooks/useAnalysisScope'
+import { useCaseScopeProfile } from '../../hooks/useCaseScopeProfile'
+import ActorNetworkPanel from './ActorNetworkPanel'
 import './IntelligenceCenter.css'
+
+type StepKey = 'osint' | 'extraction' | 'events' | 'risks' | 'actor_impact' | 'investment'
+
+interface IntelStep {
+  label: string
+  ready: boolean
+  count: number
+  detail: string
+}
+
+interface IntelStatus {
+  case_name?: string
+  case_type?: string
+  llm_configured?: boolean
+  pipeline_ready?: boolean
+  blocker?: 'no_osint' | 'no_llm' | null
+  steps?: Record<StepKey, IntelStep>
+  ready_steps?: number
+  total_steps?: number
+}
+
+const STEP_ORDER: StepKey[] = ['osint', 'extraction', 'events', 'risks', 'actor_impact', 'investment']
 
 export default function IntelligenceCenter() {
   const queryClient = useQueryClient()
   const { activeCase, setActiveCase } = useCase()
   const [selectedCaseId, setSelectedCaseId] = useState<number | null>(activeCase?.id ?? null)
-  const [analyzeMsg, setAnalyzeMsg] = useState<string | null>(null)
+  const [pipelineMsg, setPipelineMsg] = useState<string | null>(null)
+  const [pipelineApplyScope, setPipelineApplyScope] = useState(false)
+  const [pipelineAutoCleanup, setPipelineAutoCleanup] = useState(false)
 
   const { data: cases, isLoading: casesLoading } = useCasesList()
 
@@ -30,30 +54,47 @@ export default function IntelligenceCenter() {
 
   const selectedCase = cases?.find((c) => c.id === selectedCaseId) ?? null
 
-  const { data: metrics, isLoading: metricsLoading } = useQuery({
+  const { scope, setScope, setPeriodPreset, timeRange } = useAnalysisScope(selectedCaseId)
+  const { data: scopeProfile } = useCaseScopeProfile(selectedCaseId)
+
+  const { data: intelStatus, isLoading: statusLoading, refetch: refetchStatus } = useQuery({
+    queryKey: ['intel-status', selectedCaseId],
+    queryFn: () => intelligenceService.getStatus(selectedCaseId!),
+    enabled: selectedCaseId !== null,
+    refetchInterval: 30_000,
+  })
+
+  const { data: metrics } = useQuery({
     queryKey: ['intel-dashboard-metrics', selectedCaseId],
     queryFn: () => dashboardService.getMetrics(30, selectedCaseId),
     enabled: selectedCaseId !== null,
-    refetchInterval: 60_000,
   })
 
-  const { data: syncStatus } = useQuery({
-    queryKey: ['intel-sync-status', selectedCaseId],
-    queryFn: () => syncService.getStatus(selectedCaseId!),
+  const { data: alertMatches } = useQuery({
+    queryKey: ['case-alert-matches', selectedCaseId, timeRange?.start, timeRange?.end],
+    queryFn: () =>
+      prospectiveService.getCaseAlertMatches(selectedCaseId!, {
+        dateFrom: timeRange?.start,
+        dateTo: timeRange?.end,
+      }),
     enabled: selectedCaseId !== null,
   })
+
+  const { data: intsum } = useQuery({
+    queryKey: ['case-intsum', selectedCaseId],
+    queryFn: () => casesService.getIntsum(selectedCaseId!, 7),
+    enabled: selectedCaseId !== null,
+    refetchInterval: 120_000,
+  })
+
+  const status = intelStatus as IntelStatus | undefined
 
   const handleCaseChange = (caseId: number | null) => {
     setSelectedCaseId(caseId)
     if (!caseId) return
     const c = cases?.find((x) => x.id === caseId)
-    if (c) {
-      setActiveCase(toActiveCase(c))
-    }
+    if (c) setActiveCase(toActiveCase(c))
   }
-
-  const caseDescription =
-    selectedCase?.description ?? activeCase?.description ?? null
 
   const handleCaseCreated = (created: ActiveCase) => {
     setSelectedCaseId(created.id)
@@ -61,68 +102,77 @@ export default function IntelligenceCenter() {
     queryClient.invalidateQueries({ queryKey: ['cases-list'] })
   }
 
-  const analyzeMutation = useMutation({
-    mutationFn: async () => {
-      if (!selectedCaseId) throw new Error('Selecciona un cas')
-      setAnalyzeMsg('Calculant riscos geopolítics…')
-      await geopoliticalService.calculateRisks(selectedCaseId)
-      setAnalyzeMsg('Extraient esdeveniments diplomàtics…')
-      await geopoliticalService.extractEvents(selectedCaseId)
-      setAnalyzeMsg('Sincronitzant dades OSINT…')
-      await syncService.forceSync(selectedCaseId)
-    },
-    onSuccess: () => {
-      setAnalyzeMsg('Anàlisi completada — dades actualitzades.')
+  const pipelineMutation = useMutation({
+    mutationFn: () =>
+      intelligenceService.runPipeline(selectedCaseId!, true, {
+        applyScope: pipelineApplyScope,
+        autoCleanup: pipelineAutoCleanup,
+      }),
+    onMutate: () => setPipelineMsg('Executant pipeline d\'intel·ligència…'),
+    onSuccess: (result) => {
+      const steps = (result?.steps ?? []) as Array<{ label: string; ok: boolean; error?: string }>
+      const failed = steps.filter((s) => !s.ok)
+      setPipelineMsg(
+        failed.length === 0
+          ? 'Pipeline completat — dades llestes per visualitzar.'
+          : `Pipeline finalitzat amb ${failed.length} pas(s) amb errors.`,
+      )
+      queryClient.invalidateQueries({ queryKey: ['intel-status'] })
       queryClient.invalidateQueries({ queryKey: ['geo-events-timeline'] })
-      queryClient.invalidateQueries({ queryKey: ['geo-risks-predictions'] })
       queryClient.invalidateQueries({ queryKey: ['geo-risks-pred'] })
+      queryClient.invalidateQueries({ queryKey: ['geo-risks-predictions'] })
       queryClient.invalidateQueries({ queryKey: ['inv-risks'] })
       queryClient.invalidateQueries({ queryKey: ['source-reliability'] })
       queryClient.invalidateQueries({ queryKey: ['networkGraph'] })
       queryClient.invalidateQueries({ queryKey: ['trendAnalysis'] })
       queryClient.invalidateQueries({ queryKey: ['geographicLocations'] })
       queryClient.invalidateQueries({ queryKey: ['intel-dashboard-metrics'] })
-      setTimeout(() => setAnalyzeMsg(null), 5000)
+      queryClient.invalidateQueries({ queryKey: ['actor-impact'] })
+      queryClient.invalidateQueries({ queryKey: ['statements-sentiment'] })
+      setTimeout(() => setPipelineMsg(null), 6000)
     },
     onError: (err: unknown) => {
-      const msg =
-        err instanceof Error ? err.message : 'Error durant l\'anàlisi. Revisa el backend.'
-      setAnalyzeMsg(msg)
+      const msg = err instanceof Error ? err.message : 'Error durant el pipeline.'
+      setPipelineMsg(msg)
     },
   })
 
-  const refreshAll = () => {
-    queryClient.invalidateQueries()
-    setAnalyzeMsg('Dades refrescades.')
-    setTimeout(() => setAnalyzeMsg(null), 2500)
-  }
-
+  const caseDescription = selectedCase?.description ?? activeCase?.description ?? null
   const totalMentions = metrics?.total_mentions?.total_mentions ?? 0
   const sentimentScore = metrics?.sentiment_score?.sentiment_score ?? 0
   const criticalAlerts = metrics?.critical_alerts?.critical_alerts ?? 0
+
+  const blockerMessage = useMemo(() => {
+    if (!status) return null
+    if (status.blocker === 'no_osint') {
+      return 'Primer cal recollir OSINT (notícies, RSS, GDELT…) abans d\'executar el pipeline.'
+    }
+    if (status.blocker === 'no_llm') {
+      return 'Configura la clau LLM al backend (.env) per habilitar extracció i classificació.'
+    }
+    return null
+  }, [status])
+
+  const canRunPipeline = Boolean(status?.pipeline_ready && selectedCaseId && !pipelineMutation.isPending)
 
   return (
     <div className="intelligence-center">
       <header className="intel-center-header">
         <p className="intel-center-kicker">Intelligence Unit</p>
-        <h1 className="intel-center-title">Centre d&apos;intel·ligència geopolítica i financera</h1>
+        <h1 className="intel-center-title">Centre operatiu d&apos;intel·ligència</h1>
         <p className="intel-center-desc">
-          Selecciona un cas, executa l&apos;anàlisi i explora mapes, timeline, xarxa d&apos;actors,
-          riscos i mètriques OSINT connectades als endpoints del backend.
+          Selecciona un cas, verifica el pipeline (OSINT → extracció → geopolítica → finances) i explora
+          mapes, timeline, xarxa i mètriques quan les dades estiguin preparades.
         </p>
 
         <div className="intel-center-toolbar">
           <select
             className="intel-case-select"
             value={selectedCaseId ?? ''}
-            onChange={(e) =>
-              handleCaseChange(e.target.value ? Number(e.target.value) : null)
-            }
+            onChange={(e) => handleCaseChange(e.target.value ? Number(e.target.value) : null)}
             disabled={casesLoading}
           >
-            <option value="">
-              {casesLoading ? 'Carregant casos…' : '— Selecciona un cas —'}
-            </option>
+            <option value="">{casesLoading ? 'Carregant casos…' : '— Selecciona un cas —'}</option>
             {cases?.map((c) => (
               <option key={c.id} value={c.id}>
                 #{c.id} — {c.name}
@@ -135,18 +185,24 @@ export default function IntelligenceCenter() {
           <button
             type="button"
             className="intel-action-btn primary"
-            disabled={!selectedCaseId || analyzeMutation.isPending}
-            onClick={() => analyzeMutation.mutate()}
+            disabled={!canRunPipeline}
+            onClick={() => pipelineMutation.mutate()}
+            title={blockerMessage ?? 'Executa extracció, classificació, esdeveniments, riscos i inversions'}
           >
-            <Brain size={15} />
-            {analyzeMutation.isPending ? 'Analitzant…' : 'Executar anàlisi'}
+            <Zap size={15} />
+            {pipelineMutation.isPending ? 'Processant…' : 'Executar pipeline'}
           </button>
 
           <button
             type="button"
             className="intel-action-btn"
             disabled={!selectedCaseId}
-            onClick={refreshAll}
+            onClick={() => {
+              refetchStatus()
+              queryClient.invalidateQueries()
+              setPipelineMsg('Dades refrescades.')
+              setTimeout(() => setPipelineMsg(null), 2500)
+            }}
           >
             <RefreshCw size={15} />
             Refrescar
@@ -160,43 +216,136 @@ export default function IntelligenceCenter() {
           ) : null}
         </div>
 
-        {analyzeMsg ? <p className="intel-analyze-msg">{analyzeMsg}</p> : null}
+        {pipelineMsg ? <p className="intel-analyze-msg">{pipelineMsg}</p> : null}
 
         {selectedCaseId ? (
+          <div className="intel-pipeline-options">
+            <label className="intel-pipeline-opt">
+              <input
+                type="checkbox"
+                checked={pipelineApplyScope}
+                onChange={(e) => setPipelineApplyScope(e.target.checked)}
+              />
+              Aplicar delimitació d&apos;anàlisi a l&apos;extracció (dates, dominis, temàtica)
+            </label>
+            <label className="intel-pipeline-opt">
+              <input
+                type="checkbox"
+                checked={pipelineAutoCleanup}
+                onChange={(e) => setPipelineAutoCleanup(e.target.checked)}
+              />
+              Neteja automàtica post-extracció (opt-in)
+            </label>
+          </div>
+        ) : null}
+
+        {selectedCaseId ? (
+          <AnalysisScopeBar
+            scope={scope}
+            onChange={(patch) => setScope(patch)}
+            onPeriodPreset={setPeriodPreset}
+            focusLabel={scopeProfile?.focus_label}
+            suggestedQuery={scopeProfile?.suggested_query}
+            themes={scopeProfile?.themes}
+            analyticalProfile={scopeProfile?.analytical_profile}
+          />
+        ) : null}
+
+        {selectedCaseId && status ? (
           <>
             <div className="intel-status-bar">
               <span className="intel-status-pill">
-                Cas: <strong>{selectedCase?.name ?? `#${selectedCaseId}`}</strong>
+                Cas: <strong>{status.case_name ?? selectedCase?.name ?? `#${selectedCaseId}`}</strong>
               </span>
-              {syncStatus?.osint_queries_count != null ? (
-                <span className="intel-status-pill">
-                  Consultes OSINT: <strong>{syncStatus.osint_queries_count}</strong>
+              <span className="intel-status-pill">
+                Pipeline:{' '}
+                <strong>
+                  {status.ready_steps ?? 0}/{status.total_steps ?? 6} passos
+                </strong>
+              </span>
+              {!status.llm_configured ? (
+                <span className="intel-status-pill warn">
+                  <AlertTriangle size={12} /> LLM no configurat
                 </span>
               ) : null}
-              {syncStatus?.synchronized != null ? (
-                <span className="intel-status-pill">
-                  Estat: <strong>{syncStatus.synchronized ? 'Sincronitzat' : syncStatus.status ?? 'Pendent'}</strong>
-                </span>
-              ) : null}
-              {syncStatus?.last_sync ? (
-                <span className="intel-status-pill">
-                  Última sync:{' '}
-                  <strong>{new Date(syncStatus.last_sync).toLocaleString('ca-ES')}</strong>
-                </span>
-              ) : null}
+            </div>
+
+            {blockerMessage ? (
+              <div className="intel-blocker">
+                <AlertTriangle size={16} />
+                <span>{blockerMessage}</span>
+                {status.blocker === 'no_osint' ? (
+                  <Link to="/osint-collection" className="intel-blocker-link">
+                    Anar a recollida →
+                  </Link>
+                ) : null}
+              </div>
+            ) : null}
+
+            <div className="intel-pipeline-steps">
+              {STEP_ORDER.map((key) => {
+                const step = status.steps?.[key]
+                if (!step) return null
+                const Icon = step.ready ? CheckCircle2 : key === 'osint' && !step.ready ? AlertTriangle : Circle
+                return (
+                  <div key={key} className={`intel-pipeline-step ${step.ready ? 'done' : 'pending'}`}>
+                    <Icon size={16} className="intel-step-icon" />
+                    <div className="intel-step-body">
+                      <span className="intel-step-label">{step.label}</span>
+                      <span className="intel-step-detail">{step.detail}</span>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
 
             {caseDescription ? (
               <details className="intel-case-briefing">
                 <summary>
-                  Briefing del cas ({countPromptLines(caseDescription)} línies,{' '}
+                  Briefing ({countPromptLines(caseDescription)} línies,{' '}
                   {caseDescription.length.toLocaleString()} caràcters)
                 </summary>
                 <pre className="intel-case-briefing-text">{caseDescription}</pre>
               </details>
             ) : null}
 
-            {!metricsLoading && metrics ? (
+            {intsum?.summary ? (
+              <section className="intel-intsum" aria-label="Resum setmanal INTSUM">
+                <h2 className="intel-intsum-title">INTSUM · últims {intsum.days} dies</h2>
+                <div className="intel-intsum-stats">
+                  <span>{intsum.summary.alert_matches} alertes</span>
+                  <span>{intsum.summary.new_statements} declaracions noves</span>
+                  <span>{intsum.summary.posture_highlights} postures destacades</span>
+                  {intsum.summary.milestone_count > 0 ? (
+                    <span>{intsum.summary.milestone_count} milestones</span>
+                  ) : null}
+                </div>
+                {intsum.posture_highlights?.length ? (
+                  <ul className="intel-intsum-list">
+                    {intsum.posture_highlights.slice(0, 4).map((p) => (
+                      <li key={p.actor}>
+                        <strong>{p.actor}</strong> — postura mitjana {p.avg_posture} (
+                        {p.statement_count} decl.)
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                {intsum.alerts?.length ? (
+                  <details className="intel-intsum-details">
+                    <summary>Alertes recents ({intsum.alerts.length})</summary>
+                    <ul className="intel-intsum-list">
+                      {intsum.alerts.slice(0, 5).map((a) => (
+                        <li key={a.id}>
+                          {a.title || a.monitor}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                ) : null}
+              </section>
+            ) : null}
+
+            {metrics ? (
               <div className="intel-kpi-row">
                 <div className="intel-kpi">
                   <div className="intel-kpi-value">{totalMentions.toLocaleString()}</div>
@@ -212,7 +361,27 @@ export default function IntelligenceCenter() {
                 </div>
               </div>
             ) : null}
+
+            {(alertMatches?.items?.length ?? 0) > 0 ? (
+              <div className="intel-alert-evidence card" style={{ marginTop: 'var(--spacing-md)', padding: 'var(--spacing-md)' }}>
+                <h4 style={{ margin: '0 0 8px', fontSize: 'var(--font-size-sm)', color: 'var(--color-primary)' }}>
+                  Alertes OSINT amb evidència
+                </h4>
+                {(alertMatches.items as Array<{ id: number; title: string; excerpt?: string; url?: string }>)
+                  .slice(0, 5)
+                  .map((m) => (
+                    <div key={m.id} style={{ marginBottom: 8, fontSize: 'var(--font-size-xs)', borderLeft: '2px solid var(--color-primary)', paddingLeft: 8 }}>
+                      <strong>{m.title?.slice(0, 80)}</strong>
+                      {m.excerpt ? <p style={{ margin: '2px 0', color: 'var(--color-gray-600)' }}>{m.excerpt.slice(0, 100)}…</p> : null}
+                      {m.url ? <a href={m.url} target="_blank" rel="noopener noreferrer">Font →</a> : null}
+                    </div>
+                  ))}
+                <Link to="/alert-monitors" style={{ fontSize: 'var(--font-size-xs)' }}>Veure monitors →</Link>
+              </div>
+            ) : null}
           </>
+        ) : selectedCaseId && statusLoading ? (
+          <p className="intel-analyze-msg">Carregant estat del pipeline…</p>
         ) : null}
       </header>
 
@@ -220,8 +389,8 @@ export default function IntelligenceCenter() {
         <div className="card intel-empty-panel">
           <h2 className="intel-empty-title">Selecciona o crea un cas</h2>
           <p className="intel-empty-desc">
-            Tria un cas al desplegable de dalt per carregar mapes, timeline, xarxa, finances i
-            intel. Si encara no en tens cap, crea&apos;n un amb el modal o des del dashboard.
+            Tria un cas per veure l&apos;estat del pipeline i les visualitzacions. Si encara no en tens cap,
+            crea&apos;n un o ves al dashboard principal.
           </p>
           <div className="intel-empty-actions">
             <CreateCaseModal onCaseCreated={handleCaseCreated} />
@@ -230,8 +399,25 @@ export default function IntelligenceCenter() {
             </Link>
           </div>
         </div>
+      ) : status?.steps?.osint?.ready ? (
+        <>
+          <ActorNetworkPanel caseId={selectedCaseId} />
+          <VisualizationsDashboard caseId={selectedCaseId} hideScopeBar key={selectedCaseId} />
+        </>
       ) : (
-        <VisualizationsDashboard caseId={selectedCaseId} key={selectedCaseId} />
+        <div className="card intel-empty-panel">
+          <Brain size={32} className="intel-empty-icon" />
+          <h2 className="intel-empty-title">Pipeline pendent</h2>
+          <p className="intel-empty-desc">
+            Encara no hi ha dades OSINT per aquest cas. Ves a <strong>Recollida OSINT</strong>, executa
+            consultes (News, GDELT, RSS…) i després torna aquí per llançar el pipeline d&apos;intel·ligència.
+          </p>
+          <div className="intel-empty-actions">
+            <Link to="/osint-collection" className="btn btn-primary">
+              <Search size={14} /> Recollida OSINT
+            </Link>
+          </div>
+        </div>
       )}
     </div>
   )

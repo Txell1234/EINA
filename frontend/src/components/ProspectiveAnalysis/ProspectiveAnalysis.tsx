@@ -4,6 +4,12 @@ import { useSearchParams } from 'react-router-dom'
 import { useCase, type ActiveCase } from '../../contexts/CaseContext'
 import { useCasesList } from '../../hooks/useCasesList'
 import { extractService, prospectiveService } from '../../services/api'
+import ExtractStatementsTable from '../shared/ExtractStatementsTable'
+import AnalysisScopeBar from '../shared/AnalysisScopeBar'
+import ExtractionFiltersRow from '../shared/ExtractionFiltersRow'
+import { useAnalysisScope } from '../../hooks/useAnalysisScope'
+import { useCaseScopeProfile } from '../../hooks/useCaseScopeProfile'
+import '../shared/Traceability.css'
 import { computeMicmacPreview } from '../../utils/micmac'
 import WorkflowProgress from '../shared/WorkflowProgress'
 import MethodologyHint from './MethodologyHint'
@@ -53,6 +59,7 @@ interface StreamPayload {
   event: string
   index?: number
   name?: string
+  possibility?: string
   prob?: string
   config?: string
   text?: string
@@ -67,6 +74,10 @@ interface ExtractStatementRow {
   tone: string
   grounding_score: number | null
   cleanup_decision?: string
+  source_url?: string
+  source_date?: string
+  source_text_excerpt?: string
+  osint_result_id?: number | null
 }
 
 interface ExtractProgressPayload {
@@ -88,6 +99,15 @@ interface ExtractValidationSummary {
   no_intl_signal?: number
   domestic_signal_risk?: number
   message?: string
+  unverified_count?: number
+  unverified?: Array<{ id: number; actor: string; statement: string; source_url?: string }>
+  flagged_grounding?: Array<{
+    id: number
+    score: number
+    actor: string
+    statement: string
+    source_url?: string
+  }>
 }
 
 const SCENARIO_NAMES = [
@@ -178,6 +198,8 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
     return Number.isNaN(id) ? null : id
   })
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [reportLang, setReportLang] = useState<'ca' | 'es' | 'en'>('ca')
+  const [includeDecisionAnnex, setIncludeDecisionAnnex] = useState(false)
 
   const [title, setTitle] = useState('')
   const [hypothesis, setHypothesis] = useState('')
@@ -214,7 +236,13 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
     total_combinations: number
     valid_combinations: number
     filtered_out: number
-    scenario_configs?: { scenario_type: string; config: string }[]
+    scenario_configs?: {
+      scenario_type: string
+      config: string
+      possibility?: string
+      possibility_rationale?: string
+      probability?: string
+    }[]
   } | null>(null)
 
   const [smicInitial, setSmicInitial] = useState<number[]>([0.2, 0.35, 0.3, 0.15])
@@ -240,6 +268,7 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
   const [streamTexts, setStreamTexts] = useState<Record<number, string>>({})
   const [streamMeta, setStreamMeta] = useState<Record<number, string>>({})
   const [streamingDone, setStreamingDone] = useState(false)
+  const [includeTemporalContext, setIncludeTemporalContext] = useState(false)
   const esRef = useRef<EventSource | null>(null)
   const extractEsRef = useRef<EventSource | null>(null)
 
@@ -263,20 +292,45 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
     value: number
     reason: string
   }> | null>(null)
+  const [geoEnrichLoading, setGeoEnrichLoading] = useState(false)
+  const [geoEnrichMessage, setGeoEnrichMessage] = useState<string | null>(null)
   const [showEvidenceOverlay, setShowEvidenceOverlay] = useState(false)
   const [expertName, setExpertName] = useState('')
   const [panelConsensus, setPanelConsensus] = useState<Record<string, unknown> | null>(null)
 
   const [statementsPage, setStatementsPage] = useState(0)
+  const [stmtDecision, setStmtDecision] = useState('')
+  const [stmtDomain, setStmtDomain] = useState('')
+
+  const { scope, setScope, setPeriodPreset, timeRange } = useAnalysisScope(extractionCaseId)
+  const { data: scopeProfile } = useCaseScopeProfile(extractionCaseId)
 
   const { data: casesList = [], isLoading: loadingCases } = useCasesList()
 
   const statementsLimit = (statementsPage + 1) * 50
 
   const { data: statementsData, refetch: refetchStatements } = useQuery({
-    queryKey: ['extract-statements', extractionCaseId, statementsPage],
+    queryKey: [
+      'extract-statements',
+      extractionCaseId,
+      statementsPage,
+      stmtDecision,
+      stmtDomain,
+      scope.applyTopicFilter,
+      timeRange?.start,
+      timeRange?.end,
+    ],
     queryFn: () =>
-      extractService.getStatements(extractionCaseId!, undefined, 0, statementsLimit),
+      extractService.getStatements(
+        extractionCaseId!,
+        stmtDecision || undefined,
+        0,
+        statementsLimit,
+        stmtDomain || undefined,
+        scope.applyTopicFilter,
+        timeRange?.start,
+        timeRange?.end,
+      ),
     enabled: extractionCaseId !== null,
   })
 
@@ -588,6 +642,19 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
     onError: () => setErrorMsg('Error en la neteja.'),
   })
 
+  const relevanceCleanupMutation = useMutation({
+    mutationFn: () => extractService.reclassifyRelevance(extractionCaseId!),
+    onSuccess: (data: { removed?: number; kept?: number }) => {
+      setStatementsPage(0)
+      void refetchStatements()
+      setErrorMsg(null)
+      alert(
+        `Filtrat per temàtica del cas: ${data.removed ?? 0} declaracions marcades com a REMOVE, ${data.kept ?? 0} conservades.`,
+      )
+    },
+    onError: () => setErrorMsg('Error filtrant per rellevància temàtica.'),
+  })
+
   const previewMutation = useMutation({
     mutationFn: () => extractService.getPreview(extractionCaseId!),
     onSuccess: (data) => {
@@ -690,14 +757,14 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
     setStreamMeta({})
     setStreamingDone(false)
     esRef.current?.close()
-    const url = prospectiveService.getStreamUrl(projectId)
+    const url = prospectiveService.getStreamUrl(projectId, includeTemporalContext)
     const es = new EventSource(url)
     esRef.current = es
     es.onmessage = (ev: MessageEvent<string>) => {
       try {
         const data = JSON.parse(ev.data) as StreamPayload
         if (data.event === 'scenario_start' && data.index !== undefined && data.name) {
-          const meta = `${data.name} — ${data.prob ?? ''}${data.config ? ` · ${data.config}` : ''}`
+          const meta = `${data.name} · Possibilitat ${data.possibility ?? '—'} · Probabilitat ${data.prob ?? ''}${data.config ? ` · ${data.config}` : ''}`
           setStreamMeta((m) => ({ ...m, [data.index!]: meta }))
           setStreamTexts((t) => ({ ...t, [data.index!]: '' }))
         } else if (data.event === 'chunk' && data.index !== undefined && data.text) {
@@ -741,12 +808,6 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
     setPostures((p) =>
       p.map((row, ri) => row.map((c, ci) => (ri === i && ci === j ? v : c))),
     )
-  }
-
-  const postureValueClass = (v: number): string => {
-    if (v >= 1) return 'posture-positive'
-    if (v <= -1) return 'posture-negative'
-    return 'posture-neutral'
   }
 
   const startExtractStream = () => {
@@ -834,8 +895,8 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
           </h2>
           <p style={{ color: 'var(--color-gray-600)' }}>
             Selecciona un cas que tingui registres a les taules <code>osint_queries</code> /{' '}
-            <code>osint_results</code>. Es fa servir Claude Haiku per extreure declaracions com al patró{' '}
-            china-us-rhetoric.
+            <code>osint_results</code>. Només s&apos;extreuen articles rellevants per al nom i descripció del cas
+            (p.ex. no s&apos;analitzen peces sobre Iran o el Vaticà si el cas és rearmament japonès).
           </p>
 
           <div className="prospective-field">
@@ -872,6 +933,36 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
 
           {loadingCases && <div className="spinner" />}
 
+          {extractionCaseId ? (
+            <>
+              <AnalysisScopeBar
+                scope={scope}
+                onChange={(patch) => {
+                  setScope(patch)
+                  setStatementsPage(0)
+                }}
+                onPeriodPreset={(preset) => {
+                  setPeriodPreset(preset)
+                  setStatementsPage(0)
+                }}
+                focusLabel={scopeProfile?.focus_label}
+                suggestedQuery={scopeProfile?.suggested_query}
+              />
+              <ExtractionFiltersRow
+                decision={stmtDecision}
+                domain={stmtDomain}
+                onDecisionChange={(v) => {
+                  setStmtDecision(v)
+                  setStatementsPage(0)
+                }}
+                onDomainChange={(v) => {
+                  setStmtDomain(v)
+                  setStatementsPage(0)
+                }}
+              />
+            </>
+          ) : null}
+
           <div className="prospective-actions">
             <button
               type="button"
@@ -888,6 +979,15 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
               onClick={() => cleanupMutation.mutate()}
             >
               Netejar falsos positius
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={!extractionCaseId || relevanceCleanupMutation.isPending}
+              onClick={() => relevanceCleanupMutation.mutate()}
+              title="Elimina declaracions d'articles fora del focus del cas (p.ex. Iran, Vaticà quan el cas és Japó)"
+            >
+              Filtrar per temàtica del cas
             </button>
             <button
               type="button"
@@ -909,48 +1009,93 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
           )}
 
           {extractValidation?.has_data && (
-            <div className="card" style={{ marginTop: 'var(--spacing-md)', padding: 'var(--spacing-md)' }}>
+            <div className="card extract-validation-card">
               <h3 style={{ color: 'var(--color-primary)', marginTop: 0 }}>Qualitat d&apos;extracció</h3>
               <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-gray-600)', marginTop: 0 }}>
-                Validació automàtica (patró china-us-rhetoric): grounding, leakage domèstic.
+                Validació automàtica: grounding, senyal internacional i risc de leakage domèstic.
               </p>
-              <ul style={{ fontSize: 'var(--font-size-sm)', margin: 0, paddingLeft: '1.2rem' }}>
-                <li>{extractValidation.total_statements} declaracions totals</li>
-                <li>Grounding mitjà: {((extractValidation.avg_grounding ?? 0) * 100).toFixed(1)}%</li>
-                <li>Sota llindar (&lt;10%): {extractValidation.below_threshold ?? 0}</li>
-                <li>Sense senyal internacional: {extractValidation.no_intl_signal ?? 0}</li>
-                <li>Risc domèstic: {extractValidation.domestic_signal_risk ?? 0}</li>
-              </ul>
+              <div className="extract-validation-metrics">
+                <div className="extract-validation-metric">
+                  <span className="extract-validation-metric__value">{extractValidation.total_statements}</span>
+                  <span className="extract-validation-metric__label">Declaracions</span>
+                </div>
+                <div className="extract-validation-metric">
+                  <span className="extract-validation-metric__value">
+                    {((extractValidation.avg_grounding ?? 0) * 100).toFixed(0)}%
+                  </span>
+                  <span className="extract-validation-metric__label">Grounding mitjà</span>
+                </div>
+                <div
+                  className={`extract-validation-metric${(extractValidation.below_threshold ?? 0) > 0 ? ' extract-validation-metric--warn' : ''}`}
+                >
+                  <span className="extract-validation-metric__value">{extractValidation.below_threshold ?? 0}</span>
+                  <span className="extract-validation-metric__label">Sota llindar</span>
+                </div>
+                <div className="extract-validation-metric">
+                  <span className="extract-validation-metric__value">{extractValidation.no_intl_signal ?? 0}</span>
+                  <span className="extract-validation-metric__label">Sense senyal intl.</span>
+                </div>
+                <div
+                  className={`extract-validation-metric${(extractValidation.domestic_signal_risk ?? 0) > 0 ? ' extract-validation-metric--warn' : ''}`}
+                >
+                  <span className="extract-validation-metric__value">{extractValidation.domestic_signal_risk ?? 0}</span>
+                  <span className="extract-validation-metric__label">Risc domèstic</span>
+                </div>
+                <div
+                  className={`extract-validation-metric${(extractValidation.unverified_count ?? 0) > 0 ? ' extract-validation-metric--warn' : ''}`}
+                >
+                  <span className="extract-validation-metric__value">{extractValidation.unverified_count ?? 0}</span>
+                  <span className="extract-validation-metric__label">Sense font</span>
+                </div>
+              </div>
+              {(extractValidation.flagged_grounding?.length ?? 0) > 0 && (
+                <div style={{ marginTop: 'var(--spacing-md)' }}>
+                  <h4 style={{ fontSize: 'var(--font-size-sm)', margin: '0 0 8px', color: 'var(--color-danger)' }}>
+                    Grounding baix — revisar fonts
+                  </h4>
+                  <ul className="extract-flagged-list">
+                    {extractValidation.flagged_grounding!.map((fg) => (
+                      <li key={fg.id} className="extract-flagged-item">
+                        <div className="extract-flagged-item__head">
+                          <strong>{fg.actor}</strong>
+                          <span className="extract-flagged-item__score">{(fg.score * 100).toFixed(0)}%</span>
+                        </div>
+                        <p style={{ margin: 0 }}>
+                          {fg.statement.slice(0, 160)}
+                          {fg.statement.length > 160 ? '…' : ''}
+                        </p>
+                        {fg.source_url ? (
+                          <a
+                            href={fg.source_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="extract-detail-link"
+                            style={{ marginTop: 6, display: 'inline-flex' }}
+                          >
+                            Obrir font
+                          </a>
+                        ) : (
+                          <span className="extract-source-missing" style={{ marginTop: 6, display: 'inline-flex' }}>
+                            Sense URL
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           )}
 
-          <h3 style={{ color: 'var(--color-primary)', marginTop: 'var(--spacing-xl)' }}>
-            Declaracions extretes
-          </h3>
-          <div className="extract-table-wrap">
-            <table className="extract-table">
-              <thead>
-                <tr>
-                  <th>Actor</th>
-                  <th>Declaració</th>
-                  <th>Postura</th>
-                  <th>To</th>
-                  <th>Grounding</th>
-                </tr>
-              </thead>
-              <tbody>
-                {statements.map((s) => (
-                  <tr key={s.id}>
-                    <td>{s.actor}</td>
-                    <td className="extract-statement-cell">{s.statement}</td>
-                    <td className={postureValueClass(s.posture_value)}>{s.posture_value}</td>
-                    <td>{s.tone}</td>
-                    <td>{s.grounding_score !== null ? s.grounding_score.toFixed(3) : '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginTop: 'var(--spacing-xl)', flexWrap: 'wrap' }}>
+            <h3 style={{ color: 'var(--color-primary)', margin: 0 }}>Declaracions extretes</h3>
+            {statements.length > 0 ? (
+              <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-gray-500)' }}>
+                {statements.length} visibles · expandeix una fila per veure la font completa
+              </span>
+            ) : null}
           </div>
+          <ExtractStatementsTable statements={statements} />
 
           {statementsData?.has_more && (
             <button
@@ -1231,9 +1376,11 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
             <button
               type="button"
               className="btn btn-primary"
-              disabled={!projectId}
+              disabled={!projectId || geoEnrichLoading}
               onClick={async () => {
                 if (!projectId) return
+                setGeoEnrichLoading(true)
+                setGeoEnrichMessage(null)
                 try {
                   const data = await prospectiveService.getGeopoliticalMicmacSuggestions(
                     projectId,
@@ -1243,17 +1390,40 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
                       desc: v.desc,
                     })),
                   )
-                  setGeoSuggestions(data.suggestions ?? [])
+                  const list = data.suggestions ?? []
+                  setGeoSuggestions(list)
                   setErrorMsg(null)
+                  if (list.length > 0) {
+                    setGeoEnrichMessage(
+                      `${list.length} suggeriment(s) des de: ${(data.sources_used ?? []).join(', ') || 'dades del cas'}.`,
+                    )
+                  } else {
+                    setGeoEnrichMessage(
+                      data.message ??
+                        'Cap coincidència. Inclou actors/països (Japó, Xina, EUA…) al nom o descripció de les variables.',
+                    )
+                  }
                 } catch {
-                  setErrorMsg('No s\'han trobat dades geopolítiques per al cas enllaçat.')
+                  setGeoSuggestions([])
+                  setGeoEnrichMessage(null)
+                  setErrorMsg('No s\'han pogut obtenir suggeriments geopolítics. Torna-ho a provar.')
+                } finally {
+                  setGeoEnrichLoading(false)
                 }
               }}
             >
-              Enriquir amb context geopolític
+              {geoEnrichLoading ? 'Analitzant context…' : 'Enriquir amb context geopolític'}
             </button>
           </div>
-          {geoSuggestions && geoSuggestions.length > 0 && (
+          {geoEnrichMessage && (
+            <div
+              className={`prospective-alert ${geoSuggestions && geoSuggestions.length > 0 ? 'prospective-alert--success' : ''}`}
+              style={{ marginTop: 'var(--spacing-sm)' }}
+            >
+              {geoEnrichMessage}
+            </div>
+          )}
+          {geoSuggestions && geoSuggestions.length > 0 && !geoEnrichMessage && (
             <div className="prospective-alert prospective-alert--success" style={{ marginTop: 'var(--spacing-sm)' }}>
               {geoSuggestions.length} suggeriment(s) MIC-MAC des de relacions bilaterals/esdeveniments.
               S&apos;aplicaran al pas MIC-MAC.
@@ -2027,9 +2197,14 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
           <h2 style={{ color: 'var(--color-primary)' }}>Components morfològics</h2>
           <MethodologyHint title="Metodologia Godet — Pas 6: Anàlisi morfològic (Zwicky)" defaultOpen={false}>
             <p>
-              Explora sistemàticament tots els futurs possibles.
+              Explora sistemàticament tots els futurs <strong>possibles</strong> (viabilitat lògica Zwicky).
               Cada <strong>component</strong> és una dimensió d&apos;evolució del sistema.
               Cada component té <strong>2–4 configuracions</strong> (estats alternatius).
+            </p>
+            <p style={{ marginTop: 'var(--spacing-sm)' }}>
+              <strong>Possibilitat ≠ Probabilitat:</strong> aquí es determina si un estat futur pot existir
+              dins l&apos;espai morfològic (sense incompatibilitats). La probabilitat d&apos;ocurrència
+              s&apos;estima després amb SMIC i senyals OSINT.
             </p>
             <code className="mhint-example">
               {'C1: Estat BRI → Expansió plena | Estancament | Retrocés\n'}
@@ -2101,7 +2276,8 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
             </h3>
             <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-gray-600)' }}>
               Desmarca les parelles de configuracions <strong>incompatibles</strong> entre components
-              diferents. L&apos;espai combinatori es filtra abans de seleccionar els 4 escenaris.
+              diferents. L&apos;espai combinatori es filtra abans de seleccionar els 4 escenaris
+              (això defineix la <strong>possibilitat lògica</strong>, no la probabilitat).
             </p>
             <p style={{ fontSize: 'var(--font-size-sm)', marginTop: 'var(--spacing-sm)' }}>
               Combinacions totals: <strong>{liveMorphTotal}</strong>
@@ -2188,6 +2364,13 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
                   {morphSpaceStats.scenario_configs.map((s) => (
                     <li key={s.scenario_type}>
                       <strong>{s.scenario_type}</strong>: {s.config || '—'}
+                      {s.possibility ? (
+                        <span style={{ color: 'var(--color-gray-600)' }}>
+                          {' '}
+                          · Possibilitat: {s.possibility}
+                          {s.probability ? ` · Probabilitat prior: ${s.probability}` : ''}
+                        </span>
+                      ) : null}
                     </li>
                   ))}
                 </ul>
@@ -2217,10 +2400,15 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
 
           <div className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
             <h3 style={{ color: 'var(--color-primary)' }}>SMIC — Probabilitats creuades</h3>
-            <MethodologyHint title="Metodologia Godet — SMIC" defaultOpen={false}>
+            <MethodologyHint title="Metodologia Godet — SMIC (probabilitat)" defaultOpen={false}>
               <p>
-                Matriu d&apos;impacte creuat 4×4: com cada escenari condiciona la probabilitat dels
-                altres. Valors de <strong>-2</strong> (inhibeix) a <strong>+2</strong> (reforça).
+                Matriu d&apos;impacte creuat 4×4: com cada escenari condiciona la <strong>probabilitat</strong>{' '}
+                dels altres un cop assumida la seva possibilitat lògica. Valors de{' '}
+                <strong>-2</strong> (inhibeix) a <strong>+2</strong> (reforça).
+              </p>
+              <p style={{ marginTop: 'var(--spacing-sm)' }}>
+                Aquest pas estima <em>quina és la probabilitat</em> que cada escenari es materialitzi,
+                no si és lògicament possible (això ja s&apos;ha resolt a l&apos;anàlisi morfològic).
               </p>
             </MethodologyHint>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 12 }}>
@@ -2312,6 +2500,14 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
             <button type="button" className="btn" onClick={() => setStep(7)}>
               Enrere
             </button>
+            <label className="prospective-opt-check" style={{ marginRight: 'auto' }}>
+              <input
+                type="checkbox"
+                checked={includeTemporalContext}
+                onChange={(e) => setIncludeTemporalContext(e.target.checked)}
+              />
+              Incloure retrospectiva i tendències al context (opt-in)
+            </label>
             <button type="button" className="btn btn-accent" onClick={() => startScenarioStream()}>
               Generar escenaris (streaming)
             </button>
@@ -2331,10 +2527,52 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
             Desats al servidor
           </h3>
           <ul className="project-list">
-            {(savedScenarios as { id: number; name: string; narrative: string }[]).map((s) => (
+            {(savedScenarios as {
+              id: number
+              name: string
+              narrative: string
+              possibility?: string
+              probability?: string
+              morphological_config?: string
+              milestones?: Array<{
+                id: number
+                order_index: number
+                time_label?: string
+                horizon_months?: number | null
+                title: string
+                trigger_indicator?: string
+                reversibility?: string | null
+              }>
+            }[]).map((s) => (
               <li key={s.id} style={{ cursor: 'default' }}>
                 <strong>{s.name}</strong>
+                {s.possibility ? (
+                  <span className="badge" title="Viabilitat lògica (Zwicky)">
+                    Possibilitat: {s.possibility}
+                  </span>
+                ) : null}
+                {s.probability ? (
+                  <span className="badge" title="Likelihood estimada (SMIC/OSINT)">
+                    Probabilitat: {s.probability}
+                  </span>
+                ) : null}
                 <span className="badge">{s.narrative.length} caràcters</span>
+                {(s.milestones?.length ?? 0) > 0 ? (
+                  <ul className="scenario-milestone-timeline">
+                    {s.milestones!.map((ms) => (
+                      <li key={ms.id} className={`scenario-milestone scenario-milestone--${ms.reversibility ?? 'medium'}`}>
+                        <span className="scenario-milestone__time">
+                          {ms.time_label || (ms.horizon_months ? `${ms.horizon_months}m` : '—')}
+                        </span>
+                        <span className="scenario-milestone__title">{ms.title}</span>
+                        {ms.reversibility ? (
+                          <span className="scenario-milestone__rev">Rev: {ms.reversibility}</span>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                <div className="scenario-monitor-actions">
                 <button
                   type="button"
                   className="btn"
@@ -2353,6 +2591,49 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
                 >
                   Activar monitoratge d&apos;alertes
                 </button>
+                <button
+                  type="button"
+                  className="btn"
+                  style={{ fontSize: 'var(--font-size-xs)', marginTop: 'var(--spacing-sm)' }}
+                  onClick={async () => {
+                    if (!projectId || !s.id) return
+                    try {
+                      const res = await prospectiveService.createMonitorsFromMilestones(
+                        projectId,
+                        s.id,
+                      )
+                      alert(
+                        `${res.created} monitor${res.created !== 1 ? 's' : ''} creat${res.created !== 1 ? 's' : ''} des de milestones per "${s.name}"`,
+                      )
+                      void queryClient.invalidateQueries({ queryKey: ['project-monitors'] })
+                    } catch {
+                      alert('Error creant monitors des de milestones.')
+                    }
+                  }}
+                >
+                  Monitors des de milestones
+                </button>
+                {(s.milestones?.length ?? 0) === 0 ? (
+                  <button
+                    type="button"
+                    className="btn"
+                    style={{ fontSize: 'var(--font-size-xs)', marginTop: 'var(--spacing-sm)' }}
+                    onClick={async () => {
+                      if (!projectId || !s.id) return
+                      try {
+                        await prospectiveService.parseScenarioMilestones(projectId, s.id)
+                        void queryClient.invalidateQueries({
+                          queryKey: ['prospective-scenarios', projectId],
+                        })
+                      } catch {
+                        alert('No s\'han pogut extreure milestones.')
+                      }
+                    }}
+                  >
+                    Extreure timeline
+                  </button>
+                ) : null}
+                </div>
               </li>
             ))}
           </ul>
@@ -2380,8 +2661,8 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
                 }}
               >
                 <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-gray-600)', marginBottom: 'var(--spacing-md)' }}>
-                  Si l&apos;escenari de la <strong>fila</strong> ocorre, quina probabilitat té el de la{' '}
-                  <strong>columna</strong>? (0.0 = impossibilita · 1.0 = garanteix · 0.5 = independent)
+                  Si l&apos;escenari de la <strong>fila</strong> ocorre, quina probabilitat condicionada té el de la{' '}
+                  <strong>columna</strong>? (0.0 = probabilitat nul·la · 1.0 = gairebé cert · 0.5 = independent)
                 </p>
                 <div style={{ overflowX: 'auto' }}>
                   <table className="prospective-matrix">
@@ -2503,15 +2784,45 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
                   alignSelf: 'center',
                 }}
               >
-                Descarregar informe complet:
+                Descarregar informe complet (resum executiu + variables motivades):
               </span>
+              <label style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-gray-600)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                Idioma
+                <select
+                  className="prospective-select"
+                  value={reportLang}
+                  onChange={(e) => setReportLang(e.target.value as 'ca' | 'es' | 'en')}
+                  style={{ width: 'auto', padding: '4px 8px', fontSize: 'var(--font-size-xs)' }}
+                >
+                  <option value="ca">Català</option>
+                  <option value="es">Castellà</option>
+                  <option value="en">English</option>
+                </select>
+              </label>
+              <label
+                style={{
+                  fontSize: 'var(--font-size-xs)',
+                  color: 'var(--color-gray-600)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+                title="Afegeix horitzons, punts de no retorn, actors clau i senyals estructurals/episòdics"
+              >
+                <input
+                  type="checkbox"
+                  checked={includeDecisionAnnex}
+                  onChange={(e) => setIncludeDecisionAnnex(e.target.checked)}
+                />
+                Annex de decisió
+              </label>
               <button
                 type="button"
                 className="btn btn-accent"
                 title="Requereix WeasyPrint (Linux). A Windows usa HTML o DOCX."
                 onClick={async () => {
                   try {
-                    await prospectiveService.exportPdf(projectId)
+                    await prospectiveService.exportPdf(projectId, reportLang, includeDecisionAnnex)
                   } catch (err: unknown) {
                     const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
                     alert(typeof detail === 'string' ? detail : 'No s\'ha pogut exportar el PDF.')
@@ -2525,7 +2836,7 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
                 className="btn btn-primary"
                 onClick={async () => {
                   try {
-                    await prospectiveService.exportDocx(projectId)
+                    await prospectiveService.exportDocx(projectId, reportLang, includeDecisionAnnex)
                   } catch (err: unknown) {
                     const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
                     alert(typeof detail === 'string' ? detail : 'No s\'ha pogut exportar el DOCX.')
@@ -2540,7 +2851,7 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
                 title="Obre l'informe complet en HTML; des del navegador pots imprimir com a PDF"
                 onClick={async () => {
                   try {
-                    await prospectiveService.exportHtml(projectId)
+                    await prospectiveService.exportHtml(projectId, reportLang, includeDecisionAnnex)
                   } catch (err: unknown) {
                     const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
                     alert(typeof detail === 'string' ? detail : 'No s\'ha pogut exportar l\'HTML.')

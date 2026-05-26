@@ -72,6 +72,27 @@ def _get_api_status() -> Dict[str, Any]:
                 "status": "configured" if (settings.SHODAN_API_KEY and settings.SHODAN_API_KEY.strip() and settings.SHODAN_API_KEY != "your-shodan-api-key") else "not_configured",
                 "note": "Requires paid account"
             },
+            "tavily": {
+                "configured": bool(
+                    getattr(settings, "TAVILY_API_KEY", "").strip()
+                    and not getattr(settings, "TAVILY_API_KEY", "").strip().startswith("your-")
+                ),
+                "status": "configured"
+                if (
+                    getattr(settings, "TAVILY_API_KEY", "").strip()
+                    and not getattr(settings, "TAVILY_API_KEY", "").strip().startswith("your-")
+                )
+                else "not_configured",
+                "note": "Web search OSINT — https://tavily.com",
+                "endpoints": [
+                    "POST /api/tavily/search",
+                    "POST /api/tavily/extract",
+                    "POST /api/tavily/crawl",
+                    "POST /api/tavily/map",
+                    "POST /api/tavily/research",
+                    "GET /api/tavily/research/{request_id}",
+                ],
+            },
             "ensembledata": {
                 "configured": bool(settings.ENSEMBLEDATA_API_KEY and settings.ENSEMBLEDATA_API_KEY.strip() and settings.ENSEMBLEDATA_API_KEY != "your-ensembledata-api-key"),
                 "status": "configured" if (settings.ENSEMBLEDATA_API_KEY and settings.ENSEMBLEDATA_API_KEY.strip() and settings.ENSEMBLEDATA_API_KEY != "your-ensembledata-api-key") else "not_configured",

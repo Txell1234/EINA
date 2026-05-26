@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { notifySessionExpired } from '../utils/authEvents'
+import { scopeToExtractQuery, type AnalysisScope } from '../types/analysisScope'
 
 const API_BASE_URL =
   import.meta.env.VITE_API_URL ??
@@ -132,6 +133,38 @@ export const casesService = {
     const response = await api.post(`/api/cases/${id}/rerun`)
     return response.data
   },
+  getContext: async (id: number) => {
+    const response = await api.get(`/api/cases/${id}/context`)
+    return response.data as {
+      case_id: number
+      name: string
+      case_type: string
+      description: string
+      latest_prompt: string
+    }
+  },
+  getIntsum: async (id: number, days = 7) => {
+    const response = await api.get(`/api/cases/${id}/intsum`, { params: { days } })
+    return response.data as {
+      case_id: number
+      case_name?: string
+      days: number
+      summary: {
+        alert_matches: number
+        new_statements: number
+        posture_highlights: number
+        milestone_count: number
+      }
+      alerts: Array<{ id: number; title: string; monitor: string; first_seen_at?: string }>
+      statements: Array<{ id: number; actor: string; statement: string; posture_value?: number }>
+      posture_highlights: Array<{ actor: string; avg_posture: number; statement_count: number }>
+      signal_breakdown?: Record<string, number>
+    }
+  },
+  getScopeProfile: async (id: number) => {
+    const response = await api.get(`/api/cases/${id}/scope-profile`)
+    return response.data as import('../types/analysisScope').CaseScopeProfile
+  },
 }
 
 export const visualizationsService = {
@@ -231,6 +264,30 @@ export const integrationService = {
   },
 }
 
+const OSINT_COLLECT_QUERY_TYPES: Record<string, string> = {
+  gdelt: 'gdelt',
+  'gdelt-gfg': 'gdelt_gfg',
+  tavily: 'tavily',
+  extract: 'tavily_extract',
+  crawl: 'tavily_crawl',
+  map: 'tavily_map',
+  research: 'tavily_research',
+  bloomberg: 'bloomberg',
+  nikkei: 'nikkei',
+  'rss/url': 'rss_url',
+  rss: 'rss_feed',
+  'rss/all': 'rss_all',
+  opensanctions: 'opensanctions',
+  'google-news': 'google_news',
+  reddit: 'reddit',
+  github: 'github',
+  shodan: 'shodan',
+  'ip-geolocation': 'ip_geolocation',
+  dns: 'dns',
+  whois: 'whois',
+  wayback: 'wayback',
+}
+
 export const osintService = {
   googleNews: async (query: string, language = 'es', caseId?: number) => {
     const response = await api.post('/api/osint/google-news', null, {
@@ -280,6 +337,59 @@ export const osintService = {
     })
     return response.data
   },
+  gdeltGfg: async (
+    query: string,
+    maxResults = 40,
+    domain?: string,
+    caseId?: number,
+  ) => {
+    const response = await api.post('/api/osint/gdelt-gfg', null, {
+      params: {
+        query,
+        max_results: maxResults,
+        domain: domain || undefined,
+        case_id: caseId,
+      },
+      timeout: 180_000,
+    })
+    return response.data
+  },
+  tavily: async (
+    query: string,
+    maxResults = 10,
+    searchDepth = 'advanced',
+    topic = 'news',
+    caseId?: number,
+    extraParams?: Record<string, unknown>,
+  ) => {
+    const query_params = {
+      query,
+      max_results: maxResults,
+      search_depth: searchDepth,
+      topic,
+      ...extraParams,
+    }
+    const response = await api.post(
+      '/api/osint/collect',
+      { query_type: 'tavily', query_params, case_id: caseId ?? null },
+      { timeout: 120_000 },
+    )
+    return response.data
+  },
+  nikkei: async (
+    opts: { url?: string; mode?: string; maxResults?: number; caseId?: number },
+  ) => {
+    const response = await api.post('/api/osint/nikkei', null, {
+      params: {
+        url: opts.url,
+        mode: opts.mode,
+        max_results: opts.maxResults ?? 10,
+        case_id: opts.caseId,
+      },
+      timeout: 150_000,
+    })
+    return response.data
+  },
   rssFeed: async (source: string, maxItems = 20, caseId?: number) => {
     const response = await api.post('/api/osint/rss', null, {
       params: { source, max_items: maxItems, case_id: caseId },
@@ -304,14 +414,54 @@ export const osintService = {
     })
     return response.data
   },
-  search: async (endpoint: string, params: Record<string, unknown>) => {
-    const clean = Object.fromEntries(
-      Object.entries(params).filter(([, v]) => v !== null && v !== undefined && v !== ''),
+  search: async (
+    endpoint: string,
+    params: Record<string, unknown>,
+    options?: { tavilyApi?: boolean },
+  ) => {
+    const { case_id, ...rest } = params
+    const queryParams = Object.fromEntries(
+      Object.entries(rest).filter(([, v]) => v !== null && v !== undefined && v !== ''),
     )
-    const isSlowSource = endpoint.includes('rss') || endpoint === 'gdelt'
-    const response = await api.post(`/api/osint/${endpoint}`, null, {
-      params: clean,
-      timeout: isSlowSource ? 120_000 : 30_000,
+    const queryType = OSINT_COLLECT_QUERY_TYPES[endpoint]
+    const isSlowSource =
+      options?.tavilyApi ||
+      endpoint.includes('rss') ||
+      endpoint === 'gdelt' ||
+      endpoint === 'gdelt-gfg' ||
+      endpoint === 'nikkei' ||
+      endpoint === 'bloomberg' ||
+      endpoint === 'tavily' ||
+      endpoint === 'research' ||
+      endpoint === 'crawl' ||
+      endpoint === 'map' ||
+      endpoint === 'extract'
+    const timeoutMs = endpoint === 'research' ? 360_000 : isSlowSource ? 180_000 : 30_000
+
+    if (queryType) {
+      const normalized = { ...queryParams }
+      if (endpoint === 'extract' && typeof normalized.urls === 'string') {
+        normalized.urls = normalized.urls
+          .split(',')
+          .map((u: string) => u.trim())
+          .filter(Boolean)
+      }
+      const response = await api.post(
+        '/api/osint/collect',
+        {
+          query_type: queryType,
+          query_params: normalized,
+          case_id: (case_id as number | null | undefined) ?? null,
+        },
+        { timeout: timeoutMs },
+      )
+      return response.data
+    }
+
+    const base = options?.tavilyApi ? '/api/tavily' : '/api/osint'
+    const response = await api.post(`${base}/${endpoint}`, null, {
+      params: { ...queryParams, case_id },
+      timeout: timeoutMs,
     })
     return response.data
   },
@@ -322,28 +472,68 @@ export const osintService = {
     })
     return response.data
   },
+
+  getCaseInventory: async (caseId: number) => {
+    const response = await api.get(`/api/osint/inventory/${caseId}`)
+    return response.data
+  },
+
+  repairOrphans: async (caseId: number) => {
+    const response = await api.post('/api/osint/repair-orphans', null, {
+      params: { case_id: caseId },
+    })
+    return response.data as { repaired: number; case_id: number }
+  },
+
+  getCoverage: async (caseId: number) => {
+    const response = await api.get(`/api/osint/coverage/${caseId}`)
+    return response.data
+  },
+}
+
+export type AnalysisBriefPayload = {
+  user_direction: string
+  focus_entity?: string
+  focus_topic?: string
+  entity_name?: string
+  policy_topic?: string
 }
 
 export const aiAnalysisService = {
-  taranis: async (caseId: number, osintResults?: any[]) => {
+  taranis: async (caseId: number, brief: AnalysisBriefPayload, osintResults?: any[]) => {
     const response = await api.post('/api/ai/taranis/analyze', {
       case_id: caseId,
       osint_results: osintResults,
+      ...brief,
     })
     return response.data
   },
-  osintgpt: async (caseId: number, osintResults?: any[]) => {
+  osintgpt: async (caseId: number, brief: AnalysisBriefPayload, osintResults?: any[]) => {
     const response = await api.post('/api/ai/osintgpt/analyze', {
       case_id: caseId,
       osint_results: osintResults,
+      ...brief,
     })
     return response.data
   },
-  ominis: async (caseId: number, osintResults?: any[]) => {
+  ominis: async (caseId: number, brief: AnalysisBriefPayload, osintResults?: any[]) => {
     const response = await api.post('/api/ai/ominis/analyze', {
       case_id: caseId,
       osint_results: osintResults,
+      ...brief,
     })
+    return response.data
+  },
+  expertReputation: async (caseId: number, brief: AnalysisBriefPayload) => {
+    const response = await api.post(`/api/ai/expert/reputation-manager/${caseId}`, brief)
+    return response.data
+  },
+  expertPublicAffairs: async (caseId: number, brief: AnalysisBriefPayload) => {
+    const response = await api.post(`/api/ai/expert/public-affairs-consultant/${caseId}`, brief)
+    return response.data
+  },
+  expertInvestment: async (caseId: number, brief: AnalysisBriefPayload) => {
+    const response = await api.post(`/api/ai/expert/investment-advisor/${caseId}`, brief)
     return response.data
   },
   getConcepts: async (caseId: number) => {
@@ -379,7 +569,39 @@ export const qualitativeService = {
     const response = await api.get('/api/qualitative/frameworks')
     return response.data
   },
-  runAnalysis: async (data: any) => {
+  getFramework: async (id: number) => {
+    const response = await api.get(`/api/qualitative/frameworks/${id}`)
+    return response.data
+  },
+  createFramework: async (data: Record<string, unknown>) => {
+    const response = await api.post('/api/qualitative/frameworks', data)
+    return response.data
+  },
+  updateFramework: async (id: number, data: Record<string, unknown>) => {
+    const response = await api.put(`/api/qualitative/frameworks/${id}`, data)
+    return response.data
+  },
+  deleteFramework: async (id: number) => {
+    const response = await api.delete(`/api/qualitative/frameworks/${id}`)
+    return response.data
+  },
+  generateFramework: async (data: { brief: string; framework_type?: string; language?: string }) => {
+    const response = await api.post('/api/qualitative/frameworks/generate', data, { timeout: 120_000 })
+    return response.data
+  },
+  previewFramework: async (id: number, data: { premise: string; case_context?: string }) => {
+    const response = await api.post(`/api/qualitative/frameworks/${id}/preview`, data, { timeout: 90_000 })
+    return response.data
+  },
+  runAnalysis: async (data: {
+    case_id: number
+    premise: string
+    framework?: string
+    framework_id?: number
+    kpi_ids?: number[]
+    focus_entity?: string
+    focus_topic?: string
+  }) => {
     const response = await api.post('/api/qualitative/analyze', data)
     return response.data
   },
@@ -424,9 +646,13 @@ export const reportsService = {
 }
 
 export const investmentsService = {
-  recommend: async (caseId: number) => {
+  recommend: async (
+    caseId: number,
+    brief: { user_direction: string; focus_entity?: string; focus_topic?: string },
+  ) => {
     const response = await api.post('/api/investments/recommend', {
       case_id: caseId,
+      ...brief,
     })
     return response.data
   },
@@ -521,6 +747,45 @@ export const syncService = {
   },
 }
 
+export const intelligenceService = {
+  getStatus: async (caseId: number) => {
+    const response = await api.get(`/api/intelligence/${caseId}/status`)
+    return response.data
+  },
+  runPipeline: async (
+    caseId: number,
+    includeInvestment = true,
+    options?: { autoCleanup?: boolean; applyScope?: boolean },
+  ) => {
+    const response = await api.post(`/api/intelligence/${caseId}/run`, null, {
+      params: {
+        include_investment: includeInvestment,
+        auto_cleanup: options?.autoCleanup ?? false,
+        apply_scope: options?.applyScope ?? false,
+      },
+      timeout: 300_000,
+    })
+    return response.data
+  },
+  getActorNetwork: async (caseId: number) => {
+    const response = await api.get(`/api/intelligence/${caseId}/actor-network`)
+    return response.data
+  },
+  getActorImpact: async (caseId: number, refresh = false) => {
+    const response = await api.get(`/api/intelligence/${caseId}/actor-impact`, {
+      params: refresh ? { refresh: true } : {},
+    })
+    return response.data
+  },
+  analyzeActorImpact: async (caseId: number, projectId?: number) => {
+    const response = await api.post(`/api/intelligence/${caseId}/actor-impact/analyze`, null, {
+      params: projectId !== undefined ? { project_id: projectId } : {},
+      timeout: 120_000,
+    })
+    return response.data
+  },
+}
+
 export const dashboardService = {
   getMetrics: async (days: number = 7, caseId?: number | null) => {
     const params = new URLSearchParams({ days: String(days) })
@@ -558,7 +823,7 @@ export const dashboardService = {
     const response = await api.get(`/api/dashboard/alerts?${params.toString()}`)
     return response.data
   },
-  getAlertsFeed: async (days: number = 7, caseId?: number | null, limit: number = 5) => {
+  getAlertsFeed: async (days: number = 7, caseId?: number | null, limit: number = 8) => {
     const params = new URLSearchParams({ days: String(days), limit: String(limit) })
     if (caseId) params.set('case_id', String(caseId))
     const response = await api.get(`/api/dashboard/alerts/feed?${params.toString()}`)
@@ -806,18 +1071,96 @@ export const reputationService = {
 
 export default api
 
+export type ExportReadiness = {
+  export_ready: boolean
+  can_export_with_warning?: boolean
+  issue_count?: number
+  warning_count?: number
+  issues?: Array<{ type: string; message: string; count?: number }>
+  warnings?: Array<{ type: string; message: string; source_url?: string; count?: number }>
+  validation_summary?: {
+    flagged_grounding?: Array<{
+      id: number
+      score: number
+      actor: string
+      statement: string
+      source_url?: string
+    }>
+  }
+}
+
+export async function confirmExportIfNeeded(readiness: ExportReadiness): Promise<boolean> {
+  if (readiness.export_ready) return true
+  const issues = (readiness.issues ?? []).map((i) => i.message).join('\n')
+  const warnings = (readiness.warnings ?? []).slice(0, 5).map((w) => w.message).join('\n')
+  const msg = [
+    'L\'informe té problemes de traçabilitat:',
+    issues,
+    warnings ? `\nAvísos:\n${warnings}` : '',
+    '\nVols exportar igualment?',
+  ].join('\n')
+  return window.confirm(msg)
+}
+
 export const extractService = {
-  getStreamUrl: (caseId: number): string =>
-    sseUrl(`/api/extract/run/${caseId}`),
-  getStatements: async (caseId: number, decision?: string, skip = 0, limit = 50) => {
+  getStreamUrl: (
+    caseId: number,
+    options?: { applyScope?: boolean; scope?: AnalysisScope },
+  ): string => {
+    const qs =
+      options?.applyScope && options.scope ? scopeToExtractQuery(options.scope, true) : ''
+    const path = qs ? `/api/extract/run/${caseId}?${qs}` : `/api/extract/run/${caseId}`
+    return sseUrl(path)
+  },
+  getPendingStreamUrl: (
+    caseId: number,
+    options?: { applyScope?: boolean; scope?: AnalysisScope },
+  ): string => {
+    const qs =
+      options?.applyScope && options.scope ? scopeToExtractQuery(options.scope, true) : ''
+    const path = qs
+      ? `/api/extract/run-pending/${caseId}?${qs}`
+      : `/api/extract/run-pending/${caseId}`
+    return sseUrl(path)
+  },
+  getCoverage: async (caseId: number) => {
+    const response = await api.get(`/api/extract/coverage/${caseId}`)
+    return response.data
+  },
+  getStatements: async (
+    caseId: number,
+    decision?: string,
+    skip = 0,
+    limit = 50,
+    domain?: string,
+    relevantOnly = false,
+    dateFrom?: string,
+    dateTo?: string,
+  ) => {
     const response = await api.get(`/api/extract/statements/${caseId}`, {
       params: {
         ...(decision ? { decision } : {}),
+        ...(domain ? { domain } : {}),
+        ...(relevantOnly ? { relevant_only: true } : {}),
+        ...(dateFrom ? { date_from: dateFrom } : {}),
+        ...(dateTo ? { date_to: dateTo } : {}),
         skip,
         limit,
       },
     })
     return response.data
+  },
+  reclassifyRelevance: async (caseId: number) => {
+    const response = await api.post(`/api/extract/relevance-cleanup/${caseId}`)
+    return response.data
+  },
+  getStatementProvenance: async (statementId: number) => {
+    const response = await api.get(`/api/extract/provenance/statement/${statementId}`)
+    return response.data
+  },
+  getExportReadiness: async (caseId: number) => {
+    const response = await api.get(`/api/extract/export-readiness/${caseId}`)
+    return response.data as ExportReadiness
   },
   runCleanup: async (caseId: number) => {
     const response = await api.post(`/api/extract/cleanup/${caseId}`)
@@ -986,15 +1329,35 @@ export const prospectiveService = {
     const response = await api.get(`/api/prospective/projects/${projectId}/scenarios`)
     return response.data
   },
-  getStreamUrl: (projectId: number): string =>
-    sseUrl(`/api/prospective/projects/${projectId}/scenarios/stream`),
-  getScenariosStreamUrl: (projectId: number): string =>
-    sseUrl(`/api/prospective/projects/${projectId}/scenarios/stream`),
+  getStreamUrl: (projectId: number, includeTemporalContext = false): string => {
+    const qs = includeTemporalContext ? 'include_temporal_context=true' : ''
+    const path = qs
+      ? `/api/prospective/projects/${projectId}/scenarios/stream?${qs}`
+      : `/api/prospective/projects/${projectId}/scenarios/stream`
+    return sseUrl(path)
+  },
+  getScenariosStreamUrl: (projectId: number, includeTemporalContext = false): string => {
+    const qs = includeTemporalContext ? 'include_temporal_context=true' : ''
+    const path = qs
+      ? `/api/prospective/projects/${projectId}/scenarios/stream?${qs}`
+      : `/api/prospective/projects/${projectId}/scenarios/stream`
+    return sseUrl(path)
+  },
 
-  exportPdf: async (projectId: number): Promise<void> => {
+  exportPdf: async (
+    projectId: number,
+    lang = 'ca',
+    includeDecisionAnnex = false,
+  ): Promise<void> => {
+    const readiness = await prospectiveService.getExportReadiness(projectId)
+    const ok = await confirmExportIfNeeded(readiness)
+    if (!ok) return
     const response = await api.get(
       `/api/prospective/projects/${projectId}/export/pdf`,
-      { responseType: 'blob' },
+      {
+        params: { lang, include_decision_annex: includeDecisionAnnex },
+        responseType: 'blob',
+      },
     )
     const url = URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }))
     const a = document.createElement('a')
@@ -1006,10 +1369,20 @@ export const prospectiveService = {
     URL.revokeObjectURL(url)
   },
 
-  exportDocx: async (projectId: number): Promise<void> => {
+  exportDocx: async (
+    projectId: number,
+    lang = 'ca',
+    includeDecisionAnnex = false,
+  ): Promise<void> => {
+    const readiness = await prospectiveService.getExportReadiness(projectId)
+    const ok = await confirmExportIfNeeded(readiness)
+    if (!ok) return
     const response = await api.get(
       `/api/prospective/projects/${projectId}/export/docx`,
-      { responseType: 'blob' },
+      {
+        params: { lang, include_decision_annex: includeDecisionAnnex },
+        responseType: 'blob',
+      },
     )
     const url = URL.createObjectURL(
       new Blob([response.data], {
@@ -1025,10 +1398,20 @@ export const prospectiveService = {
     URL.revokeObjectURL(url)
   },
 
-  exportHtml: async (projectId: number): Promise<void> => {
+  exportHtml: async (
+    projectId: number,
+    lang = 'ca',
+    includeDecisionAnnex = false,
+  ): Promise<void> => {
+    const readiness = await prospectiveService.getExportReadiness(projectId)
+    const ok = await confirmExportIfNeeded(readiness)
+    if (!ok) return
     const response = await api.get(
       `/api/prospective/projects/${projectId}/export/html`,
-      { responseType: 'blob' },
+      {
+        params: { lang, include_decision_annex: includeDecisionAnnex },
+        responseType: 'blob',
+      },
     )
     const url = URL.createObjectURL(new Blob([response.data], { type: 'text/html;charset=utf-8' }))
     const a = document.createElement('a')
@@ -1076,6 +1459,27 @@ export const prospectiveService = {
     return response.data
   },
 
+  createMonitorsFromMilestones: async (projectId: number, scenarioId: number) => {
+    const response = await api.post(
+      `/api/prospective/projects/${projectId}/scenarios/${scenarioId}/milestones/monitors`,
+    )
+    return response.data
+  },
+
+  parseScenarioMilestones: async (projectId: number, scenarioId: number) => {
+    const response = await api.post(
+      `/api/prospective/projects/${projectId}/scenarios/${scenarioId}/milestones/parse`,
+    )
+    return response.data
+  },
+
+  getScenarioMilestones: async (projectId: number, scenarioId: number) => {
+    const response = await api.get(
+      `/api/prospective/projects/${projectId}/scenarios/${scenarioId}/milestones`,
+    )
+    return response.data
+  },
+
   listMonitors: async (projectId: number) => {
     const response = await api.get(`/api/prospective/projects/${projectId}/monitors`)
     return response.data
@@ -1083,12 +1487,122 @@ export const prospectiveService = {
 
   getMonitorSummary: async (caseId?: number) => {
     const params = caseId != null ? `?case_id=${caseId}` : ''
-    const response = await api.get(`/api/prospective/monitors/summary${params}`)
-    return response.data as {
-      triggered_count: number
-      total_matches: number
-      total_monitors: number
+    const emptySummary = {
+      triggered_count: 0,
+      total_matches: 0,
+      total_monitors: 0,
+      unread_count: 0,
+      new_matches: 0,
     }
+    try {
+      const response = await api.get(`/api/prospective/monitors/summary${params}`, {
+        timeout: 15_000,
+      })
+      return response.data as typeof emptySummary
+    } catch {
+      return emptySummary
+    }
+  },
+
+  getMonitorMatches: async (
+    monitorId: number,
+    opts?: {
+      includeArchived?: boolean
+      skip?: number
+      limit?: number
+      dateFrom?: string
+      dateTo?: string
+    },
+  ) => {
+    const response = await api.get(`/api/prospective/monitors/${monitorId}/matches`, {
+      params: {
+        include_archived: opts?.includeArchived ?? false,
+        skip: opts?.skip ?? 0,
+        limit: opts?.limit ?? 100,
+        ...(opts?.dateFrom ? { date_from: opts.dateFrom } : {}),
+        ...(opts?.dateTo ? { date_to: opts.dateTo } : {}),
+      },
+    })
+    return response.data
+  },
+
+  getCaseAlertMatches: async (
+    caseId: number,
+    opts?: { includeArchived?: boolean; dateFrom?: string; dateTo?: string; limit?: number },
+  ) => {
+    const response = await api.get(`/api/prospective/cases/${caseId}/alert-matches`, {
+      params: {
+        include_archived: opts?.includeArchived ?? false,
+        limit: opts?.limit ?? 50,
+        ...(opts?.dateFrom ? { date_from: opts.dateFrom } : {}),
+        ...(opts?.dateTo ? { date_to: opts.dateTo } : {}),
+      },
+    })
+    return response.data
+  },
+
+  updateMatchStatus: async (matchId: number, status: string, actionTaken = '') => {
+    const response = await api.patch(`/api/prospective/matches/${matchId}/status`, {
+      status,
+      action_taken: actionTaken,
+    })
+    return response.data
+  },
+
+  archiveMatch: async (matchId: number) => {
+    const response = await api.post(`/api/prospective/matches/${matchId}/archive`)
+    return response.data
+  },
+
+  extractMatch: async (matchId: number) => {
+    const response = await api.post(`/api/prospective/matches/${matchId}/extract`)
+    return response.data
+  },
+
+  bulkExtractMatches: async (opts: { caseId?: number; monitorId?: number; limit?: number }) => {
+    const response = await api.post('/api/prospective/matches/bulk-extract', null, {
+      params: {
+        case_id: opts.caseId,
+        monitor_id: opts.monitorId,
+        limit: opts.limit ?? 25,
+      },
+    })
+    return response.data
+  },
+
+  analyzeMatch: async (matchId: number) => {
+    const response = await api.post(`/api/prospective/matches/${matchId}/analyze`)
+    return response.data
+  },
+
+  exportMonitorMatchesUrl: (monitorId: number, fmt: 'json' | 'csv' = 'csv') =>
+    `/api/prospective/monitors/${monitorId}/matches/export?fmt=${fmt}&include_archived=true`,
+
+  exportProjectMatchesUrl: (projectId: number, fmt: 'json' | 'csv' = 'csv') =>
+    `/api/prospective/projects/${projectId}/matches/export?fmt=${fmt}&include_archived=true`,
+
+  getProjectMatches: async (
+    projectId: number,
+    opts?: { includeArchived?: boolean; skip?: number; limit?: number },
+  ) => {
+    const response = await api.get(`/api/prospective/projects/${projectId}/matches`, {
+      params: {
+        include_archived: opts?.includeArchived ?? false,
+        skip: opts?.skip ?? 0,
+        limit: opts?.limit ?? 100,
+      },
+    })
+    return response.data
+  },
+
+  getExportReadiness: async (projectId: number) => {
+    const response = await api.get(`/api/prospective/projects/${projectId}/export-readiness`)
+    return response.data as ExportReadiness
+  },
+
+  getMatchProvenance: async (matchId: number) => {
+    const response = await api.get(`/api/prospective/matches/${matchId}/provenance`)
+    return response.data
   },
 
   checkMonitor: async (monitorId: number) => {
@@ -1103,9 +1617,31 @@ export const prospectiveService = {
     return response.data
   },
 
+  updateMonitorSettings: async (
+    monitorId: number,
+    data: {
+      lookback_days?: number | null
+      horizon_label?: string | null
+      min_match_score?: number | null
+      min_keywords_matched?: number | null
+      clear_thresholds?: boolean
+    },
+  ) => {
+    const response = await api.patch(`/api/prospective/monitors/${monitorId}/settings`, data)
+    return response.data
+  },
+
   addManualMonitor: async (
     projectId: number,
-    data: { indicator: string; keywords?: string[]; osint_sources?: string[] },
+    data: {
+      indicator: string
+      keywords?: string[]
+      osint_sources?: string[]
+      lookback_days?: number
+      horizon_label?: string
+      min_match_score?: number
+      min_keywords_matched?: number
+    },
   ) => {
     const response = await api.post(
       `/api/prospective/projects/${projectId}/monitors/manual`,
@@ -1126,11 +1662,23 @@ export const directAnalysisService = {
     }
   },
 
-  analyze: async (text: string, caseId?: number) => {
+  analyze: async (
+    text: string,
+    caseId?: number,
+    runTavilyOsint = true,
+    runTavilyResearch = false,
+    runTavilyCrawl = false,
+  ) => {
     const response = await api.post(
       '/api/analysis/direct',
-      { text, case_id: caseId ?? null },
-      { timeout: 120_000 },
+      {
+        text,
+        case_id: caseId ?? null,
+        run_tavily_osint: Boolean(caseId && runTavilyOsint),
+        run_tavily_research: Boolean(caseId && runTavilyResearch),
+        run_tavily_crawl: Boolean(caseId && runTavilyCrawl),
+      },
+      { timeout: runTavilyResearch ? 360_000 : 180_000 },
     )
     return response.data
   },
@@ -1139,11 +1687,13 @@ export const directAnalysisService = {
     analysis: unknown,
     projectTitle: string,
     caseId?: number,
+    sourceText?: string,
   ) => {
     const response = await api.post('/api/analysis/apply', {
       analysis,
       project_title: projectTitle,
       case_id: caseId ?? null,
+      source_text: sourceText ?? null,
     })
     return response.data
   },

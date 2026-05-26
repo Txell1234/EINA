@@ -8,6 +8,7 @@ type TranslationKeys =
   | 'nav.osintCollection'
   | 'nav.aiAnalysis'
   | 'nav.qualitativeAnalysis'
+  | 'nav.reasoningFrameworks'
   | 'nav.investmentRecommendations'
   | 'nav.dataSynchronization'
   | 'nav.admin'
@@ -108,6 +109,7 @@ const translations: Record<SupportedLocale, Translations> = {
     'nav.osintCollection': 'OSINT Collection',
     'nav.aiAnalysis': 'AI Analysis',
     'nav.qualitativeAnalysis': 'Qualitative Analysis',
+    'nav.reasoningFrameworks': 'Reasoning Frameworks',
     'nav.investmentRecommendations': 'Investment Recommendations',
     'nav.dataSynchronization': 'Data Synchronization',
     'nav.admin': 'Administration',
@@ -205,6 +207,7 @@ const translations: Record<SupportedLocale, Translations> = {
     'nav.osintCollection': 'Recopilación OSINT',
     'nav.aiAnalysis': 'Análisis con IA',
     'nav.qualitativeAnalysis': 'Análisis Cualitativo',
+    'nav.reasoningFrameworks': 'Marcos de razonamiento',
     'nav.investmentRecommendations': 'Recomendaciones de Inversión',
     'nav.dataSynchronization': 'Sincronización de Datos',
     'nav.admin': 'Administración',
@@ -302,6 +305,7 @@ const translations: Record<SupportedLocale, Translations> = {
     'nav.osintCollection': 'Recopilació OSINT',
     'nav.aiAnalysis': 'Anàlisi amb IA',
     'nav.qualitativeAnalysis': 'Anàlisi Qualitatiu',
+    'nav.reasoningFrameworks': 'Marcs de raonament',
     'nav.investmentRecommendations': 'Recomanacions Inversió',
     'nav.dataSynchronization': 'Sincronització de Dades',
     'nav.admin': 'Administració',
@@ -399,6 +403,7 @@ const translations: Record<SupportedLocale, Translations> = {
     'nav.osintCollection': 'Collecte OSINT',
     'nav.aiAnalysis': 'Analyse IA',
     'nav.qualitativeAnalysis': 'Analyse qualitative',
+    'nav.reasoningFrameworks': 'Cadres de raisonnement',
     'nav.investmentRecommendations': 'Recommandations d’investissement',
     'nav.dataSynchronization': 'Synchronisation des données',
     'nav.admin': 'Administration',

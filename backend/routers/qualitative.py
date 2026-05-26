@@ -10,10 +10,15 @@ from schemas.qualitative import (
     PremiseCreate, PremiseResponse,
     KPICreate, KPIResponse,
     ReasoningFrameworkResponse,
+    ReasoningFrameworkCreate,
+    ReasoningFrameworkUpdate,
+    FrameworkGenerateRequest,
+    FrameworkPreviewRequest,
     QualitativeAnalysisRequest, QualitativeAnalysisResponse
 )
-from models.qualitative import Premise, ReasoningFramework, KPI, QualitativeAnalysis
+from models.qualitative import Premise, ReasoningFramework, KPI, QualitativeAnalysis, ReasoningFrameworkType
 from services.qualitative_service import QualitativeService
+from services.reasoning_framework_service import ReasoningFrameworkService
 
 from app.dependencies import get_current_user
 from models.user import User
@@ -63,15 +68,111 @@ async def list_frameworks(
     db: AsyncSession = Depends(get_db)
 ):
     """List all reasoning frameworks"""
-    from sqlalchemy import select
-    
-    result = await db.execute(
-        select(ReasoningFramework)
-        .where(ReasoningFramework.is_active == True)
+    svc = ReasoningFrameworkService(db)
+    return await svc.list_frameworks()
+
+
+@router.get("/frameworks/{framework_id}", response_model=ReasoningFrameworkResponse)
+async def get_framework(
+    framework_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    svc = ReasoningFrameworkService(db)
+    fw = await svc.get_framework(framework_id)
+    if not fw:
+        raise HTTPException(status_code=404, detail="Marc no trobat")
+    return fw
+
+
+@router.post("/frameworks", response_model=ReasoningFrameworkResponse, status_code=status.HTTP_201_CREATED)
+async def create_framework(
+    body: ReasoningFrameworkCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    svc = ReasoningFrameworkService(db)
+    definition = body.definition.model_dump() if body.definition else None
+    return await svc.create_framework(
+        name=body.name,
+        framework_type=body.framework_type,
+        description=body.description,
+        definition=definition,
+        user_id=current_user.id,
+        is_custom=body.framework_type == ReasoningFrameworkType.CUSTOM,
     )
-    frameworks = result.scalars().all()
-    
-    return [ReasoningFrameworkResponse.model_validate(f) for f in frameworks]
+
+
+@router.put("/frameworks/{framework_id}", response_model=ReasoningFrameworkResponse)
+async def update_framework(
+    framework_id: int,
+    body: ReasoningFrameworkUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    svc = ReasoningFrameworkService(db)
+    definition = body.definition.model_dump() if body.definition else None
+    updated = await svc.update_framework(
+        framework_id,
+        name=body.name,
+        framework_type=body.framework_type,
+        description=body.description,
+        definition=definition,
+        is_active=body.is_active,
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Marc no trobat")
+    return updated
+
+
+@router.delete("/frameworks/{framework_id}")
+async def delete_framework(
+    framework_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    svc = ReasoningFrameworkService(db)
+    ok = await svc.delete_framework(framework_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Marc no trobat")
+    return {"deleted": True}
+
+
+@router.post("/frameworks/generate")
+async def generate_framework(
+    body: FrameworkGenerateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Generate a draft framework definition with LLM from a brief."""
+    svc = ReasoningFrameworkService(db)
+    try:
+        return await svc.generate_from_brief(
+            body.brief,
+            framework_type=body.framework_type,
+            language=body.language,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@router.post("/frameworks/{framework_id}/preview")
+async def preview_framework(
+    framework_id: int,
+    body: FrameworkPreviewRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Preview LLM analysis using this framework without persisting."""
+    svc = ReasoningFrameworkService(db)
+    try:
+        return await svc.preview_analysis(
+            framework_id,
+            body.premise,
+            case_context=body.case_context or "",
+        )
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Marc no trobat")
 
 @router.post("/analyze", response_model=QualitativeAnalysisResponse)
 async def run_qualitative_analysis(
@@ -89,16 +190,33 @@ async def run_qualitative_analysis(
             raise HTTPException(status_code=400, detail="case_id és obligatori")
         if not request.premise or not request.premise.strip():
             raise HTTPException(status_code=400, detail="premisa és obligatòria")
-        if not request.framework:
-            raise HTTPException(status_code=400, detail="framework és obligatori")
+        if not request.framework_id and not request.framework:
+            raise HTTPException(status_code=400, detail="framework o framework_id és obligatori")
+
+        framework_name = request.framework or "deductive"
+        if request.framework_id:
+            from sqlalchemy import select
+            fw_result = await db.execute(
+                select(ReasoningFramework).where(ReasoningFramework.id == request.framework_id)
+            )
+            fw = fw_result.scalar_one_or_none()
+            if fw:
+                framework_name = fw.name
+
+        premise = request.premise.strip()
+        if request.focus_entity:
+            premise += f"\n\nEntitat focus: {request.focus_entity}"
+        if request.focus_topic:
+            premise += f"\nTema focus: {request.focus_topic}"
         
         qualitative_service = QualitativeService(db)
         
         result = await qualitative_service.run_analysis(
             case_id=request.case_id,
-            premise=request.premise,
-            framework=request.framework,
-            kpi_ids=request.kpi_ids or []
+            premise=premise,
+            framework=framework_name,
+            kpi_ids=request.kpi_ids or [],
+            framework_id=request.framework_id,
         )
         
         # Get the created analysis

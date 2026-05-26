@@ -59,6 +59,8 @@ from routers import (
     geopolitical_advanced,
     integration,
     investment_advanced,
+    intelligence,
+    tavily as tavily_router,
 )
 from routers import geopolitical
 from routers import extract as extract_router
@@ -82,6 +84,10 @@ async def init_db():
     else:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+    async with engine.begin() as conn:
+        from app.schema_patches import run_schema_patches_sync
+
+        await conn.run_sync(run_schema_patches_sync)
 
 async def _check_critical_apis():
     """Check critical APIs and generate alerts if not configured"""
@@ -145,24 +151,42 @@ def _log_startup_status() -> None:
         logger.warning(f"  {llm_config_error_message()}")
 
 
-MONITOR_INTERVAL_SECONDS = 30 * 60
+MONITOR_INTERVAL_SECONDS = settings.ALERT_MONITOR_INTERVAL_HOURS * 3600
+_monitor_batch_running = False
+
+
+async def _run_monitor_batch() -> None:
+    """Run OSINT monitor checks without blocking the HTTP event loop."""
+    global _monitor_batch_running
+    if _monitor_batch_running:
+        logger.info("Monitor scheduler: lot anterior encara actiu, s'omet")
+        return
+
+    _monitor_batch_running = True
+    try:
+        from services.alert_monitor_service import run_all_active_monitors
+
+        summary = await run_all_active_monitors()
+        if summary.get("checked"):
+            logger.info(
+                "Monitor scheduler: %d monitors comprovats, %d coincidències noves",
+                summary["checked"],
+                summary.get("new_matches", 0),
+            )
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        logger.warning("Monitor scheduler error: %s", exc)
+    finally:
+        _monitor_batch_running = False
 
 
 async def _monitor_scheduler_loop() -> None:
+    # Evita competir amb el boot i les primeres peticions de la UI
+    await asyncio.sleep(120)
     while True:
+        asyncio.create_task(_run_monitor_batch())
         await asyncio.sleep(MONITOR_INTERVAL_SECONDS)
-        try:
-            from app.database import AsyncSessionLocal
-            from services.alert_monitor_service import run_all_active_monitors
-
-            async with AsyncSessionLocal() as db:
-                summary = await run_all_active_monitors(db)
-                if summary.get("checked"):
-                    logger.info("Monitor scheduler: %d monitors comprovats", summary["checked"])
-        except asyncio.CancelledError:
-            break
-        except Exception as exc:
-            logger.warning("Monitor scheduler error: %s", exc)
 
 
 @asynccontextmanager
@@ -174,6 +198,14 @@ async def lifespan(app: FastAPI):
     logger.info("Inicialitzant base de dades...")
     await init_db()
     logger.info("Base de dades inicialitzada correctament")
+
+    from app.database import AsyncSessionLocal
+    from services.reasoning_framework_service import ReasoningFrameworkService
+
+    async with AsyncSessionLocal() as db:
+        seeded = await ReasoningFrameworkService(db).seed_builtin_frameworks()
+        if seeded:
+            logger.info("Marcs de raonament inicials: %d creats", seeded)
 
     from services.event_handlers import register_event_handlers
 
@@ -246,6 +278,7 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(cases.router, prefix="/api/cases", tags=["Cases"])
 app.include_router(osint_collection.router, prefix="/api/osint", tags=["OSINT Collection"])
+app.include_router(tavily_router.router, prefix="/api/tavily", tags=["Tavily"])
 app.include_router(ai_analysis.router, prefix="/api/ai", tags=["AI Analysis"])
 app.include_router(qualitative.router, prefix="/api/qualitative", tags=["Qualitative Analysis"])
 app.include_router(predictions.router, prefix="/api/predictions", tags=["Predictions"])
@@ -267,6 +300,7 @@ app.include_router(public_affairs.router, tags=["Public Affairs"])
 app.include_router(geopolitical_advanced.router, tags=["Geopolitical Advanced"])
 app.include_router(investment_advanced.router, tags=["Investment Advanced"])
 app.include_router(integration.router, tags=["Integration"])
+app.include_router(intelligence.router, tags=["Intelligence Unit"])
 app.include_router(extract_router.router, prefix="/api/extract", tags=["Extraction Pipeline"])
 app.include_router(prospective_router.router, prefix="/api/prospective", tags=["Prospective Analysis"])
 app.include_router(

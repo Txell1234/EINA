@@ -12,6 +12,7 @@ from .qualitative import Premise, ReasoningFramework, KPI, QualitativeAnalysis, 
 from .predictions import Prediction, PredictionModel, ConfidenceScore
 from .reports import Report
 from .investments import InvestmentRecommendation, RiskAnalysis, Opportunity
+from .actor_impact import ActorImpactAssessment
 from .reputation import ReputationProfile, ReputationHistory, StakeholderAnalysis
 from .public_affairs import PolicyAnalysis, AdvocacyCampaign
 from .extract import ExtractedStatement
@@ -25,8 +26,10 @@ from .prospective import (
     MACTORResult,
     MorphComponent,
     ProspectiveScenario,
+    ScenarioMilestone,
     MICMACExpertVote,
     AlertMonitor,
+    AlertMatch,
 )
 
 __all__ = [
@@ -40,6 +43,7 @@ __all__ = [
     "Prediction", "PredictionModel", "ConfidenceScore",
     "Report",
     "InvestmentRecommendation", "RiskAnalysis", "Opportunity",
+    "ActorImpactAssessment",
     "BilateralRelation", "Treaty", "DiplomaticEvent", "GeopoliticalRisk",
     "SupplyChainRisk", "EconomicInterdependence",
     "ReputationProfile", "ReputationHistory", "StakeholderAnalysis",
@@ -47,7 +51,7 @@ __all__ = [
     "ExtractedStatement",
     "ProspectiveProject", "ProspectiveVariable", "MICMACResult",
     "ProspectiveActor", "MACTORObjective", "MACTORPosture", "MACTORResult",
-    "MorphComponent", "ProspectiveScenario",
-    "MICMACExpertVote", "AlertMonitor",
+    "MorphComponent", "ProspectiveScenario", "ScenarioMilestone",
+    "MICMACExpertVote", "AlertMonitor", "AlertMatch",
 ]
 

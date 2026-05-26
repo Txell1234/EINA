@@ -2,6 +2,7 @@
 import pytest
 
 from services.morph_space import (
+    assess_scenario_possibility,
     build_cartesian,
     build_scenario_specs,
     compute_smic_bayesian,
@@ -61,7 +62,24 @@ class TestMorphSpace:
     def test_build_scenario_specs_uses_real_configs(self):
         specs = build_scenario_specs(COMPONENTS, [])
         assert all(s["config"] for s in specs)
+        assert all(s.get("possibility") for s in specs)
+        assert all(s.get("probability") for s in specs)
+        assert specs[0]["possibility"] in ("PLAUSIBLE", "CONDICIONAL")
         assert "Expansio" in specs[0]["config"] or "Alta cohesio" in specs[0]["config"]
+
+    def test_assess_possibility_excluded_combo(self):
+        incompat = [
+            {
+                "component_a": "C1",
+                "config_a": "Expansio",
+                "component_b": "C2",
+                "config_b": "Alta cohesio",
+            }
+        ]
+        bad = [("C1", "BRI", "Expansio", 0), ("C2", "QUAD", "Alta cohesio", 0)]
+        assert not is_combo_valid(bad, incompat)
+        result = assess_scenario_possibility(bad, incompat, COMPONENTS, "infern")
+        assert result["possibility"] == "EXCLOS"
 
 
 class TestSMIC:

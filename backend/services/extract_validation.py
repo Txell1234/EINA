@@ -53,6 +53,33 @@ DOMESTIC_SIGNALS = re.compile(
 
 GROUNDING_THRESHOLD = 0.10
 GROUNDING_REVIEW_THRESHOLD = 0.08
+MIN_VERIFIABLE_EXCERPT_LEN = 40
+
+
+def is_verifiable_source(source_url: str | None, source_text_excerpt: str | None) -> bool:
+    """True when the statement can be traced to an external document."""
+    url = (source_url or "").strip()
+    if not url or url.startswith("direct-analysis:"):
+        return False
+    excerpt = (source_text_excerpt or "").strip()
+    return len(excerpt) >= MIN_VERIFIABLE_EXCERPT_LEN
+
+
+def effective_grounding_score(
+    statement: str,
+    source_text_excerpt: str | None,
+    stored_score: float | None = None,
+) -> float | None:
+    """
+    Grounding against the original source text only.
+    Returns None when there is no verifiable excerpt (never self-compare statement).
+    """
+    excerpt = (source_text_excerpt or "").strip()
+    if len(excerpt) < MIN_VERIFIABLE_EXCERPT_LEN:
+        return None
+    if stored_score is not None and stored_score >= 0:
+        return float(stored_score)
+    return grounding_score(statement, excerpt)
 
 
 def tokenize_for_grounding(text: str) -> set[str]:
@@ -103,18 +130,28 @@ def validate_statements(stmts: list[ExtractedStatement]) -> dict[str, Any]:
         }
 
     scores: list[float] = []
+    unverified: list[dict[str, Any]] = []
     flagged_grounding: list[dict[str, Any]] = []
     flagged_leakage: list[dict[str, Any]] = []
     tone_counts: Counter = Counter()
     topic_counts: Counter = Counter()
 
     for s in stmts:
-        score = s.grounding_score
-        if score is None:
-            score = grounding_score(s.statement, s.source_text_excerpt or s.statement)
-        scores.append(score)
+        verified = is_verifiable_source(s.source_url, s.source_text_excerpt)
+        score = effective_grounding_score(s.statement, s.source_text_excerpt, s.grounding_score)
+        if score is not None:
+            scores.append(score)
+        elif not verified:
+            unverified.append(
+                {
+                    "id": s.id,
+                    "actor": s.actor,
+                    "statement": (s.statement or "")[:120],
+                    "source_url": s.source_url,
+                }
+            )
 
-        if score < GROUNDING_THRESHOLD:
+        if verified and score is not None and score < GROUNDING_THRESHOLD:
             flagged_grounding.append(
                 {
                     "id": s.id,
@@ -153,6 +190,8 @@ def validate_statements(stmts: list[ExtractedStatement]) -> dict[str, Any]:
         "above_50pct_overlap": sum(1 for x in scores if x >= 0.50),
         "above_25pct_overlap": sum(1 for x in scores if x >= 0.25),
         "below_threshold": len(flagged_grounding),
+        "unverified_count": len(unverified),
+        "unverified": unverified[:20],
         "grounding_threshold": GROUNDING_THRESHOLD,
         "no_intl_signal": len(flagged_leakage),
         "domestic_signal_risk": sum(1 for f in flagged_leakage if f["has_domestic_signal"]),

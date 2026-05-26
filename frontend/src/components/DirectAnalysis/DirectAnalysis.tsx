@@ -1,11 +1,15 @@
 /**
  * DirectAnalysis — Paste any strategic text, get full Godet analysis
  */
+// @refresh reset
 import { useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useCase } from '../../contexts/CaseContext'
-import { directAnalysisService } from '../../services/api'
+import { directAnalysisService, integrationService } from '../../services/api'
+import AnalysisScopeBar from '../shared/AnalysisScopeBar'
+import { useAnalysisScope } from '../../hooks/useAnalysisScope'
+import { useCaseScopeProfile } from '../../hooks/useCaseScopeProfile'
 import './DirectAnalysis.css'
 
 interface Variable {
@@ -49,6 +53,22 @@ interface AnalysisResult {
   llm_provider?: string
   llm_model?: string
   error?: string
+  osint?: {
+    status: string
+    reason?: string
+    queries_run?: number
+    articles_collected?: number
+    queries?: string[]
+    runs?: Array<{
+      query?: string
+      status?: string
+      articles?: number
+      error?: string
+      kind?: string
+    }>
+    research?: { has_report?: boolean; articles_collected?: number; research_status?: string }
+    crawl?: { articles_collected?: number; seeds?: number }
+  }
 }
 
 function postureColor(v: number) {
@@ -110,11 +130,26 @@ export default function DirectAnalysis() {
     'variables' | 'actors' | 'components' | 'statements'
   >('variables')
   const [applied, setApplied] = useState(false)
+  const [runTavilyOsint, setRunTavilyOsint] = useState(true)
+  const [runTavilyResearch, setRunTavilyResearch] = useState(false)
+  const [runTavilyCrawl, setRunTavilyCrawl] = useState(false)
+
+  const { scope, setScope, setPeriodPreset } = useAnalysisScope(activeCase?.id ?? null)
+  const { data: scopeProfile } = useCaseScopeProfile(activeCase?.id ?? null)
 
   const { data: llmConfig } = useQuery({
     queryKey: ['llm-config'],
     queryFn: () => directAnalysisService.getLlmConfig(),
   })
+
+  const { data: integrationStatus } = useQuery({
+    queryKey: ['integration-status'],
+    queryFn: () => integrationService.getStatus(),
+  })
+
+  const tavilyConfigured =
+    integrationStatus?.osint_apis?.tavily?.configured === true ||
+    integrationStatus?.osint_apis?.tavily?.status === 'configured'
 
   const llmLabel =
     llmConfig?.provider === 'openai'
@@ -126,7 +161,14 @@ export default function DirectAnalysis() {
           : 'IA'
 
   const analyzeMutation = useMutation({
-    mutationFn: () => directAnalysisService.analyze(text, activeCase?.id),
+    mutationFn: () =>
+      directAnalysisService.analyze(
+        text,
+        activeCase?.id,
+        runTavilyOsint,
+        runTavilyResearch,
+        runTavilyCrawl,
+      ),
     onSuccess: (data) => {
       const r = data as AnalysisResult
       setResult(r)
@@ -146,6 +188,7 @@ export default function DirectAnalysis() {
         localResult ?? result,
         projectTitle,
         activeCase?.id,
+        text,
       ),
     onSuccess: (data) => {
       setApplied(true)
@@ -207,6 +250,58 @@ export default function DirectAnalysis() {
                 "Textos fins a 6.000 paraules s'analitzen complets."
               }
             />
+
+            {activeCase?.id && (
+              <>
+                <AnalysisScopeBar
+                  scope={scope}
+                  onChange={(patch) => setScope(patch)}
+                  onPeriodPreset={setPeriodPreset}
+                  focusLabel={scopeProfile?.focus_label}
+                  suggestedQuery={scopeProfile?.suggested_query}
+                  compact
+                  showSource={false}
+                />
+              <div className="da-tavily-options">
+                <label className="da-tavily-toggle">
+                  <input
+                    type="checkbox"
+                    checked={runTavilyOsint}
+                    disabled={!tavilyConfigured}
+                    onChange={(e) => setRunTavilyOsint(e.target.checked)}
+                  />
+                  <span>
+                    Cerca web Tavily (Search + Extract automàtic)
+                    {!tavilyConfigured && (
+                      <span className="da-tavily-hint"> — configura TAVILY_API_KEY</span>
+                    )}
+                  </span>
+                </label>
+                <label className="da-tavily-toggle">
+                  <input
+                    type="checkbox"
+                    checked={runTavilyResearch}
+                    disabled={!tavilyConfigured}
+                    onChange={(e) => setRunTavilyResearch(e.target.checked)}
+                  />
+                  <span>
+                    Recerca profunda Tavily (informe + fonts, 1–5 min)
+                  </span>
+                </label>
+                <label className="da-tavily-toggle">
+                  <input
+                    type="checkbox"
+                    checked={runTavilyCrawl}
+                    disabled={!tavilyConfigured}
+                    onChange={(e) => setRunTavilyCrawl(e.target.checked)}
+                  />
+                  <span>
+                    Crawl dominis preferits (think tanks, mitjans geopolítics)
+                  </span>
+                </label>
+              </div>
+              </>
+            )}
 
             <div className="da-input-footer">
               <span className="da-counter">
@@ -340,6 +435,57 @@ export default function DirectAnalysis() {
                   <p className="da-section-label">Context del sistema:</p>
                   <p className="da-context-text">{result.context}</p>
                 </div>
+
+                {result.osint && (
+                  <div
+                    className={`da-osint-summary ${
+                      result.osint.status === 'success'
+                        ? 'da-osint-summary--ok'
+                        : result.osint.status === 'skipped'
+                          ? 'da-osint-summary--skip'
+                          : 'da-osint-summary--warn'
+                    }`}
+                  >
+                    <p className="da-section-label">OSINT Tavily (classificat al cas)</p>
+                    {result.osint.status === 'success' ? (
+                      <>
+                        <p className="da-osint-stat">
+                          {result.osint.articles_collected ?? 0} articles de{' '}
+                          {result.osint.queries_run ?? 0} cerques
+                        </p>
+                        {result.osint.queries && result.osint.queries.length > 0 && (
+                          <ul className="da-osint-queries">
+                            {result.osint.queries.map((q) => (
+                              <li key={q}>{q}</li>
+                            ))}
+                          </ul>
+                        )}
+                        {result.osint.runs?.some((r) => r.error) && (
+                          <p className="da-osint-note">
+                            Algunes cerques han fallat; revisa Recollida OSINT al cas.
+                          </p>
+                        )}
+                        {result.osint.research?.has_report && (
+                          <p className="da-osint-note">
+                            Informe Tavily Research guardat al cas (
+                            {result.osint.research.articles_collected ?? 0} fonts).
+                          </p>
+                        )}
+                        {result.osint.crawl?.articles_collected != null &&
+                          result.osint.crawl.articles_collected > 0 && (
+                            <p className="da-osint-note">
+                              Crawl: {result.osint.crawl.articles_collected} pàgines de dominis
+                              preferits.
+                            </p>
+                          )}
+                      </>
+                    ) : (
+                      <p className="da-osint-stat">
+                        {result.osint.reason ?? 'Recollida OSINT no executada'}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="card da-tabs-card">

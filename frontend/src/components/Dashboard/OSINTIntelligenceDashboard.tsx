@@ -89,7 +89,11 @@ export default function OSINTIntelligenceDashboard() {
   const { data: monitorSummary } = useQuery({
     queryKey: ['monitor-summary-dashboard', monitorCaseId],
     queryFn: () => prospectiveService.getMonitorSummary(monitorCaseId),
-    refetchInterval: 60_000,
+    enabled: Boolean(monitorCaseId),
+    retry: 1,
+    refetchOnWindowFocus: false,
+    staleTime: 90_000,
+    refetchInterval: (query) => (query.state.error ? false : 120_000),
   })
 
   const selectedCase = useMemo(
@@ -392,9 +396,23 @@ export default function OSINTIntelligenceDashboard() {
                   <div className={`alert-bar ${alert.level}`} />
                   <div className="alert-content">
                     <div className="alert-title">{alert.title}</div>
+                    {alert.excerpt ? (
+                      <div className="alert-details" style={{ fontSize: 11, marginTop: 2 }}>
+                        {String(alert.excerpt).slice(0, 120)}
+                        {String(alert.excerpt).length > 120 ? '…' : ''}
+                      </div>
+                    ) : null}
                     <div className="alert-details">
-                      {alert.prediction_type} · {alert.created_at ? new Date(alert.created_at).toLocaleString() : ''}
+                      {alert.source_kind === 'osint_match' ? 'OSINT verificable' : `${alert.prediction_type ?? 'risk'} · sense font`}
+                      {alert.matched_keywords?.length ? ` · ${alert.matched_keywords.join(', ')}` : ''}
+                      {' · '}
+                      {alert.created_at ? new Date(alert.created_at).toLocaleString() : ''}
                     </div>
+                    {alert.url ? (
+                      <a href={alert.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 10 }}>
+                        Obrir font →
+                      </a>
+                    ) : null}
                   </div>
                   <div className="alert-percentage">{Math.round(alert.confidence)}%</div>
                 </div>
@@ -406,14 +424,14 @@ export default function OSINTIntelligenceDashboard() {
         </div>
       </div>
 
-      {selectedCaseId && geographicData?.locations?.length ? (
+      {selectedCaseId ? (
         <div className="panel-card">
           <h3 className="panel-title">
             <span className="panel-title-icon"><Globe2 size={18} /></span>
             {t('panels.geographic')}
           </h3>
           <GeographicMap
-            locations={geographicData.locations.map((loc: any) => ({
+            locations={(geographicData?.locations ?? []).map((loc: any) => ({
               id: loc.id,
               name: loc.name,
               latitude: loc.latitude,
@@ -426,6 +444,7 @@ export default function OSINTIntelligenceDashboard() {
             initialZoom={2}
             showHeatmap={true}
             caseId={selectedCaseId}
+            isActive={true}
           />
         </div>
       ) : null}

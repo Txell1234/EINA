@@ -18,7 +18,9 @@ from typing import Any, Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from services.export_backends import ExportBackendError, render_pdf_from_html
+from services.report_content import build_executive_summary, build_variable_profiles
 from services.report_enrichment import enrich_project_bundle
+from services.report_i18n import get_report_strings, normalize_lang
 
 from models.prospective import (
     MACTORObjective,
@@ -141,6 +143,69 @@ async def _load_project_bundle(db: AsyncSession, project_id: int) -> Optional[di
         "scenarios": list(scenarios_q),
         },
     )
+
+
+def _prepare_export_bundle(bundle: dict[str, Any], lang: str | None = None) -> dict[str, Any]:
+    bundle["lang"] = normalize_lang(lang)
+    bundle["strings"] = get_report_strings(bundle["lang"])
+    bundle["variable_profiles"] = build_variable_profiles(bundle)
+    bundle["executive_summary"] = build_executive_summary(bundle)
+    return bundle
+
+
+async def _attach_decision_annex(
+    db: AsyncSession,
+    bundle: dict[str, Any],
+    *,
+    include_decision_annex: bool,
+) -> dict[str, Any]:
+    """Opt-in decision annex; default export unchanged when flag is false."""
+    bundle["decision_annex"] = None
+    if not include_decision_annex:
+        return bundle
+    project: ProspectiveProject = bundle["project"]
+    case_id = getattr(project, "case_id", None)
+    if not case_id:
+        return bundle
+    from services.decision_annex_service import build_decision_annex, decision_annex_html
+
+    annex = await build_decision_annex(db, case_id, project_id=project.id)
+    bundle["decision_annex"] = annex
+    if annex.get("has_content"):
+        bundle["decision_annex_html"] = decision_annex_html(annex)
+    return bundle
+
+
+def _append_decision_annex_html(parts: list[str], bundle: dict[str, Any]) -> None:
+    html_fragment = bundle.get("decision_annex_html")
+    if html_fragment:
+        parts.append(html_fragment)
+
+
+def _append_decision_annex_docx(doc: Any, bundle: dict[str, Any]) -> None:
+    annex = bundle.get("decision_annex")
+    if not annex or not annex.get("has_content"):
+        return
+    doc.add_heading("Annex de decisió (intel·ligència aplicada)", level=1)
+    monitor_h = annex.get("monitor_horizons") or []
+    if monitor_h:
+        doc.add_paragraph(f"Horitzons de monitors: {', '.join(monitor_h)}")
+    for p in (annex.get("points_of_no_return") or [])[:12]:
+        doc.add_paragraph(
+            f"• {p.get('title', '')} — {p.get('trigger', '')} ({p.get('horizon', '')})",
+            style="List Bullet",
+        )
+    for a in (annex.get("key_actors") or [])[:10]:
+        doc.add_paragraph(
+            f"{a.get('name')}: {a.get('statement_count')} declaracions, postura {a.get('avg_posture')}",
+            style="List Bullet",
+        )
+    sig = annex.get("signal_breakdown") or {}
+    if any(sig.values()):
+        doc.add_paragraph(
+            f"Estructural: {sig.get('structural', 0)} · Episòdic: {sig.get('episodic', 0)} · "
+            f"Sense classificar: {sig.get('unknown', 0)}"
+        )
 
 
 def _format_sectors_table(sectors: Any) -> list[list[str]]:
@@ -333,6 +398,440 @@ def _append_qual_quant_html(parts: list[str], bundle: dict[str, Any]) -> None:
         parts.append("</tbody></table>")
 
 
+def _append_actor_impact_html(parts: list[str], bundle: dict[str, Any]) -> None:
+    data: dict = bundle.get("actor_impact") or {}
+    parts.append("<h1>Actors afectats i escenaris</h1>")
+
+    if not data.get("has_data"):
+        parts.append(
+            "<p class='muted'>Sense anàlisi d'impacte sobre actors. "
+            "Executa el pipeline d'intel·ligència o POST /api/intelligence/{case_id}/actor-impact/analyze.</p>"
+        )
+        return
+
+    summary = data.get("summary") or {}
+    parts.append(
+        f"<p><strong>Resum:</strong> {summary.get('actor_count', 0)} actors · "
+        f"{summary.get('scenario_count', 0)} escenaris · "
+        f"{summary.get('claim_count', 0)} conclusions justificades · "
+        f"confiança global {summary.get('overall_confidence', '—')}% · "
+        f"escenari més probable: {_escape(summary.get('most_likely_scenario') or '—')}</p>"
+    )
+
+    validation = data.get("validation") or {}
+    if validation and not validation.get("export_ready"):
+        parts.append(
+            f"<p style='color:#856404;background:#fff3cd;padding:0.5em;border-radius:4px'>"
+            f"<strong>Avís de traçabilitat:</strong> "
+            f"{validation.get('claims_without_citation', 0)} conclusió(ns) sense citació verificable. "
+            f"Revisa l'extracció OSINT abans d'emetre l'informe.</p>"
+        )
+
+    signals = data.get("osint_signals") or {}
+    if signals:
+        parts.append(
+            "<h2>Senyals OSINT observables</h2>"
+            f"<p class='muted'>{signals.get('total_statements', 0)} declaracions · "
+            f"{signals.get('hostile_statements', 0)} hostils · "
+            f"{signals.get('cooperative_statements', 0)} cooperatives · "
+            f"{signals.get('conflict_events', 0)} esdeveniments de conflicte · "
+            f"risc geo mitjà {signals.get('avg_geopolitical_risk', '—')}/100</p>"
+        )
+
+    justifications: list = data.get("scenario_justifications") or []
+    scenarios_full: list = data.get("scenarios") or []
+    if scenarios_full:
+        parts.append("<h2>Escenaris · possibilitat i probabilitat</h2>")
+        parts.append(
+            '<table class="grid"><thead><tr>'
+            "<th>Escenari</th><th>Possibilitat</th><th>Probabilitat</th><th>Estimada %</th><th>Raonament</th>"
+            "</tr></thead><tbody>"
+        )
+        for s in scenarios_full:
+            parts.append(
+                f"<tr><td>{_escape(s.get('name'))}</td>"
+                f"<td>{_escape(s.get('possibility') or 'PLAUSIBLE')}</td>"
+                f"<td>{_escape(s.get('probability_label') or s.get('probability') or '—')}</td>"
+                f"<td><strong>{s.get('estimated_probability_pct', '—')}%</strong></td>"
+                f"<td>{_escape(str(s.get('rationale') or '')[:220])}</td></tr>"
+            )
+        parts.append("</tbody></table>")
+    elif justifications:
+        parts.append("<h2>Justificació de probabilitat d'escenaris</h2>")
+        parts.append(
+            '<table class="grid"><thead><tr>'
+            "<th>Escenari</th><th>Base</th><th>Estimada</th><th>Ajust</th><th>Raonament</th>"
+            "</tr></thead><tbody>"
+        )
+        for j in justifications:
+            sigs = "; ".join(j.get("supporting_signals") or [])[:120]
+            parts.append(
+                f"<tr><td>{_escape(j.get('scenario_name'))}</td>"
+                f"<td>{j.get('base_probability_pct', '—')}%</td>"
+                f"<td><strong>{j.get('estimated_probability_pct', '—')}%</strong></td>"
+                f"<td>{j.get('adjustment_points', 0):+d}</td>"
+                f"<td>{_escape(j.get('rationale', ''))}"
+                f"{(' · Senyals: ' + _escape(sigs)) if sigs else ''}</td></tr>"
+            )
+        parts.append("</tbody></table>")
+
+    claims: list = data.get("claims") or []
+    if claims:
+        parts.append("<h2>Conclusions justificades</h2>")
+        for c in claims[:15]:
+            parts.append(f"<div class='claim-block' style='margin:1em 0;padding:0.75em;border-left:3px solid var(--color-primary,#1e3a5f)'>")
+            parts.append(f"<p><strong>{_escape(c.get('claim', ''))}</strong></p>")
+            parts.append(
+                f"<p class='muted'>Confiança: {c.get('confidence', '—')}% · "
+                f"Escenari: {_escape(c.get('scenario_name', ''))} · "
+                f"Mètode: {_escape(c.get('method', ''))}</p>"
+            )
+            evidence = c.get("evidence") or []
+            if evidence:
+                parts.append("<ul>")
+                for ev in evidence[:3]:
+                    url = ev.get("source_url") or ""
+                    excerpt = _escape(str(ev.get("excerpt", ""))[:180])
+                    date = _escape(ev.get("source_date") or "")
+                    link = f'<a href="{_escape(url)}">{_escape(url[:60])}</a>' if url else "—"
+                    parts.append(f"<li>{date} · {link} · «{excerpt}»</li>")
+                parts.append("</ul>")
+            parts.append("</div>")
+
+    matrix: list = data.get("impact_matrix") or []
+    if matrix:
+        parts.append("<h2>Matriu actor × escenari</h2>")
+        parts.append(
+            '<table class="grid"><thead><tr>'
+            "<th>Actor</th><th>Escenari</th><th>Impacte</th><th>Etiqueta</th>"
+            "<th>Confiança</th><th>Mecanisme</th>"
+            "</tr></thead><tbody>"
+        )
+        for row in sorted(matrix, key=lambda x: x.get("impact_score", 0))[:40]:
+            parts.append(
+                f"<tr><td>{_escape(row.get('actor'))}</td>"
+                f"<td>{_escape(row.get('scenario_name'))}</td>"
+                f"<td>{row.get('impact_score', '—')}</td>"
+                f"<td>{_escape(row.get('impact_label'))}</td>"
+                f"<td>{row.get('confidence', '—')}%</td>"
+                f"<td>{_escape(str(row.get('mechanism', ''))[:200])}</td></tr>"
+            )
+        parts.append("</tbody></table>")
+
+    actors: list = data.get("actors") or []
+    if actors:
+        parts.append("<h2>Inventari d'actors</h2>")
+        parts.append(
+            '<table class="grid"><thead><tr>'
+            "<th>Actor</th><th>Tipus</th><th>Declaracions</th><th>Postura mitjana</th>"
+            "<th>Risc geo</th><th>Temes</th><th>Motivació</th>"
+            "</tr></thead><tbody>"
+        )
+        for a in actors[:20]:
+            topics = ", ".join(a.get("topics") or [])[:80]
+            motivation = str(a.get("motivation") or "")[:280]
+            parts.append(
+                f"<tr><td>{_escape(a.get('name'))}</td>"
+                f"<td>{_escape(a.get('type'))}</td>"
+                f"<td>{a.get('statement_count', 0)}</td>"
+                f"<td>{a.get('avg_posture', '—')}</td>"
+                f"<td>{a.get('geo_risk_score') if a.get('geo_risk_score') is not None else '—'}</td>"
+                f"<td>{_escape(topics)}</td>"
+                f"<td>{_escape(motivation)}</td></tr>"
+            )
+        parts.append("</tbody></table>")
+
+
+def _append_tavily_research_html(parts: list[str], bundle: dict[str, Any]) -> None:
+    reports: list = bundle.get("tavily_research_reports") or []
+    if not reports:
+        return
+    parts.append("<h1>Informe Tavily Research</h1>")
+    for i, rep in enumerate(reports[:3], 1):
+        parts.append(f"<h2>Informe {i}</h2>")
+        if rep.get("created_at"):
+            parts.append(f"<p class='muted'>Generat: {_escape(str(rep.get('created_at')))}</p>")
+        if rep.get("source_count"):
+            parts.append(f"<p class='muted'>{rep.get('source_count')} fonts consultades</p>")
+        body = str(rep.get("report") or "").replace("\n", "<br/>")
+        parts.append(f"<div>{body}</div>")
+
+
+def _append_report_delta_html(parts: list[str], bundle: dict[str, Any]) -> None:
+    delta: dict = bundle.get("report_delta") or {}
+    if not delta:
+        return
+    parts.append("<h2>Actualització estructurada des de l'última avaluació</h2>")
+    deltas = delta.get("deltas") or {}
+    parts.append(
+        "<p class='muted'>"
+        f"Generat: {_escape(str(delta.get('generated_at') or '—'))} · "
+        f"Avaluació prèvia: {_escape(str(delta.get('assessment_saved_at') or 'cap'))}</p>"
+    )
+    if delta.get("has_new_data"):
+        parts.append("<ul>")
+        labels = {
+            "statements": "Declaracions extretes",
+            "alert_matches": "Coincidències d'alerta",
+            "osint_results": "Resultats OSINT",
+            "tavily_research_reports": "Informes Tavily Research",
+        }
+        for key, label in labels.items():
+            n = int(deltas.get(key) or 0)
+            if n:
+                parts.append(f"<li>+{n} {label}</li>")
+        parts.append("</ul>")
+    else:
+        parts.append("<p class='muted'>Sense dades noves des de l'última avaluació d'impacte.</p>")
+
+
+def _append_strategic_implications_html(parts: list[str], bundle: dict[str, Any]) -> None:
+    """Implicacions estratègiques derivades de l'impacte sobre actors (substitueix focus financer pur)."""
+    data: dict = bundle.get("actor_impact") or {}
+    if not data.get("has_data"):
+        return
+    parts.append("<h2>Implicacions estratègiques</h2>")
+    summary = data.get("summary") or {}
+    exposed = summary.get("top_exposed") or []
+    if exposed:
+        parts.append(
+            "<p><strong>Actors més exposats (impacte negatiu):</strong> "
+            + ", ".join(_escape(a) for a in exposed[:5])
+            + "</p>"
+        )
+    likely = summary.get("most_likely_scenario")
+    if likely:
+        parts.append(f"<p><strong>Escenari més probable segons OSINT:</strong> {_escape(likely)}</p>")
+
+
+def _append_investment_html(parts: list[str], bundle: dict[str, Any]) -> None:
+    inv: dict = bundle.get("investment") or {}
+    parts.append("<h1>Implicacions estratègiques i context financer</h1>")
+    _append_strategic_implications_html(parts, bundle)
+
+    if not inv.get("has_data"):
+        parts.append(
+            "<p class='muted'>Sense recomanació d'inversió addicional. "
+            "La secció principal d'impacte sobre actors és a dalt.</p>"
+        )
+        return
+
+    recs: list = inv.get("recommendations") or []
+    if recs:
+        parts.append("<h2>Recomanacions d'inversió</h2>")
+        parts.append(
+            '<table class="grid"><thead><tr>'
+            "<th>Tipus</th><th>Confiança %</th><th>Raonament</th><th>Data</th>"
+            "</tr></thead><tbody>"
+        )
+        for r in recs:
+            parts.append(
+                f"<tr><td>{_escape(str(r.get('type', '')).upper())}</td>"
+                f"<td>{r.get('confidence', '—')}</td>"
+                f"<td>{_escape(str(r.get('rationale', ''))[:400])}</td>"
+                f"<td>{_escape(r.get('created_at') or '—')}</td></tr>"
+            )
+        parts.append("</tbody></table>")
+
+    risks: list = inv.get("risks") or []
+    if risks:
+        parts.append("<h2>Riscos (geopolític, mercat, operatiu)</h2>")
+        parts.append(
+            '<table class="grid"><thead><tr>'
+            "<th>Tipus</th><th>Nivell</th><th>%</th><th>Descripció</th><th>Factors</th>"
+            "</tr></thead><tbody>"
+        )
+        for risk in risks[:30]:
+            factors = risk.get("factors") or []
+            parts.append(
+                f"<tr><td>{_escape(risk.get('risk_type'))}</td>"
+                f"<td>{_escape(risk.get('risk_level'))}</td>"
+                f"<td>{risk.get('risk_percentage', '—')}</td>"
+                f"<td>{_escape(str(risk.get('description', ''))[:250])}</td>"
+                f"<td>{_escape(_json_block(factors) if factors else '—')}</td></tr>"
+            )
+        parts.append("</tbody></table>")
+
+    opps: list = inv.get("opportunities") or []
+    if opps:
+        parts.append("<h2>Oportunitats d'inversió</h2>")
+        parts.append(
+            '<table class="grid"><thead><tr>'
+            "<th>Títol</th><th>Descripció</th><th>Confiança</th><th>Impacte</th>"
+            "</tr></thead><tbody>"
+        )
+        for opp in opps[:25]:
+            parts.append(
+                f"<tr><td>{_escape(opp.get('title'))}</td>"
+                f"<td>{_escape(str(opp.get('description', ''))[:300])}</td>"
+                f"<td>{opp.get('confidence', '—')}</td>"
+                f"<td>{_escape(opp.get('impact_level') or '—')}</td></tr>"
+            )
+        parts.append("</tbody></table>")
+
+    advisor = inv.get("advisor_analysis")
+    if isinstance(advisor, dict) and not advisor.get("error"):
+        parts.append("<h2>Assessor d'inversions (IA)</h2>")
+        if advisor.get("recommendation"):
+            parts.append(
+                f"<p><strong>Recomanació:</strong> {_escape(str(advisor.get('recommendation')))} "
+                f"· Confiança: {advisor.get('confidence', '—')}%</p>"
+            )
+        if advisor.get("rationale"):
+            parts.append(f"<p><strong>Raonament:</strong> {_escape(advisor.get('rationale'))}</p>")
+        for key in (
+            "market_analysis",
+            "risk_assessment",
+            "esg_analysis",
+            "geopolitical_integration",
+            "timing_recommendation",
+            "market_comparison",
+            "company_performance",
+            "opportunities",
+            "key_insights",
+            "metrics_extracted",
+        ):
+            val = advisor.get(key)
+            if val:
+                label = key.replace("_", " ").title()
+                parts.append(f"<h3>{_escape(label)}</h3>")
+                parts.append(f"<pre class='json'>{_escape(_json_block(val))}</pre>")
+
+    for ai in inv.get("ai_analyses") or []:
+        parts.append(f"<h2>Anàlisi IA ({_escape(ai.get('analysis_type'))})</h2>")
+        parts.append(f"<p class='muted'>Confiança: {ai.get('confidence_score', '—')}</p>")
+        if ai.get("analysis_data"):
+            parts.append(f"<pre class='json'>{_escape(_json_block(ai['analysis_data']))}</pre>")
+
+
+def _append_executive_summary_html(parts: list[str], bundle: dict[str, Any]) -> None:
+    s = bundle["strings"]
+    summary = bundle.get("executive_summary") or {}
+    parts.append(f"<h1 id='executive-summary'>{_escape(s.executive_summary)}</h1>")
+    for block in summary.get("sections") or []:
+        parts.append(f"<h2>{_escape(block.get('title', ''))}</h2>")
+        for para in block.get("paragraphs") or []:
+            parts.append(f"<p>{_escape(para)}</p>")
+        bullets = block.get("bullets") or []
+        if bullets:
+            parts.append("<ul>")
+            for b in bullets:
+                parts.append(f"<li>{_escape(b)}</li>")
+            parts.append("</ul>")
+    factors = summary.get("key_factors") or []
+    if factors:
+        parts.append(f"<h2>{_escape(s.key_factors)}</h2>")
+        parts.append(
+            '<table class="grid"><thead><tr><th>Factor</th><th>Detall</th><th>Font</th></tr></thead><tbody>'
+        )
+        for f in factors:
+            parts.append(
+                f"<tr><td>{_escape(f.get('factor'))}</td>"
+                f"<td>{_escape(str(f.get('detail', ''))[:400])}</td>"
+                f"<td>{_escape(f.get('source'))}</td></tr>"
+            )
+        parts.append("</tbody></table>")
+
+
+def _append_variable_profiles_html(parts: list[str], bundle: dict[str, Any]) -> None:
+    s = bundle["strings"]
+    profiles: list = bundle.get("variable_profiles") or []
+    parts.append(f"<h1 id='variables'>{_escape(s.variables_section)}</h1>")
+    if not profiles:
+        parts.append(f"<p class='muted'>{_escape(s.no_data)}</p>")
+        return
+    for p in profiles:
+        parts.append(
+            "<div class='var-profile' style='margin:1em 0;padding:0.75em 1em;"
+            "border:1px solid #ddd;border-left:4px solid #1e3a5f;border-radius:4px'>"
+        )
+        parts.append(f"<h2>{_escape(p.get('code'))} · {_escape(p.get('name'))}</h2>")
+        parts.append(f"<p><strong>{_escape(s.var_type)}:</strong> {_escape(p.get('type_label'))}</p>")
+        if p.get("description"):
+            parts.append(f"<p><strong>{_escape(s.var_description)}:</strong> {_escape(p.get('description'))}</p>")
+        if p.get("motivation"):
+            parts.append(f"<p><strong>{_escape(s.var_motivation)}:</strong> {_escape(p.get('motivation'))}</p>")
+        micmac_bits = []
+        if p.get("sector"):
+            micmac_bits.append(f"{s.var_sector}: {p.get('sector')}")
+        if p.get("motricity") is not None:
+            micmac_bits.append(f"{s.var_motricity}: {p.get('motricity')}")
+        if p.get("dependence") is not None:
+            micmac_bits.append(f"{s.var_dependence}: {p.get('dependence')}")
+        if micmac_bits:
+            parts.append(
+                f"<p><strong>{_escape(s.var_micmac)}:</strong> {_escape('; '.join(micmac_bits))}</p>"
+            )
+        if p.get("osint_rationale"):
+            parts.append(
+                f"<p><strong>{_escape(s.var_osint_rationale)}:</strong> {_escape(p.get('osint_rationale'))}</p>"
+            )
+        rels = p.get("relations") or []
+        if rels:
+            parts.append(f"<p><strong>{_escape(s.var_relations)}:</strong></p><ul>")
+            for r in rels:
+                parts.append(f"<li>{_escape(r)}</li>")
+            parts.append("</ul>")
+        ev = p.get("evidence") or []
+        if ev:
+            parts.append(f"<p><strong>{_escape(s.var_evidence)}:</strong></p><ul>")
+            for e in ev:
+                parts.append(f"<li>{_escape(e)}</li>")
+            parts.append("</ul>")
+        parts.append("</div>")
+
+
+def _append_executive_summary_docx(doc: Any, bundle: dict[str, Any]) -> None:
+    s = bundle["strings"]
+    summary = bundle.get("executive_summary") or {}
+    doc.add_heading(s.executive_summary, level=1)
+    for block in summary.get("sections") or []:
+        doc.add_heading(str(block.get("title", "")), level=2)
+        for para in block.get("paragraphs") or []:
+            doc.add_paragraph(str(para))
+        for b in block.get("bullets") or []:
+            doc.add_paragraph(f"• {b}")
+    factors = summary.get("key_factors") or []
+    if factors:
+        doc.add_heading(s.key_factors, level=2)
+        _doc_table(
+            doc,
+            ["Factor", "Detall", "Font"],
+            [[f.get("factor", ""), str(f.get("detail", ""))[:400], f.get("source", "")] for f in factors],
+        )
+
+
+def _append_variable_profiles_docx(doc: Any, bundle: dict[str, Any]) -> None:
+    s = bundle["strings"]
+    profiles: list = bundle.get("variable_profiles") or []
+    doc.add_heading(s.variables_section, level=1)
+    if not profiles:
+        doc.add_paragraph(s.no_data)
+        return
+    for p in profiles:
+        doc.add_heading(f"{p.get('code')} · {p.get('name')}", level=2)
+        doc.add_paragraph(f"{s.var_type}: {p.get('type_label', '')}")
+        if p.get("description"):
+            doc.add_paragraph(f"{s.var_description}: {p.get('description')}")
+        if p.get("motivation"):
+            doc.add_paragraph(f"{s.var_motivation}: {p.get('motivation')}")
+        micmac_bits = []
+        if p.get("sector"):
+            micmac_bits.append(f"{s.var_sector}: {p.get('sector')}")
+        if p.get("motricity") is not None:
+            micmac_bits.append(f"{s.var_motricity}: {p.get('motricity')}")
+        if p.get("dependence") is not None:
+            micmac_bits.append(f"{s.var_dependence}: {p.get('dependence')}")
+        if micmac_bits:
+            doc.add_paragraph(f"{s.var_micmac}: {'; '.join(micmac_bits)}")
+        if p.get("osint_rationale"):
+            doc.add_paragraph(f"{s.var_osint_rationale}: {p.get('osint_rationale')}")
+        for r in p.get("relations") or []:
+            doc.add_paragraph(f"• {r}")
+        for e in p.get("evidence") or []:
+            doc.add_paragraph(f"— {e}")
+
+
 def _append_micmac_reasoning_html(parts: list[str], bundle: dict[str, Any]) -> None:
     suggestions = bundle.get("micmac_suggestions")
     if not suggestions or not suggestions.get("suggestions"):
@@ -501,6 +1000,178 @@ def _append_qual_quant_docx(doc: Any, bundle: dict[str, Any]) -> None:
         )
 
 
+def _append_actor_impact_docx(doc: Any, bundle: dict[str, Any]) -> None:
+    data: dict = bundle.get("actor_impact") or {}
+    doc.add_heading("Actors afectats i escenaris", level=1)
+    if not data.get("has_data"):
+        doc.add_paragraph(
+            "Sense anàlisi d'impacte sobre actors. "
+            "Executa el pipeline d'intel·ligència abans d'exportar."
+        )
+        return
+
+    summary = data.get("summary") or {}
+    doc.add_paragraph(
+        f"Actors: {summary.get('actor_count', 0)} · Escenaris: {summary.get('scenario_count', 0)} · "
+        f"Conclusions: {summary.get('claim_count', 0)} · Confiança: {summary.get('overall_confidence', '—')}% · "
+        f"Escenari més probable: {summary.get('most_likely_scenario') or '—'}"
+    )
+
+    validation = data.get("validation") or {}
+    if validation and not validation.get("export_ready"):
+        doc.add_paragraph(
+            f"AVÍS: {validation.get('claims_without_citation', 0)} conclusions sense citació verificable."
+        )
+
+    signals = data.get("osint_signals") or {}
+    if signals:
+        doc.add_heading("Senyals OSINT observables", level=2)
+        doc.add_paragraph(
+            f"{signals.get('total_statements', 0)} declaracions · "
+            f"{signals.get('hostile_statements', 0)} hostils · "
+            f"{signals.get('cooperative_statements', 0)} cooperatives · "
+            f"{signals.get('conflict_events', 0)} esdeveniments de conflicte · "
+            f"risc geo mitjà {signals.get('avg_geopolitical_risk', '—')}/100"
+        )
+
+    justifications: list = data.get("scenario_justifications") or []
+    if justifications:
+        doc.add_heading("Justificació de probabilitat d'escenaris", level=2)
+        _doc_table(
+            doc,
+            ["Escenari", "Base %", "Estimada %", "Ajust", "Raonament"],
+            [
+                [
+                    str(j.get("scenario_name", "")),
+                    str(j.get("base_probability_pct", "")),
+                    str(j.get("estimated_probability_pct", "")),
+                    f"{j.get('adjustment_points', 0):+d}",
+                    str(j.get("rationale", ""))[:150],
+                ]
+                for j in justifications
+            ],
+        )
+
+    claims: list = data.get("claims") or []
+    if claims:
+        doc.add_heading("Conclusions justificades", level=2)
+        for c in claims[:12]:
+            doc.add_paragraph(c.get("claim", ""), style="List Bullet")
+            doc.add_paragraph(
+                f"Confiança {c.get('confidence', '—')}% · Escenari: {c.get('scenario_name', '')} · "
+                f"Mètode: {c.get('method', '')}"
+            )
+            for ev in (c.get("evidence") or [])[:2]:
+                doc.add_paragraph(
+                    f"  Font: {ev.get('source_url') or '—'} ({ev.get('source_date') or '—'}) "
+                    f"«{(ev.get('excerpt') or '')[:120]}»"
+                )
+
+    matrix: list = data.get("impact_matrix") or []
+    if matrix:
+        doc.add_heading("Matriu actor × escenari", level=2)
+        _doc_table(
+            doc,
+            ["Actor", "Escenari", "Impacte", "Confiança", "Mecanisme"],
+            [
+                [
+                    str(row.get("actor", "")),
+                    str(row.get("scenario_name", "")),
+                    str(row.get("impact_score", "")),
+                    f"{row.get('confidence', '')}%",
+                    str(row.get("mechanism", ""))[:120],
+                ]
+                for row in sorted(matrix, key=lambda x: x.get("impact_score", 0))[:30]
+            ],
+        )
+
+
+def _append_investment_docx(doc: Any, bundle: dict[str, Any]) -> None:
+    inv: dict = bundle.get("investment") or {}
+    doc.add_heading("Implicacions estratègiques i context financer", level=1)
+    if not inv.get("has_data") and not (bundle.get("actor_impact") or {}).get("has_data"):
+        doc.add_paragraph("Sense dades estratègiques addicionals.")
+        return
+    if (bundle.get("actor_impact") or {}).get("has_data"):
+        summary = (bundle["actor_impact"].get("summary") or {})
+        exposed = summary.get("top_exposed") or []
+        if exposed:
+            doc.add_paragraph(f"Actors més exposats: {', '.join(exposed[:5])}")
+    if not inv.get("has_data"):
+        return
+
+    recs: list = inv.get("recommendations") or []
+    if recs:
+        doc.add_heading("Recomanacions d'inversió", level=2)
+        _doc_table(
+            doc,
+            ["Tipus", "Confiança %", "Raonament", "Data"],
+            [
+                [
+                    str(r.get("type", "")).upper(),
+                    str(r.get("confidence", "")),
+                    str(r.get("rationale", ""))[:200],
+                    str(r.get("created_at") or ""),
+                ]
+                for r in recs
+            ],
+        )
+
+    risks: list = inv.get("risks") or []
+    if risks:
+        doc.add_heading("Riscos", level=2)
+        _doc_table(
+            doc,
+            ["Tipus", "Nivell", "%", "Descripció"],
+            [
+                [
+                    str(risk.get("risk_type", "")),
+                    str(risk.get("risk_level", "")),
+                    str(risk.get("risk_percentage", "")),
+                    str(risk.get("description", ""))[:150],
+                ]
+                for risk in risks[:25]
+            ],
+        )
+
+    opps: list = inv.get("opportunities") or []
+    if opps:
+        doc.add_heading("Oportunitats", level=2)
+        _doc_table(
+            doc,
+            ["Títol", "Descripció", "Confiança", "Impacte"],
+            [
+                [
+                    str(opp.get("title", "")),
+                    str(opp.get("description", ""))[:150],
+                    str(opp.get("confidence", "")),
+                    str(opp.get("impact_level") or ""),
+                ]
+                for opp in opps[:20]
+            ],
+        )
+
+    advisor = inv.get("advisor_analysis")
+    if isinstance(advisor, dict) and not advisor.get("error"):
+        doc.add_heading("Assessor d'inversions (IA)", level=2)
+        if advisor.get("recommendation"):
+            doc.add_paragraph(
+                f"Recomanació: {advisor.get('recommendation')} · "
+                f"Confiança: {advisor.get('confidence', '—')}%"
+            )
+        if advisor.get("rationale"):
+            doc.add_paragraph(f"Raonament: {advisor.get('rationale')}")
+        for key in ("risk_assessment", "market_analysis", "esg_analysis", "opportunities"):
+            if advisor.get(key):
+                doc.add_heading(key.replace("_", " ").title(), level=3)
+                doc.add_paragraph(_json_block(advisor[key])[:3000])
+
+    for ai in inv.get("ai_analyses") or []:
+        doc.add_heading(f"Anàlisi IA ({ai.get('analysis_type')})", level=2)
+        if ai.get("analysis_data"):
+            doc.add_paragraph(_json_block(ai["analysis_data"])[:4000])
+
+
 def _append_micmac_reasoning_docx(doc: Any, bundle: dict[str, Any]) -> None:
     suggestions = bundle.get("micmac_suggestions")
     if not suggestions or not suggestions.get("suggestions"):
@@ -556,44 +1227,35 @@ def _html_report(bundle: dict[str, Any]) -> str:
     .cover-sub { font-size: 14pt; color: #333; margin-bottom: 18px; }
     """
 
+    s = bundle["strings"]
     parts: list[str] = []
     parts.append(f"<style>{css}</style>")
-    parts.append('<div class="cover-title">Informe prospectiu · EINA</div>')
+    parts.append(f'<div class="cover-title">{_escape(s.report_title)}</div>')
     parts.append(f"<div class='cover-sub'>{_escape(project.title)}</div>")
-    parts.append(f"<p class='muted'>Projecte ID {project.id} · Generat {_escape(_utc_now_iso())}</p>")
+    parts.append(
+        f"<p class='muted'>{_escape(s.report_subtitle)}</p>"
+        f"<p class='muted'>{_escape(s.project_id)} {project.id} · "
+        f"{_escape(s.generated)} {_escape(_utc_now_iso())}</p>"
+    )
 
-    parts.append("<h1>Projecte</h1>")
-    parts.append("<p><strong>Hipòtesi</strong></p>")
+    _append_executive_summary_html(parts, bundle)
+
+    parts.append(f"<h1>{_escape(s.project_section)}</h1>")
+    parts.append(f"<p><strong>{_escape(s.hypothesis)}</strong></p>")
     parts.append(f"<p>{_escape(project.hypothesis)}</p>")
-    parts.append("<p><strong>Context</strong></p>")
+    parts.append(f"<p><strong>{_escape(s.context)}</strong></p>")
     parts.append(f"<p>{_escape(project.context)}</p>")
 
     _append_case_briefing_html(parts, bundle)
     _append_osint_sources_html(parts, bundle)
+    _append_tavily_research_html(parts, bundle)
     _append_extraction_html(parts, bundle)
     _append_retrospective_html(parts, bundle)
+    _append_actor_impact_html(parts, bundle)
+    _append_report_delta_html(parts, bundle)
+    _append_investment_html(parts, bundle)
 
-    parts.append("<h1>Variables (MIC-MAC)</h1>")
-    suggested_vars = bundle.get("suggested_variables") or []
-    if suggested_vars:
-        parts.append("<h2>Suggeriments des de l'extracció OSINT</h2>")
-        parts.append('<table class="grid"><thead><tr><th>Codi</th><th>Nom</th><th>Tipus</th><th>Raonament</th></tr></thead><tbody>')
-        for sv in suggested_vars[:20]:
-            parts.append(
-                f"<tr><td>{_escape(sv.get('code'))}</td><td>{_escape(sv.get('name'))}</td>"
-                f"<td>{_escape(sv.get('type'))}</td><td>{_escape(sv.get('rationale') or sv.get('desc', ''))}</td></tr>"
-            )
-        parts.append("</tbody></table>")
-    if vars_list:
-        parts.append('<table class="grid"><thead><tr><th>Codi</th><th>Nom</th><th>Tipus</th><th>Descripció</th></tr></thead><tbody>')
-        for v in vars_list:
-            parts.append(
-                f"<tr><td>{_escape(v.code)}</td><td>{_escape(v.name)}</td>"
-                f"<td>{_escape(v.var_type)}</td><td>{_escape(v.description)}</td></tr>"
-            )
-        parts.append("</tbody></table>")
-    else:
-        parts.append("<p class='muted'>Sense variables registrades.</p>")
+    _append_variable_profiles_html(parts, bundle)
 
     parts.append("<h1>Resultats MIC-MAC</h1>")
     if micmac:
@@ -719,7 +1381,14 @@ def _html_report(bundle: dict[str, Any]) -> str:
     if scenarios_list:
         for s in scenarios_list:
             parts.append(f"<h2>{_escape(s.name)} ({_escape(s.scenario_type or '')})</h2>")
-            parts.append(f"<p class='muted'>Probabilitat: {_escape(s.probability)}</p>")
+            poss = getattr(s, "possibility", None) or "PLAUSIBLE"
+            parts.append(
+                f"<p class='muted'>Possibilitat (Zwicky): {_escape(poss)} · "
+                f"Probabilitat (SMIC/OSINT): {_escape(s.probability)}</p>"
+            )
+            poss_rationale = getattr(s, "possibility_rationale", None) or ""
+            if poss_rationale:
+                parts.append(f"<p><strong>Possibilitat</strong> {_escape(poss_rationale)}</p>")
             if s.morphological_config:
                 parts.append(f"<p><strong>Configuració</strong> {_escape(s.morphological_config)}</p>")
             nar = _escape(s.narrative or "").replace("\n", "<br/>")
@@ -727,6 +1396,7 @@ def _html_report(bundle: dict[str, Any]) -> str:
     else:
         parts.append("<p class='muted'>Sense narratives d'escenari generades.</p>")
 
+    _append_decision_annex_html(parts, bundle)
     _append_qual_quant_html(parts, bundle)
 
     return "<html><meta charset='utf-8'><body>" + "".join(parts) + "</body></html>"
@@ -740,22 +1410,23 @@ def _write_pdf_sync(path: Path, bundle: dict[str, Any]) -> None:
         raise RuntimeError(str(exc)) from exc
 
 
-def _add_doc_cover(doc: Any, project: ProspectiveProject) -> None:
+def _add_doc_cover(doc: Any, bundle: dict[str, Any]) -> None:
     """
     DOCX cover: iterate (text, size, grey_rgb) tuples only — add paragraph per row.
-    (Avoid unpacking a nonexistent `paragraph` tuple element from fixed triples.)
     """
+    project: ProspectiveProject = bundle["project"]
+    s = bundle["strings"]
     _, WD_ALIGN_PARAGRAPH, Pt, RGBColor, PRIMARY_RGB = _load_docx()
     subtitle_grey = RGBColor(0x33, 0x33, 0x33)
     meta_grey = RGBColor(0x66, 0x66, 0x66)
     accent_orange = RGBColor(0xFF, 0x6B, 0x35)
 
     cover_lines: list[tuple[str, Pt, RGBColor]] = [
-        ("Informe prospectiu · EINA", Pt(26), PRIMARY_RGB),
+        (s.report_title, Pt(26), PRIMARY_RGB),
         (project.title, Pt(22), subtitle_grey),
-        ("MIC-MAC · MACTOR · Morfologia · Escenaris", Pt(13), subtitle_grey),
-        (f"ID projecte {project.id}", Pt(11), meta_grey),
-        (f"Generat: {_utc_now_iso()}", Pt(11), meta_grey),
+        (s.report_subtitle, Pt(13), subtitle_grey),
+        (f"{s.project_id} {project.id}", Pt(11), meta_grey),
+        (f"{s.generated}: {_utc_now_iso()}", Pt(11), meta_grey),
         ("______________________________________________", Pt(9), accent_orange),
     ]
 
@@ -783,45 +1454,24 @@ def _populate_doc_body(doc: Any, bundle: dict[str, Any]) -> None:
     postures_matrix = bundle["postures_matrix"]
 
     _, _, _, _, PRIMARY_RGB = _load_docx()
+    s = bundle["strings"]
 
-    h = doc.add_heading("Projecte", level=1)
+    _append_executive_summary_docx(doc, bundle)
+
+    h = doc.add_heading(s.project_section, level=1)
     h.runs[0].font.color.rgb = PRIMARY_RGB
-    doc.add_paragraph(project.hypothesis or "")
-    doc.add_heading("Context", level=2)
+    doc.add_paragraph(f"{s.hypothesis}: {project.hypothesis or ''}")
+    doc.add_heading(s.context, level=2)
     doc.add_paragraph(project.context or "")
 
     _append_case_briefing_docx(doc, bundle)
     _append_osint_sources_docx(doc, bundle)
     _append_extraction_docx(doc, bundle)
     _append_retrospective_docx(doc, bundle)
+    _append_actor_impact_docx(doc, bundle)
+    _append_investment_docx(doc, bundle)
 
-    doc.add_heading("Variables (MIC-MAC)", level=1)
-    suggested_vars = bundle.get("suggested_variables") or []
-    if suggested_vars:
-        doc.add_heading("Suggeriments des de l'extracció OSINT", level=2)
-        _doc_table(
-            doc,
-            ["Codi", "Nom", "Tipus", "Raonament"],
-            [
-                [sv.get("code", ""), sv.get("name", ""), sv.get("type", ""), sv.get("rationale") or sv.get("desc", "")]
-                for sv in suggested_vars[:20]
-            ],
-        )
-    if vars_list:
-        table = doc.add_table(rows=1, cols=4)
-        hdr = table.rows[0].cells
-        hdr[0].text = "Codi"
-        hdr[1].text = "Nom"
-        hdr[2].text = "Tipus"
-        hdr[3].text = "Descripció"
-        for v in vars_list:
-            row = table.add_row().cells
-            row[0].text = str(v.code)
-            row[1].text = str(v.name)
-            row[2].text = str(v.var_type or "")
-            row[3].text = str(v.description or "")
-    else:
-        doc.add_paragraph("Sense variables.")
+    _append_variable_profiles_docx(doc, bundle)
 
     doc.add_heading("Resultats MIC-MAC", level=1)
     if micmac:
@@ -942,13 +1592,21 @@ def _populate_doc_body(doc: Any, bundle: dict[str, Any]) -> None:
     if scenarios_list:
         for s in scenarios_list:
             doc.add_heading(s.name, level=2)
-            doc.add_paragraph(f"Tipus: {s.scenario_type or '—'}  · Probabilitat: {s.probability or '—'}")
+            poss = getattr(s, "possibility", None) or "PLAUSIBLE"
+            doc.add_paragraph(
+                f"Tipus: {s.scenario_type or '—'}  · "
+                f"Possibilitat: {poss}  · Probabilitat: {s.probability or '—'}"
+            )
+            poss_rationale = getattr(s, "possibility_rationale", None) or ""
+            if poss_rationale:
+                doc.add_paragraph(f"Possibilitat: {poss_rationale}")
             if s.morphological_config:
                 doc.add_paragraph(str(s.morphological_config))
             doc.add_paragraph(s.narrative or "")
     else:
         doc.add_paragraph("Sense escenaris generats.")
 
+    _append_decision_annex_docx(doc, bundle)
     _append_qual_quant_docx(doc, bundle)
 
 
@@ -960,6 +1618,8 @@ async def export_html(
     db: AsyncSession,
     project_id: int,
     *,
+    lang: str = "ca",
+    include_decision_annex: bool = False,
     output_dir: str | Path | None = None,
     filename: str | None = None,
 ) -> dict[str, Any]:
@@ -967,6 +1627,8 @@ async def export_html(
     bundle = await _load_project_bundle(db, project_id)
     if not bundle:
         raise ValueError(f"Prospective project {project_id} not found")
+    bundle = _prepare_export_bundle(bundle, lang)
+    bundle = await _attach_decision_annex(db, bundle, include_decision_annex=include_decision_annex)
 
     directory = _ensure_reports_dir(output_dir)
     fname = filename or f"prospective_project_{project_id}.html"
@@ -978,14 +1640,14 @@ async def export_html(
         "file_path": str(path.resolve()),
         "format": "html",
         "project_id": project_id,
+        "lang": bundle["lang"],
     }
 
 
 def _write_docx_sync(bundle: dict[str, Any]) -> bytes:
     Document, _, _, _, _ = _load_docx()
     doc = Document()
-    project: ProspectiveProject = bundle["project"]
-    _add_doc_cover(doc, project)
+    _add_doc_cover(doc, bundle)
     _populate_doc_body(doc, bundle)
     buf = io.BytesIO()
     doc.save(buf)
@@ -996,6 +1658,8 @@ async def export_pdf(
     db: AsyncSession,
     project_id: int,
     *,
+    lang: str = "ca",
+    include_decision_annex: bool = False,
     output_dir: str | Path | None = None,
     filename: str | None = None,
 ) -> dict[str, Any]:
@@ -1005,6 +1669,8 @@ async def export_pdf(
     bundle = await _load_project_bundle(db, project_id)
     if not bundle:
         raise ValueError(f"Prospective project {project_id} not found")
+    bundle = _prepare_export_bundle(bundle, lang)
+    bundle = await _attach_decision_annex(db, bundle, include_decision_annex=include_decision_annex)
 
     directory = _ensure_reports_dir(output_dir)
     fname = filename or f"prospective_project_{project_id}.pdf"
@@ -1017,6 +1683,7 @@ async def export_pdf(
         "file_path": str(path.resolve()),
         "format": "pdf",
         "project_id": project_id,
+        "lang": bundle["lang"],
     }
 
 
@@ -1024,6 +1691,8 @@ async def export_docx(
     db: AsyncSession,
     project_id: int,
     *,
+    lang: str = "ca",
+    include_decision_annex: bool = False,
     output_dir: str | Path | None = None,
     filename: str | None = None,
 ) -> dict[str, Any]:
@@ -1033,6 +1702,8 @@ async def export_docx(
     bundle = await _load_project_bundle(db, project_id)
     if not bundle:
         raise ValueError(f"Prospective project {project_id} not found")
+    bundle = _prepare_export_bundle(bundle, lang)
+    bundle = await _attach_decision_annex(db, bundle, include_decision_annex=include_decision_annex)
 
     directory = _ensure_reports_dir(output_dir)
     fname = filename or f"prospective_project_{project_id}.docx"
@@ -1046,4 +1717,5 @@ async def export_docx(
         "file_path": str(path.resolve()),
         "format": "docx",
         "project_id": project_id,
+        "lang": bundle["lang"],
     }

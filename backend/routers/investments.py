@@ -24,7 +24,10 @@ async def generate_recommendation(
     investment_service = InvestmentService(db)
     
     result = await investment_service.generate_recommendation(
-        case_id=request.case_id
+        case_id=request.case_id,
+        user_direction=request.user_direction,
+        focus_entity=request.focus_entity,
+        focus_topic=request.focus_topic,
     )
     
     # Get the created recommendation

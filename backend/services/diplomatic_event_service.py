@@ -27,47 +27,72 @@ class DiplomaticEventService:
             query = select(OSINTResult).join(OSINTQuery)
             if case_id:
                 query = query.where(OSINTQuery.case_id == case_id)
-            
+
             result = await self.db.execute(query)
             osint_results = result.scalars().all()
-            
+
             events_found = []
-            
+
             for osint_result in osint_results:
-                if not osint_result.data:
+                if await self._result_already_processed(osint_result.id):
                     continue
-                
-                text_content = self._extract_text_from_osint(osint_result.data)
-                if not text_content:
-                    continue
-                
-                # Detectar esdeveniments
-                events = await self._detect_events_in_text(
-                    text_content,
-                    osint_result.created_at,
-                    case_id,
-                    osint_result.id
+                created = await self.extract_events_for_osint_result(
+                    osint_result.id, case_id
                 )
-                
-                events_found.extend(events)
-            
+                events_found.extend(created)
+
             await self.db.commit()
-            
+
             return [
                 {
                     "id": e.id,
                     "type": e.event_type.value,
                     "title": e.title,
                     "importance": e.importance.value,
-                    "countries": e.countries
+                    "countries": e.countries,
                 }
                 for e in events_found
             ]
-            
+
         except Exception as e:
             logger.error(f"Error extracting events from OSINT: {e}", exc_info=True)
             await self.db.rollback()
             return []
+
+    async def _result_already_processed(self, osint_result_id: int) -> bool:
+        result = await self.db.execute(select(DiplomaticEvent))
+        for ev in result.scalars().all():
+            for ref in ev.source_references or []:
+                if isinstance(ref, dict) and ref.get("osint_result_id") == osint_result_id:
+                    return True
+        return False
+
+    async def extract_events_for_osint_result(
+        self,
+        osint_result_id: int,
+        case_id: Optional[int] = None,
+    ) -> List[DiplomaticEvent]:
+        """Extract events from a single OSINT result (idempotent)."""
+        if await self._result_already_processed(osint_result_id):
+            return []
+
+        r = await self.db.execute(
+            select(OSINTResult).where(OSINTResult.id == osint_result_id)
+        )
+        osint_result = r.scalar_one_or_none()
+        if not osint_result or not osint_result.data:
+            return []
+
+        text_content = self._extract_text_from_osint(osint_result.data)
+        if not text_content:
+            return []
+
+        return await self._detect_events_in_text(
+            text_content,
+            osint_result.created_at,
+            case_id,
+            osint_result.id,
+        )
     
     async def _detect_events_in_text(
         self,
@@ -264,14 +289,23 @@ Return only valid JSON."""
             for key in ["text", "content", "description", "title", "caption"]:
                 if key in data and isinstance(data[key], str):
                     text_parts.append(data[key])
-            
+            for key in ("body", "summary", "research_report"):
+                if key in data and isinstance(data[key], str):
+                    text_parts.append(data[key])
+
+            for list_key in ("articles", "items", "results"):
+                nested = data.get(list_key)
+                if isinstance(nested, list):
+                    for item in nested:
+                        if isinstance(item, dict):
+                            text_parts.append(self._extract_text_from_osint(item))
+                        elif isinstance(item, str):
+                            text_parts.append(item)
+
             if "data" in data and isinstance(data["data"], list):
                 for item in data["data"]:
-                    if isinstance(item, dict):
-                        for key in ["text", "content", "description", "caption"]:
-                            if key in item and isinstance(item[key], str):
-                                text_parts.append(item[key])
-            
+                    text_parts.append(self._extract_text_from_osint(item))
+
             return " ".join(text_parts)
         elif isinstance(data, list):
             return " ".join([self._extract_text_from_osint(item) for item in data])

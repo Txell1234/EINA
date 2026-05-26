@@ -16,6 +16,11 @@ def _news_api_configured() -> bool:
     return bool(key and key != "your-news-api-key")
 
 
+def _tavily_configured() -> bool:
+    key = getattr(settings, "TAVILY_API_KEY", "").strip()
+    return bool(key and not key.startswith("your-"))
+
+
 class ResearchPlannerService:
     """Service to generate comprehensive, expert-level research plans"""
     
@@ -148,6 +153,21 @@ class ResearchPlannerService:
             "data_sources": ["news"],
             "research_depth": "basic",
         }
+        if _tavily_configured():
+            keywords = extract_search_keywords(keywords, case_name)
+            plan["research_phases"][0]["queries"].append(
+                {
+                    "type": "tavily",
+                    "params": {
+                        "query": keywords,
+                        "max_results": 10,
+                        "search_depth": "advanced",
+                        "topic": "news",
+                    },
+                    "rationale": "Descoberta web en temps real (Tavily)",
+                }
+            )
+            plan["data_sources"] = list(dict.fromkeys([*plan["data_sources"], "tavily"]))
         return plan
 
     def _sanitize_query_params(
@@ -156,12 +176,39 @@ class ResearchPlannerService:
         params = dict(params or {})
         q = str(params.get("query") or params.get("q") or "").strip()
 
-        if query_type in ("google_news", "gdelt", "reddit", "github"):
+        if query_type in ("google_news", "gdelt", "reddit", "github", "tavily"):
             if len(q) > 80 or not q:
                 q = extract_search_keywords(q or case_name, case_name)
             else:
                 q = normalize_search_query(q, max_len=100)
             params["query"] = q
+
+        if query_type == "tavily":
+            params["max_results"] = max(1, min(int(params.get("max_results", 10)), 15))
+            params.setdefault("search_depth", "advanced")
+            params.setdefault("topic", "news")
+
+        if query_type == "tavily_research":
+            if not str(params.get("input") or "").strip():
+                params["input"] = extract_search_keywords(
+                    str(params.get("query") or case_name), case_name
+                )
+            params.setdefault("model", "auto")
+            params.setdefault("wait", True)
+            params.setdefault("max_wait_seconds", 300)
+
+        if query_type == "tavily_crawl":
+            params["limit"] = max(1, min(int(params.get("limit", 30)), 100))
+            params.setdefault("max_depth", 1)
+
+        if query_type == "tavily_map":
+            params["limit"] = max(1, min(int(params.get("limit", 50)), 200))
+            params.setdefault("max_depth", 1)
+
+        if query_type == "tavily_extract":
+            urls = params.get("urls")
+            if isinstance(urls, str):
+                params["urls"] = [u.strip() for u in urls.split(",") if u.strip()]
 
         if query_type == "gdelt":
             params["days"] = max(1, min(int(params.get("days", 30)), 90))
@@ -211,6 +258,8 @@ class ResearchPlannerService:
         phases = plan.get("research_phases") or []
         has_gdelt = False
         has_rss = False
+        has_tavily = False
+        has_tavily_research = False
 
         for phase in phases:
             sanitized_queries = []
@@ -222,6 +271,10 @@ class ResearchPlannerService:
                     has_gdelt = True
                 if qtype in ("rss_feed", "rss_all", "rss_url"):
                     has_rss = True
+                if qtype == "tavily":
+                    has_tavily = True
+                if qtype == "tavily_research":
+                    has_tavily_research = True
             phase["queries"] = sanitized_queries
 
         if phases and not has_gdelt:
@@ -234,6 +287,45 @@ class ResearchPlannerService:
                     "type": "gdelt",
                     "params": {"query": keywords, "days": 30, "max_results": 40},
                     "rationale": "Monitorització d'esdeveniments globals (GDELT, gratuït)",
+                }
+            )
+
+        if phases and _tavily_configured() and not has_tavily_research:
+            keywords = extract_search_keywords(
+                str(plan.get("research_strategy") or case_description or case_name), case_name
+            )
+            deep_phase = {
+                "phase": "deep_dive",
+                "phase_name": "Recerca profunda Tavily",
+                "queries": [
+                    {
+                        "type": "tavily_research",
+                        "params": {
+                            "input": f"{case_name}: {keywords}"[:500],
+                            "model": "auto",
+                            "wait": True,
+                            "max_wait_seconds": 300,
+                        },
+                        "rationale": "Informe multi-font amb cites (Tavily Research)",
+                    }
+                ],
+            }
+            phases.append(deep_phase)
+
+        if phases and _tavily_configured() and not has_tavily:
+            keywords = extract_search_keywords(
+                str(plan.get("research_strategy") or case_name), case_name
+            )
+            phases[0].setdefault("queries", []).append(
+                {
+                    "type": "tavily",
+                    "params": {
+                        "query": keywords,
+                        "max_results": 10,
+                        "search_depth": "advanced",
+                        "topic": "news",
+                    },
+                    "rationale": "Descoberta web en temps real (Tavily)",
                 }
             )
 
@@ -263,6 +355,7 @@ class ResearchPlannerService:
         plan["research_phases"] = phases
         plan["curated_feeds"] = [q["params"]["url"] for q in curated]
         plan["news_api_configured"] = _news_api_configured()
+        plan["tavily_configured"] = _tavily_configured()
         return plan
     
     def _get_expert_prompt(self, case_type: str, case_description: str, case_name: str) -> Dict[str, str]:

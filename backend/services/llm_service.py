@@ -4,6 +4,7 @@ Supports Anthropic, OpenAI, and Google Gemini via LLM_PROVIDER or auto-detection
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import AsyncGenerator, Literal, Optional
@@ -157,6 +158,22 @@ class LLMService:
         if self.provider == "openai":
             return self._complete_openai(user_prompt, system_prompt, max_tokens, model)
         return self._complete_gemini(user_prompt, system_prompt, max_tokens, model)
+
+    async def acomplete(
+        self,
+        user_prompt: str,
+        system_prompt: Optional[str] = None,
+        max_tokens: int = 4096,
+        prefer_model: Optional[str] = None,
+    ) -> str:
+        """Non-blocking wrapper for sync complete() — avoids freezing the event loop."""
+        return await asyncio.to_thread(
+            self.complete,
+            user_prompt,
+            system_prompt,
+            max_tokens,
+            prefer_model,
+        )
 
     async def stream(
         self,

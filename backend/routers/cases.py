@@ -1,7 +1,7 @@
 """
 Cases router - Gestión de casos escalables con creación mediante prompts de IA
 """
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Body
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Body, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 from app.database import get_db
@@ -642,6 +642,49 @@ async def get_full_case(
         "ai_analyses": [],
         "predictions": [],
     }
+
+@router.get("/{case_id}/context")
+async def get_case_context(
+    case_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Briefing del cas per preomplir direcció analítica."""
+    _ = current_user
+    from services.analysis_context import case_brief
+
+    brief = await case_brief(db, case_id)
+    if not brief:
+        raise HTTPException(status_code=404, detail="Cas no trobat")
+    return brief
+
+
+@router.get("/{case_id}/scope-profile")
+async def get_case_scope_profile(
+    case_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from services.analysis_scope_service import load_case_scope_profile
+
+    return await load_case_scope_profile(db, case_id)
+
+
+@router.get("/{case_id}/intsum")
+async def get_case_intsum(
+    case_id: int,
+    days: int = Query(7, ge=1, le=90),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Weekly intelligence digest: alerts, statements and posture highlights (additive)."""
+    from services.decision_annex_service import build_case_intsum
+
+    result = await build_case_intsum(db, case_id, days=days)
+    if not result.get("found"):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cas no trobat")
+    return result
+
 
 @router.get("/{case_id}", response_model=CaseResponse)
 async def get_case(

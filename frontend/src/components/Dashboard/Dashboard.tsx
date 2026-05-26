@@ -12,6 +12,7 @@ import EditCaseModal from './EditCaseModal'
 import VisualizationsDashboard from '../Visualizations/VisualizationsDashboard'
 import GeographicMap from '../Visualizations/GeographicMap'
 import Heatmap from '../Visualizations/Heatmap'
+import ExtractionCoveragePanel from '../shared/ExtractionCoveragePanel'
 import './Dashboard.css'
 
 // Dashboard Heatmap Summary Component
@@ -183,6 +184,10 @@ export default function Dashboard() {
           hasScenarios={activeCase.has_scenarios}
         />
       )}
+
+      {activeCase?.id ? (
+        <ExtractionCoveragePanel caseId={activeCase.id} />
+      ) : null}
 
       <div className="metrics-grid">
         <div className="metric-card">
@@ -396,7 +401,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {allLocations?.locations && allLocations.locations.length > 0 && (
+      {allLocations?.locations && allLocations.locations.length > 0 ? (
         <div className="geographic-section">
           <h2>Mapa Mundial - Casos Actius</h2>
           <GeographicMap 
@@ -404,7 +409,17 @@ export default function Dashboard() {
             title="Ubicacions de tots els casos actius"
           />
         </div>
-      )}
+      ) : activeCase ? (
+        <div className="geographic-section">
+          <h2>Mapa Mundial</h2>
+          <GeographicMap
+            locations={[]}
+            title={`Mapa — ${activeCase.name}`}
+            caseId={activeCase.id}
+            initialZoom={2}
+          />
+        </div>
+      ) : null}
 
       {/* Dashboard Heatmap Summary */}
       <div className="dashboard-heatmap-section">

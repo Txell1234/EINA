@@ -11,6 +11,11 @@ from sqlalchemy import select
 from models.osint import OSINTQuery, OSINTResult
 from models.case import Case
 from models.ai_analysis import AIAnalysis, Concept
+from models.extract import ExtractedStatement
+from services.geo_keywords import find_geo_hits
+from services.geo_ner import extract_geo_entities
+from services.osint_data_utils import flatten_osint_items, text_from_osint_item
+from services.osint_geo_utils import bump_osint_source_counts, osint_provider_from_query_type, article_provider
 
 router = APIRouter()
 
@@ -49,6 +54,16 @@ COUNTRY_COORDS: Dict[str, tuple] = {
     'uae': (23.4241, 53.8478),
     'andorra': (42.5462, 1.6016),
     'principality of andorra': (42.5462, 1.6016),
+    'japan': (36.2048, 138.2529),
+    'china': (35.8617, 104.1954),
+    'taiwan': (25.0330, 121.5654),
+    'south korea': (37.5665, 126.9780),
+    'north korea': (39.0392, 125.7625),
+    'ukraine': (48.3794, 31.1656),
+    'israel': (31.0461, 34.8516),
+    'iran': (32.4279, 53.6880),
+    'saudi arabia': (23.8859, 45.0792),
+    'european union': (50.8466, 4.3528),
 }
 
 CITY_COORDS: Dict[str, tuple] = {
@@ -208,6 +223,40 @@ async def extract_locations_from_data(data: Dict[str, Any]) -> List[Location]:
     
     return locations
 
+def _merge_geo_hits(
+    location_map: Dict[str, Location],
+    text: str,
+    *,
+    loc_id_prefix: str,
+    loc_type: str = "country",
+    data: Optional[Dict[str, Any]] = None,
+    osint_provider: Optional[str] = None,
+) -> None:
+    for ent in extract_geo_entities(text):
+        label = str(ent["label"])
+        lat = float(ent["lat"])
+        lng = float(ent["lng"])
+        if label in location_map:
+            location_map[label].count = (location_map[label].count or 1) + 1
+            if osint_provider:
+                location_map[label].data = bump_osint_source_counts(
+                    location_map[label].data, osint_provider
+                )
+            continue
+        loc_data = dict(data or {})
+        if osint_provider:
+            loc_data = bump_osint_source_counts(loc_data, osint_provider)
+        loc_data["match_type"] = ent.get("match_type", "keyword")
+        location_map[label] = Location(
+            id=f"{loc_id_prefix}_{label.replace(' ', '_').lower()}",
+            name=label,
+            latitude=lat,
+            longitude=lng,
+            type=loc_type,
+            data=loc_data,
+            count=1,
+        )
+
 @router.get("/locations/{case_id}", response_model=GeographicDataResponse)
 async def get_case_locations(
     case_id: int,
@@ -239,25 +288,47 @@ async def get_case_locations(
     
     # Process OSINT results
     for query in queries:
+        provider = osint_provider_from_query_type(query.query_type or "")
         results_result = await db.execute(
             select(OSINTResult).where(OSINTResult.query_id == query.id)
         )
         results = results_result.scalars().all()
-        
+
         for result in results:
-            if result.data:
-                locations = await extract_locations_from_data(result.data)
-                for loc in locations:
-                    # Merge locations with same name
-                    if loc.name in location_map:
-                        location_map[loc.name].count = (location_map[loc.name].count or 1) + 1
-                        if loc.data:
-                            location_map[loc.name].data = {
-                                **(location_map[loc.name].data or {}),
-                                **loc.data
-                            }
-                    else:
-                        location_map[loc.name] = loc
+            if not result.data:
+                continue
+            locations = await extract_locations_from_data(result.data)
+            for loc in locations:
+                if provider:
+                    loc.data = bump_osint_source_counts(loc.data, provider)
+                if loc.name in location_map:
+                    location_map[loc.name].count = (location_map[loc.name].count or 1) + 1
+                    if loc.data:
+                        existing = location_map[loc.name].data or {}
+                        for src, n in (loc.data.get("osint_sources") or {}).items():
+                            merged = bump_osint_source_counts(existing, src, increment=n)
+                            existing = merged
+                        location_map[loc.name].data = existing
+                else:
+                    location_map[loc.name] = loc
+
+            for item in flatten_osint_items(result.data):
+                blob = text_from_osint_item(item)
+                if not blob:
+                    continue
+                art_provider = article_provider(item, provider)
+                _merge_geo_hits(
+                    location_map,
+                    blob,
+                    loc_id_prefix=f"osint_{result.id}",
+                    loc_type="point",
+                    data={
+                        "osint_result_id": result.id,
+                        "query_type": query.query_type,
+                        "url": item.get("url"),
+                    },
+                    osint_provider=art_provider,
+                )
     
     # Get locations from AI analysis concepts
     concepts_result = await db.execute(
@@ -282,6 +353,43 @@ async def get_case_locations(
                         count=1
                     )
     
+    # Extract from extracted statements (actors, topics — clau per casos geopolítics)
+    stmts_result = await db.execute(
+        select(ExtractedStatement).where(ExtractedStatement.case_id == case_id)
+    )
+    for stmt in stmts_result.scalars().all():
+        blob = " ".join(
+            filter(
+                None,
+                [stmt.actor, stmt.topic, stmt.statement, stmt.posture_toward, stmt.context],
+            )
+        )
+        _merge_geo_hits(
+            location_map,
+            blob,
+            loc_id_prefix=f"stmt_{stmt.id}",
+            loc_type="point",
+            data={"statement_id": stmt.id, "actor": stmt.actor},
+        )
+
+    # Keyword scan del nom i descripció del cas
+    if case.name:
+        _merge_geo_hits(
+            location_map,
+            case.name,
+            loc_id_prefix=f"case_kw_{case_id}",
+            loc_type="country",
+            data={"case_id": case_id, "type": "case_keywords"},
+        )
+    if case.description:
+        _merge_geo_hits(
+            location_map,
+            case.description,
+            loc_id_prefix=f"case_desc_kw_{case_id}",
+            loc_type="point",
+            data={"case_id": case_id, "type": "description_keywords"},
+        )
+
     # Extract from case name/description - Millorat per extreure ubicacions
     # Intentar extreure ubicació del nom del cas
     case_name_location = None

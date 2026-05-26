@@ -17,14 +17,20 @@ class InvestmentService:
         self.finnhub = FinnhubAPIService()
         self.permutable = PermutableAPIService()
     
-    async def generate_recommendation(self, case_id: int) -> dict:
+    async def generate_recommendation(
+        self,
+        case_id: int,
+        user_direction: str | None = None,
+        focus_entity: str | None = None,
+        focus_topic: str | None = None,
+    ) -> dict:
         """Generate investment recommendation with risk analysis"""
-        # Get case data
-        # TODO: Fetch case and related OSINT/AI data
-        
-        # Use AI to generate recommendation
         recommendation_data = await self.ai_service.generate_investment_recommendation(
-            case_id=case_id
+            case_id=case_id,
+            db=self.db,
+            user_direction=user_direction,
+            focus_entity=focus_entity,
+            focus_topic=focus_topic,
         )
         
         # Map recommendation type

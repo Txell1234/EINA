@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCase } from '../../contexts/CaseContext'
 import { useCasesList } from '../../hooks/useCasesList'
-import { prospectiveService, reputationService } from '../../services/api'
+import { aiAnalysisService, prospectiveService, reputationService } from '../../services/api'
+import ComplementaryAnalysisForm from '../shared/ComplementaryAnalysisForm'
+import AnalysisResultPanel from '../shared/AnalysisResultPanel'
 import './ReputationDashboard.css'
 
 interface ReputationProfile {
@@ -21,7 +23,10 @@ interface ReputationDashboardProps {
 export default function ReputationDashboard({ caseId: caseIdProp }: ReputationDashboardProps) {
   const [selectedEntityId, setSelectedEntityId] = useState<string | number | null>(null)
   const [days, setDays] = useState<number>(30)
+  const [result, setResult] = useState<unknown>(null)
+  const [error, setError] = useState<string | null>(null)
   const { activeCase, setActiveCase } = useCase()
+  const queryClient = useQueryClient()
 
   const effectiveCaseId = activeCase?.id ?? caseIdProp
 
@@ -61,6 +66,35 @@ export default function ReputationDashboard({ caseId: caseIdProp }: ReputationDa
     queryKey: ['stakeholders', effectiveCaseId],
     queryFn: () => reputationService.getStakeholders(effectiveCaseId),
     enabled: effectiveCaseId !== undefined,
+  })
+
+  const analyzeMutation = useMutation({
+    mutationFn: ({
+      caseId,
+      userDirection,
+      focusEntity,
+      focusTopic,
+    }: {
+      caseId: number
+      userDirection: string
+      focusEntity?: string
+      focusTopic?: string
+    }) =>
+      aiAnalysisService.expertReputation(caseId, {
+        user_direction: userDirection,
+        focus_entity: focusEntity,
+        focus_topic: focusTopic,
+        entity_name: focusEntity,
+      }),
+    onSuccess: (data) => {
+      setResult(data)
+      setError(null)
+      queryClient.invalidateQueries({ queryKey: ['reputation-profiles'] })
+    },
+    onError: (err: Error) => {
+      setError(err.message || 'Error en l\'anàlisi de reputació')
+      setResult(null)
+    },
   })
 
   const getScoreColor = (score: number): string => {
@@ -135,6 +169,19 @@ export default function ReputationDashboard({ caseId: caseIdProp }: ReputationDa
           </span>
         )}
       </div>
+
+      {effectiveCaseId !== undefined && (
+        <div className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
+          <h2 style={{ marginTop: 0, color: 'var(--color-primary)' }}>Anàlisi de reputació</h2>
+          <ComplementaryAnalysisForm
+            submitLabel="Executar anàlisi de reputació"
+            isPending={analyzeMutation.isPending}
+            showFocusFields
+            onSubmit={(payload) => analyzeMutation.mutate(payload)}
+          />
+          <AnalysisResultPanel title="Resultat gestor de reputació" data={result} error={error} />
+        </div>
+      )}
 
       {effectiveCaseId !== undefined && mactorActors.length > 0 && (
         <div style={{

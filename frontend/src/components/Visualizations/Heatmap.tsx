@@ -4,7 +4,7 @@ import { MapContainer, TileLayer, useMap } from 'react-leaflet'
 import { LatLngExpression } from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
-import api from '../../services/api'
+import { heatmapService } from '../../services/api'
 import './Heatmap.css'
 
 // Fix para iconos de Leaflet en React
@@ -26,7 +26,38 @@ interface HeatmapPoint {
     engagement?: number
     themes?: string[]
     dominant_theme?: string
+    source_breakdown?: Record<string, number>
   }
+}
+
+const OSINT_SOURCE_COLORS: Record<string, string> = {
+  tavily: '#78b0a1',
+  gdelt: '#4a90d9',
+  google_news: '#e8a838',
+  reddit: '#ff4500',
+  rss: '#6c757d',
+  nikkei: '#c0392b',
+  bloomberg: '#2c3e50',
+  other: '#888888',
+}
+
+const OSINT_SOURCE_LABELS: Record<string, string> = {
+  tavily: 'Tavily',
+  gdelt: 'GDELT',
+  google_news: 'Google News',
+  reddit: 'Reddit',
+  rss: 'RSS',
+  nikkei: 'Nikkei',
+  bloomberg: 'Bloomberg',
+  other: 'Altres',
+}
+
+function formatSourceBreakdown(breakdown?: Record<string, number>): string {
+  if (!breakdown || Object.keys(breakdown).length === 0) return ''
+  return Object.entries(breakdown)
+    .sort((a, b) => b[1] - a[1])
+    .map(([src, n]) => `${OSINT_SOURCE_LABELS[src] || src}: ${n}`)
+    .join(', ')
 }
 
 interface LocationRelationship {
@@ -52,6 +83,7 @@ interface HeatmapProps {
   timeRange?: { start: string; end: string }
   platform?: string
   customMetric?: string
+  isActive?: boolean
 }
 
 // Heatmap Layer Component with relationships (arrows)
@@ -91,6 +123,7 @@ function HeatmapLayer({ points, relationships }: { points: HeatmapPoint[]; relat
       
       // Add popup with metadata
       const themesList = point.metadata.themes?.join(', ') || point.metadata.dominant_theme || 'N/A'
+      const sourcesList = formatSourceBreakdown(point.metadata.source_breakdown)
       const popupContent = `
         <div style="padding: 0.5rem; min-width: 200px;">
           <strong>${point.metadata.location_name}</strong><br/>
@@ -98,6 +131,7 @@ function HeatmapLayer({ points, relationships }: { points: HeatmapPoint[]; relat
           ${point.metadata.sentiment !== undefined ? `Sentiment: ${point.metadata.sentiment.toFixed(2)}<br/>` : ''}
           ${point.metadata.engagement !== undefined ? `Engagement: ${point.metadata.engagement}<br/>` : ''}
           ${point.metadata.themes ? `Temàtiques: ${themesList}<br/>` : ''}
+          ${sourcesList ? `Fuentes OSINT: ${sourcesList}<br/>` : ''}
           Intensitat: ${(point.intensity * 100).toFixed(1)}%
         </div>
       `
@@ -123,6 +157,7 @@ function HeatmapLayer({ points, relationships }: { points: HeatmapPoint[]; relat
         const dx = toLng - fromLng
         const dy = toLat - fromLat
         const distance = Math.sqrt(dx * dx + dy * dy)
+        if (distance === 0) return
         const offset = distance * 0.1 // 10% offset for curve
         
         // Perpendicular vector
@@ -187,18 +222,19 @@ function HeatmapLayer({ points, relationships }: { points: HeatmapPoint[]; relat
   return null
 }
 
-function MapSizeHandler() {
+function MapSizeHandler({ isActive = true }: { isActive?: boolean }) {
   const map = useMap()
 
   useEffect(() => {
+    if (!isActive) return
     const resize = () => map.invalidateSize()
-    const timeout = window.setTimeout(resize, 0)
+    const timeout = window.setTimeout(resize, 80)
     window.addEventListener('resize', resize)
     return () => {
       window.clearTimeout(timeout)
       window.removeEventListener('resize', resize)
     }
-  }, [map])
+  }, [map, isActive])
 
   return null
 }
@@ -259,42 +295,32 @@ export default function Heatmap({
   granularity = 'city',
   timeRange,
   platform,
-  customMetric
+  customMetric,
+  isActive = true,
 }: HeatmapProps) {
   const [selectedPoint, setSelectedPoint] = useState<HeatmapPoint | null>(null)
 
-  // Determine endpoint based on metric type
-  const endpoint = useMemo(() => {
-    if (metricType === 'custom' && customMetric) {
-      return `/api/heatmap/${caseId}/custom?metric=${customMetric}&granularity=${granularity}`
-    }
-    return `/api/heatmap/${caseId}/${metricType}?granularity=${granularity}`
-  }, [caseId, metricType, granularity, customMetric])
-
-  // Add query params
-  const queryParams = useMemo(() => {
-    const params = new URLSearchParams()
-    params.append('granularity', granularity)
-    if (platform) params.append('platform', platform)
-    if (timeRange?.start) params.append('start_date', timeRange.start)
-    if (timeRange?.end) params.append('end_date', timeRange.end)
-    return params.toString()
-  }, [granularity, platform, timeRange])
+  const timeRangeParam =
+    timeRange?.start && timeRange?.end ? { start: timeRange.start, end: timeRange.end } : undefined
 
   const { data: heatmapData, isLoading, error } = useQuery({
-    queryKey: ['heatmap', caseId, metricType, granularity, platform, timeRange],
+    queryKey: ['heatmap', caseId, metricType, granularity, platform, timeRange, customMetric],
     queryFn: async () => {
-      // For dashboard summary, use the endpoint directly (already has granularity param)
       if (caseId === 0) {
-        const response = await api.get(endpoint)
-        return response.data
+        return heatmapService.getDashboardSummary(granularity)
       }
-      // For case-specific heatmaps, add additional query params
-      const fullUrl = queryParams ? `${endpoint}&${queryParams}` : endpoint
-      const response = await api.get(fullUrl)
-      return response.data
+      if (metricType === 'custom' && customMetric) {
+        return heatmapService.getCustom(caseId, customMetric, granularity, platform, timeRangeParam)
+      }
+      if (metricType === 'sentiment') {
+        return heatmapService.getSentiment(caseId, granularity, platform, timeRangeParam)
+      }
+      if (metricType === 'engagement') {
+        return heatmapService.getEngagement(caseId, granularity, platform, timeRangeParam)
+      }
+      return heatmapService.getPosts(caseId, granularity, platform, timeRangeParam)
     },
-    enabled: caseId !== undefined && caseId !== null
+    enabled: caseId !== undefined && caseId !== null,
   })
 
   const points: HeatmapPoint[] = heatmapData?.points || []
@@ -324,6 +350,18 @@ export default function Heatmap({
     return 12  // Municipality
   }, [points])
 
+  const globalSourceBreakdown = useMemo(() => {
+    const totals: Record<string, number> = {}
+    for (const point of points) {
+      const sb = point.metadata.source_breakdown
+      if (!sb) continue
+      for (const [src, n] of Object.entries(sb)) {
+        totals[src] = (totals[src] || 0) + n
+      }
+    }
+    return totals
+  }, [points])
+
   if (isLoading) {
     return (
       <div className="heatmap-container">
@@ -343,7 +381,21 @@ export default function Heatmap({
   if (!heatmapData || points.length === 0) {
     return (
       <div className="heatmap-container">
-        <div className="heatmap-empty">No hi ha dades disponibles per al mapa de calor</div>
+        <div className="heatmap-empty">No hi ha dades de calor per aquest cas — mapa base visible.</div>
+        <div className="heatmap-map-wrapper">
+          <MapContainer
+            center={[20, 0]}
+            zoom={2}
+            style={{ height: '500px', width: '100%' }}
+            scrollWheelZoom={true}
+          >
+            <MapSizeHandler isActive={isActive} />
+            <TileLayer
+              attribution='&copy; OpenStreetMap'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+          </MapContainer>
+        </div>
       </div>
     )
   }
@@ -366,7 +418,7 @@ export default function Heatmap({
           style={{ height: '500px', width: '100%' }}
           scrollWheelZoom={true}
         >
-          <MapSizeHandler />
+          <MapSizeHandler isActive={isActive} />
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -397,6 +449,21 @@ export default function Heatmap({
             <span style={{ color: '#20c997' }}>●</span> Medi Ambient
           </div>
         </div>
+        {Object.keys(globalSourceBreakdown).length > 0 && (
+          <div className="legend-sources">
+            <div className="legend-title">Fuentes OSINT:</div>
+            <div className="theme-items">
+              {Object.entries(globalSourceBreakdown)
+                .sort((a, b) => b[1] - a[1])
+                .map(([src, count]) => (
+                  <span key={src} style={{ marginRight: '0.75rem' }}>
+                    <span style={{ color: OSINT_SOURCE_COLORS[src] || OSINT_SOURCE_COLORS.other }}>●</span>{' '}
+                    {OSINT_SOURCE_LABELS[src] || src} ({count})
+                  </span>
+                ))}
+            </div>
+          </div>
+        )}
         {metricType === 'sentiment' && (
           <div className="legend-sentiment">
             <span style={{ color: '#28a745' }}>●</span> Positiu
@@ -425,6 +492,9 @@ export default function Heatmap({
             )}
             {selectedPoint.metadata.engagement !== undefined && (
               <div>Engagement: {selectedPoint.metadata.engagement}</div>
+            )}
+            {formatSourceBreakdown(selectedPoint.metadata.source_breakdown) && (
+              <div>Fuentes OSINT: {formatSourceBreakdown(selectedPoint.metadata.source_breakdown)}</div>
             )}
             <div>Intensitat: {(selectedPoint.intensity * 100).toFixed(1)}%</div>
           </div>

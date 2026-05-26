@@ -1,29 +1,67 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCase } from '../../contexts/CaseContext'
 import { useCasesList } from '../../hooks/useCasesList'
-import { publicAffairsService } from '../../services/api'
+import { aiAnalysisService, publicAffairsService } from '../../services/api'
+import ComplementaryAnalysisForm from '../shared/ComplementaryAnalysisForm'
+import AnalysisResultPanel from '../shared/AnalysisResultPanel'
 
 export default function PublicAffairsDashboard() {
   const { activeCase, setActiveCase } = useCase()
   const [tab, setTab] = useState<'policies' | 'stakeholders' | 'advocacy'>('policies')
+  const [result, setResult] = useState<unknown>(null)
+  const [error, setError] = useState<string | null>(null)
+  const queryClient = useQueryClient()
 
   const { data: cases } = useCasesList()
 
   const { data: policies = [], isLoading: loadingPolicies } = useQuery({
     queryKey: ['pa-policies', activeCase?.id],
     queryFn: () => publicAffairsService.getPolicies(activeCase?.id),
+    enabled: Boolean(activeCase?.id),
   })
 
   const { data: stakeholders = [], isLoading: loadingStakeholders } = useQuery({
     queryKey: ['pa-stakeholders', activeCase?.id],
-    queryFn: () => publicAffairsService.getStakeholders(activeCase?.id),
-    enabled: activeCase !== null,
+    queryFn: () => publicAffairsService.getStakeholders(activeCase!.id),
+    enabled: Boolean(activeCase?.id),
   })
 
   const { data: opportunities = [] } = useQuery({
     queryKey: ['pa-advocacy', activeCase?.id],
-    queryFn: () => publicAffairsService.getAdvocacyOpportunities(activeCase?.id),
+    queryFn: () => publicAffairsService.getAdvocacyOpportunities(activeCase!.id),
+    enabled: Boolean(activeCase?.id),
+  })
+
+  const analyzeMutation = useMutation({
+    mutationFn: ({
+      caseId,
+      userDirection,
+      focusEntity,
+      focusTopic,
+    }: {
+      caseId: number
+      userDirection: string
+      focusEntity?: string
+      focusTopic?: string
+    }) =>
+      aiAnalysisService.expertPublicAffairs(caseId, {
+        user_direction: userDirection,
+        focus_entity: focusEntity,
+        focus_topic: focusTopic,
+        policy_topic: focusTopic,
+      }),
+    onSuccess: (data) => {
+      setResult(data)
+      setError(null)
+      queryClient.invalidateQueries({ queryKey: ['pa-policies'] })
+      queryClient.invalidateQueries({ queryKey: ['pa-stakeholders'] })
+      queryClient.invalidateQueries({ queryKey: ['pa-advocacy'] })
+    },
+    onError: (err: Error) => {
+      setError(err.message || 'Error en l\'anàlisi')
+      setResult(null)
+    },
   })
 
   const TABS = [
@@ -76,6 +114,19 @@ export default function PublicAffairsDashboard() {
               oportunitats d&apos;advocacy associades.
             </p>
           </div>
+        </div>
+      )}
+
+      {activeCase && (
+        <div className="card">
+          <h2 style={{ marginTop: 0, color: 'var(--color-primary)' }}>Anàlisi d&apos;assumptes públics</h2>
+          <ComplementaryAnalysisForm
+            submitLabel="Executar anàlisi PA"
+            isPending={analyzeMutation.isPending}
+            showFocusFields
+            onSubmit={(payload) => analyzeMutation.mutate(payload)}
+          />
+          <AnalysisResultPanel title="Resultat consultor PA" data={result} error={error} />
         </div>
       )}
 

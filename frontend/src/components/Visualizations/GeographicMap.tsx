@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Popup, Circle, CircleMarker, useMap } from 'react-leaflet'
 import { LatLngExpression } from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
@@ -26,8 +26,15 @@ const DEFAULT_LAYERS: MapLayerConfig[] = [
   { id: 'markers', label: 'Ubicacions', visible: true, color: '#1e3a5f' },
   { id: 'geo_risks', label: 'Riscos geopolítics', visible: true, color: '#dc3545' },
   { id: 'events', label: 'Esdeveniments', visible: false, color: '#ff6b35' },
-  { id: 'infra', label: 'Infraestructures', visible: false, color: '#6c757d' },
+  { id: 'infra', label: 'Infraestructures', visible: true, color: '#6c757d' },
 ]
+
+const ZOOM_BY_LEVEL: Record<'world' | 'region' | 'city' | 'neighborhood', number> = {
+  world: 2,
+  region: 4,
+  city: 8,
+  neighborhood: 12,
+}
 
 const CRITICAL_INFRA_POINTS = [
   { lat: 22.3, lng: 114.2, name: 'Hong Kong', type: 'Port', icon: '🚢', country: 'Xina' },
@@ -67,6 +74,63 @@ const COUNTRY_COORDS: Record<string, [number, number]> = {
   Mexico: [19.4, -99.1],
   Japan: [35.7, 139.7],
   'Saudi Arabia': [24.7, 46.7],
+}
+
+const OSINT_SOURCE_COLORS: Record<string, string> = {
+  tavily: '#78b0a1',
+  gdelt: '#4a90d9',
+  google_news: '#e8a838',
+  reddit: '#ff4500',
+  rss: '#6c757d',
+  nikkei: '#c0392b',
+  bloomberg: '#2c3e50',
+  other: '#888888',
+}
+
+const OSINT_SOURCE_LABELS: Record<string, string> = {
+  tavily: 'Tavily',
+  gdelt: 'GDELT',
+  google_news: 'Google News',
+  reddit: 'Reddit',
+  rss: 'RSS',
+  nikkei: 'Nikkei',
+  bloomberg: 'Bloomberg',
+  other: 'Altres',
+}
+
+function getMarkerColor(type: string) {
+  const colors: Record<string, string> = {
+    country: '#FF6B35',
+    region: '#4ECDC4',
+    city: '#95E1D3',
+    neighborhood: '#F38181',
+    point: '#A8E6CF',
+  }
+  return colors[type] || '#888'
+}
+
+function getOsintSourceColor(location: Location): string {
+  const primary = location.data?.primary_osint_source as string | undefined
+  if (primary && OSINT_SOURCE_COLORS[primary]) {
+    return OSINT_SOURCE_COLORS[primary]
+  }
+  const sources = location.data?.osint_sources as Record<string, number> | undefined
+  if (sources) {
+    const top = Object.entries(sources).sort((a, b) => b[1] - a[1])[0]?.[0]
+    if (top && OSINT_SOURCE_COLORS[top]) {
+      return OSINT_SOURCE_COLORS[top]
+    }
+  }
+  return getMarkerColor(location.type)
+}
+
+function formatOsintSourceBreakdown(data?: Record<string, unknown>): string | null {
+  const sources = data?.osint_sources as Record<string, number> | undefined
+  if (!sources || Object.keys(sources).length === 0) return null
+  return Object.entries(sources)
+    .sort((a, b) => b[1] - a[1])
+    .map(([src, n]) => `${OSINT_SOURCE_LABELS[src] || src}: ${n}`)
+    .join(', ')
 }
 
 function resolveRiskCoords(risk: {
@@ -111,12 +175,46 @@ interface GeographicMapProps {
   showHeatmap?: boolean
   heatmapMetric?: 'posts' | 'sentiment' | 'engagement'
   heatmapGranularity?: 'country' | 'region' | 'city' | 'municipality'
+  /** Quan el mapa està dins una pestanya/modal, cal invalidar mida en mostrar-se */
+  isActive?: boolean
 }
 
-function MapSizeHandler() {
+function MapViewportController({
+  center,
+  zoom,
+  zoomLevel,
+  isActive = true,
+}: {
+  center: LatLngExpression
+  zoom: number
+  zoomLevel: 'world' | 'region' | 'city' | 'neighborhood'
+  isActive?: boolean
+}) {
   const map = useMap()
 
   useEffect(() => {
+    if (!isActive) return
+    const levelZoom = ZOOM_BY_LEVEL[zoomLevel] ?? zoom
+    map.setView(center, levelZoom, { animate: false })
+    const t = window.setTimeout(() => map.invalidateSize(), 80)
+    return () => window.clearTimeout(t)
+  }, [map, center, zoom, zoomLevel, isActive])
+
+  useEffect(() => {
+    if (!isActive) return
+    const resize = () => map.invalidateSize()
+    window.addEventListener('resize', resize)
+    return () => window.removeEventListener('resize', resize)
+  }, [map, isActive])
+
+  return null
+}
+
+function MapSizeHandler({ isActive = true }: { isActive?: boolean }) {
+  const map = useMap()
+
+  useEffect(() => {
+    if (!isActive) return
     const resize = () => map.invalidateSize()
     const timeout = window.setTimeout(resize, 0)
     window.addEventListener('resize', resize)
@@ -124,7 +222,7 @@ function MapSizeHandler() {
       window.clearTimeout(timeout)
       window.removeEventListener('resize', resize)
     }
-  }, [map])
+  }, [map, isActive])
 
   return null
 }
@@ -137,11 +235,12 @@ export default function GeographicMap({
   caseId,
   showHeatmap = false,
   heatmapMetric = 'posts',
-  heatmapGranularity = 'city'
+  heatmapGranularity = 'city',
+  isActive = true,
 }: GeographicMapProps) {
   const [zoomLevel, setZoomLevel] = useState<'world' | 'region' | 'city' | 'neighborhood'>('world')
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(null)
-  const [viewMode, setViewMode] = useState<'markers' | 'heatmap'>('markers')
+  const [viewMode, setViewMode] = useState<'markers' | 'heatmap'>(showHeatmap ? 'heatmap' : 'markers')
   const [layers, setLayers] = useState<MapLayerConfig[]>(DEFAULT_LAYERS)
 
   const isLayerVisible = (id: string) => layers.find((l) => l.id === id)?.visible ?? false
@@ -216,17 +315,6 @@ export default function GeographicMap({
     return grouped
   }, [locations])
 
-  const getMarkerColor = (type: string) => {
-    const colors: { [key: string]: string } = {
-      country: '#FF6B35',
-      region: '#4ECDC4',
-      city: '#95E1D3',
-      neighborhood: '#F38181',
-      point: '#A8E6CF'
-    }
-    return colors[type] || '#888'
-  }
-
   const getMarkerSize = (type: string, count?: number) => {
     const baseSize = {
       country: 15,
@@ -258,6 +346,7 @@ export default function GeographicMap({
           caseId={caseId}
           metricType={heatmapMetric}
           granularity={heatmapGranularity}
+          isActive={isActive}
         />
       </div>
     )
@@ -350,6 +439,33 @@ export default function GeographicMap({
         ))}
       </div>
 
+      <div
+        style={{
+          display: 'flex',
+          gap: 'var(--spacing-md)',
+          flexWrap: 'wrap',
+          padding: '0 0 var(--spacing-sm)',
+          fontSize: 'var(--font-size-xs)',
+          color: 'var(--color-gray-600)',
+        }}
+      >
+        <span style={{ fontWeight: 600, alignSelf: 'center' }}>Fuentes OSINT:</span>
+        {Object.entries(OSINT_SOURCE_COLORS).map(([key, color]) => (
+          <span key={key} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <span
+              style={{
+                width: 10,
+                height: 10,
+                borderRadius: '50%',
+                background: color,
+                display: 'inline-block',
+              }}
+            />
+            {OSINT_SOURCE_LABELS[key] || key}
+          </span>
+        ))}
+      </div>
+
       <div className="map-controls">
         <div className="zoom-buttons">
           <button 
@@ -395,47 +511,78 @@ export default function GeographicMap({
       </div>
 
       <div className="map-wrapper">
+        {locations.length === 0 && (
+          <p className="map-empty-hint">
+            Sense punts del cas encara — capes d&apos;infraestructura i riscos geopolítics actives.
+            Recull OSINT o extreu declaracions per omplir ubicacions.
+          </p>
+        )}
         <MapContainer
           center={mapCenter}
           zoom={mapZoom}
           style={{ height: '500px', width: '100%' }}
           scrollWheelZoom={true}
         >
-          <MapSizeHandler />
+          <MapViewportController
+            center={mapCenter}
+            zoom={mapZoom}
+            zoomLevel={zoomLevel}
+            isActive={isActive}
+          />
+          <MapSizeHandler isActive={isActive} />
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
           
           {isLayerVisible('markers') &&
-            locations.map((location) => (
-              <Marker
-                key={location.id}
-                position={[location.latitude, location.longitude]}
-                eventHandlers={{
-                  click: () => setSelectedLocation(location),
-                }}
-              >
-                <Popup>
-                  <div className="location-popup">
-                    <h4>{location.name}</h4>
-                    <p>
-                      <strong>Tipo:</strong> {location.type}
-                    </p>
-                    {location.count && (
+            locations.map((location) => {
+              const sourceColor = getOsintSourceColor(location)
+              const radius = getMarkerSize(location.type, location.count)
+              const sourceBreakdown = formatOsintSourceBreakdown(location.data)
+              return (
+                <CircleMarker
+                  key={location.id}
+                  center={[location.latitude, location.longitude]}
+                  radius={radius}
+                  pathOptions={{
+                    fillColor: sourceColor,
+                    fillOpacity: 0.85,
+                    color: sourceColor,
+                    weight: 2,
+                  }}
+                  eventHandlers={{
+                    click: () => setSelectedLocation(location),
+                  }}
+                >
+                  <Popup>
+                    <div className="location-popup">
+                      <h4>{location.name}</h4>
                       <p>
-                        <strong>Eventos:</strong> {location.count}
+                        <strong>Tipo:</strong> {location.type}
                       </p>
-                    )}
-                    {location.data && (
-                      <div className="location-data">
-                        <pre>{JSON.stringify(location.data, null, 2)}</pre>
-                      </div>
-                    )}
-                  </div>
-                </Popup>
-              </Marker>
-            ))}
+                      {location.count && (
+                        <p>
+                          <strong>Eventos:</strong> {location.count}
+                        </p>
+                      )}
+                      {sourceBreakdown && (
+                        <p>
+                          <strong>Fuentes OSINT:</strong> {sourceBreakdown}
+                        </p>
+                      )}
+                      {location.data?.primary_osint_source && (
+                        <p>
+                          <strong>Fuente principal:</strong>{' '}
+                          {OSINT_SOURCE_LABELS[String(location.data.primary_osint_source)] ||
+                            String(location.data.primary_osint_source)}
+                        </p>
+                      )}
+                    </div>
+                  </Popup>
+                </CircleMarker>
+              )
+            })}
 
           {isLayerVisible('markers') &&
             locations.map(
@@ -447,9 +594,9 @@ export default function GeographicMap({
                     center={[location.latitude, location.longitude]}
                     radius={location.count * 1000}
                     pathOptions={{
-                      fillColor: getMarkerColor(location.type),
+                      fillColor: getOsintSourceColor(location),
                       fillOpacity: 0.2,
-                      color: getMarkerColor(location.type),
+                      color: getOsintSourceColor(location),
                       weight: 2,
                     }}
                   />
