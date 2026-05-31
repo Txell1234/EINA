@@ -680,10 +680,18 @@ async def get_case_intsum(
     """Weekly intelligence digest: alerts, statements and posture highlights (additive)."""
     from services.decision_annex_service import build_case_intsum
 
-    result = await build_case_intsum(db, case_id, days=days)
-    if not result.get("found"):
+    case_r = await db.execute(select(Case).where(Case.id == case_id))
+    case = case_r.scalar_one_or_none()
+    if not case:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cas no trobat")
-    return result
+    if (
+        case.user_id is not None
+        and case.user_id != current_user.id
+        and not getattr(current_user, "is_superuser", False)
+    ):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cas no trobat")
+
+    return await build_case_intsum(db, case_id, days=days)
 
 
 @router.get("/{case_id}", response_model=CaseResponse)

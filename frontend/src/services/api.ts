@@ -147,17 +147,38 @@ export const casesService = {
     const response = await api.get(`/api/cases/${id}/intsum`, { params: { days } })
     return response.data as {
       case_id: number
+      found?: boolean
       case_name?: string
       days: number
+      has_activity?: boolean
+      period_start?: string
+      period_end?: string
       summary: {
         alert_matches: number
         new_statements: number
         posture_highlights: number
         milestone_count: number
+        alerts_shown?: number
+        statements_shown?: number
+        alerts_fallback?: boolean
+        statements_fallback?: boolean
       }
-      alerts: Array<{ id: number; title: string; monitor: string; first_seen_at?: string }>
-      statements: Array<{ id: number; actor: string; statement: string; posture_value?: number }>
-      posture_highlights: Array<{ actor: string; avg_posture: number; statement_count: number }>
+      alerts: Array<{ id: number; title: string; monitor: string; url?: string; first_seen_at?: string }>
+      statements: Array<{
+        id: number
+        actor: string
+        statement: string
+        posture_value?: number
+        topic?: string
+        signal_type?: string | null
+        extracted_at?: string | null
+      }>
+      posture_highlights: Array<{
+        actor: string
+        avg_posture: number
+        statement_count: number
+        highlight_type?: 'posture' | 'top_activity'
+      }>
       signal_breakdown?: Record<string, number>
     }
   },

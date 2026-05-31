@@ -58,3 +58,32 @@ async def test_build_case_intsum_with_case(db_session, sample_case):
     assert "summary" in result
     assert "alerts" in result
     assert "statements" in result
+    assert "has_activity" in result
+    assert "alerts_fallback" in result["summary"]
+    assert "statements_fallback" in result["summary"]
+
+
+@pytest.mark.unit
+async def test_build_case_intsum_statement_fallback(db_session, sample_case):
+    from datetime import datetime, timedelta, timezone
+    from models.extract import ExtractedStatement
+
+    old = datetime.now(timezone.utc) - timedelta(days=30)
+    db_session.add(
+        ExtractedStatement(
+            case_id=sample_case.id,
+            actor="Japó",
+            actor_type="state",
+            statement="Declaració de prova fora de la finestra de 7 dies",
+            posture_value=1,
+            cleanup_decision="KEEP",
+            extracted_at=old.replace(tzinfo=None),
+        )
+    )
+    await db_session.commit()
+
+    result = await build_case_intsum(db_session, sample_case.id, days=7)
+    assert result["summary"]["new_statements"] == 0
+    assert result["summary"]["statements_fallback"] is True
+    assert len(result["statements"]) >= 1
+    assert result["has_activity"] is True

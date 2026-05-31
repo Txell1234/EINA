@@ -80,11 +80,17 @@ export default function IntelligenceCenter() {
     enabled: selectedCaseId !== null,
   })
 
-  const { data: intsum } = useQuery({
+  const {
+    data: intsum,
+    isLoading: intsumLoading,
+    isError: intsumError,
+    refetch: refetchIntsum,
+  } = useQuery({
     queryKey: ['case-intsum', selectedCaseId],
     queryFn: () => casesService.getIntsum(selectedCaseId!, 7),
     enabled: selectedCaseId !== null,
     refetchInterval: 120_000,
+    retry: 1,
   })
 
   const status = intelStatus as IntelStatus | undefined
@@ -129,6 +135,7 @@ export default function IntelligenceCenter() {
       queryClient.invalidateQueries({ queryKey: ['intel-dashboard-metrics'] })
       queryClient.invalidateQueries({ queryKey: ['actor-impact'] })
       queryClient.invalidateQueries({ queryKey: ['statements-sentiment'] })
+      queryClient.invalidateQueries({ queryKey: ['case-intsum'] })
       setTimeout(() => setPipelineMsg(null), 6000)
     },
     onError: (err: unknown) => {
@@ -309,38 +316,136 @@ export default function IntelligenceCenter() {
               </details>
             ) : null}
 
-            {intsum?.summary ? (
+            {selectedCaseId ? (
               <section className="intel-intsum" aria-label="Resum setmanal INTSUM">
-                <h2 className="intel-intsum-title">INTSUM · últims {intsum.days} dies</h2>
-                <div className="intel-intsum-stats">
-                  <span>{intsum.summary.alert_matches} alertes</span>
-                  <span>{intsum.summary.new_statements} declaracions noves</span>
-                  <span>{intsum.summary.posture_highlights} postures destacades</span>
-                  {intsum.summary.milestone_count > 0 ? (
-                    <span>{intsum.summary.milestone_count} milestones</span>
-                  ) : null}
+                <div className="intel-intsum-head">
+                  <h2 className="intel-intsum-title">
+                    INTSUM · últims {intsum?.days ?? 7} dies
+                    {intsum?.case_name ? (
+                      <span className="intel-intsum-case"> — {intsum.case_name}</span>
+                    ) : null}
+                  </h2>
+                  <button
+                    type="button"
+                    className="intel-intsum-refresh"
+                    onClick={() => refetchIntsum()}
+                    disabled={intsumLoading}
+                    title="Actualitzar resum"
+                  >
+                    <RefreshCw size={14} className={intsumLoading ? 'spin' : ''} />
+                  </button>
                 </div>
-                {intsum.posture_highlights?.length ? (
-                  <ul className="intel-intsum-list">
-                    {intsum.posture_highlights.slice(0, 4).map((p) => (
-                      <li key={p.actor}>
-                        <strong>{p.actor}</strong> — postura mitjana {p.avg_posture} (
-                        {p.statement_count} decl.)
-                      </li>
-                    ))}
-                  </ul>
+
+                {intsumLoading && !intsum ? (
+                  <p className="intel-intsum-muted">Carregant resum d&apos;intel·ligència…</p>
                 ) : null}
-                {intsum.alerts?.length ? (
-                  <details className="intel-intsum-details">
-                    <summary>Alertes recents ({intsum.alerts.length})</summary>
-                    <ul className="intel-intsum-list">
-                      {intsum.alerts.slice(0, 5).map((a) => (
-                        <li key={a.id}>
-                          {a.title || a.monitor}
-                        </li>
-                      ))}
-                    </ul>
-                  </details>
+
+                {intsumError ? (
+                  <p className="intel-intsum-error">
+                    No s&apos;ha pogut carregar l&apos;INTSUM.{' '}
+                    <button type="button" className="intel-intsum-link" onClick={() => refetchIntsum()}>
+                      Reintentar
+                    </button>
+                  </p>
+                ) : null}
+
+                {intsum?.summary ? (
+                  <>
+                    <div className="intel-intsum-stats">
+                      <span>{intsum.summary.alert_matches} alertes (finestra)</span>
+                      <span>{intsum.summary.new_statements} declaracions noves</span>
+                      <span>{intsum.summary.posture_highlights} actors destacats</span>
+                      {intsum.summary.milestone_count > 0 ? (
+                        <span>{intsum.summary.milestone_count} milestones</span>
+                      ) : null}
+                    </div>
+
+                    {!intsum.has_activity ? (
+                      <p className="intel-intsum-muted">
+                        Cap activitat registrada en els últims {intsum.days} dies. Executa recollida
+                        OSINT i el pipeline per omplir l&apos;INTSUM.
+                      </p>
+                    ) : null}
+
+                    {intsum.summary.alerts_fallback || intsum.summary.statements_fallback ? (
+                      <p className="intel-intsum-muted intel-intsum-fallback">
+                        Sense novetats a la finestra — es mostren els registres més recents del cas.
+                      </p>
+                    ) : null}
+
+                    {intsum.signal_breakdown &&
+                    Object.keys(intsum.signal_breakdown).length > 0 ? (
+                      <div className="intel-intsum-signals">
+                        {Object.entries(intsum.signal_breakdown).map(([k, v]) =>
+                          v > 0 ? (
+                            <span key={k} className="intel-intsum-chip">
+                              {k}: {v}
+                            </span>
+                          ) : null,
+                        )}
+                      </div>
+                    ) : null}
+
+                    {intsum.posture_highlights?.length ? (
+                      <div className="intel-intsum-block">
+                        <h3 className="intel-intsum-sub">Actors</h3>
+                        <ul className="intel-intsum-list">
+                          {intsum.posture_highlights.slice(0, 5).map((p) => (
+                            <li key={p.actor}>
+                              <strong>{p.actor}</strong>
+                              {p.highlight_type === 'top_activity' ? (
+                                <> — {p.statement_count} declaracions</>
+                              ) : (
+                                <>
+                                  {' '}
+                                  — postura {p.avg_posture} ({p.statement_count} decl.)
+                                </>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+
+                    {intsum.statements?.length ? (
+                      <details className="intel-intsum-details" open={intsum.summary.new_statements > 0}>
+                        <summary>
+                          Declaracions ({intsum.statements.length}
+                          {intsum.summary.statements_fallback ? ', historial recent' : ''})
+                        </summary>
+                        <ul className="intel-intsum-list">
+                          {intsum.statements.slice(0, 6).map((s) => (
+                            <li key={s.id}>
+                              <strong>{s.actor}</strong>
+                              {s.posture_value != null ? ` [${s.posture_value}]` : ''}: {s.statement}
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    ) : null}
+
+                    {intsum.alerts?.length ? (
+                      <details className="intel-intsum-details">
+                        <summary>
+                          Alertes ({intsum.alerts.length}
+                          {intsum.summary.alerts_fallback ? ', historial recent' : ''})
+                        </summary>
+                        <ul className="intel-intsum-list">
+                          {intsum.alerts.slice(0, 6).map((a) => (
+                            <li key={a.id}>
+                              {a.url ? (
+                                <a href={a.url} target="_blank" rel="noreferrer">
+                                  {a.title || a.monitor}
+                                </a>
+                              ) : (
+                                a.title || a.monitor
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    ) : null}
+                  </>
                 ) : null}
               </section>
             ) : null}

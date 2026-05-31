@@ -26,6 +26,57 @@ def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _cutoff_naive(days: int) -> datetime:
+    """Naive UTC cutoff for reliable SQLite datetime comparisons."""
+    return (_utc_now() - timedelta(days=days)).replace(tzinfo=None)
+
+
+def _stmt_payload(s: ExtractedStatement) -> dict[str, Any]:
+    return {
+        "id": s.id,
+        "actor": s.actor,
+        "statement": (s.statement or "")[:240],
+        "posture_value": s.posture_value,
+        "topic": s.topic,
+        "signal_type": getattr(s, "signal_type", None),
+        "extracted_at": s.extracted_at.isoformat() if s.extracted_at else None,
+    }
+
+
+def _posture_highlights_from_network(net: dict[str, Any]) -> list[dict[str, Any]]:
+    actors = net.get("actors") or []
+    if not actors:
+        return []
+    ranked = sorted(
+        actors,
+        key=lambda a: abs(float(a.get("avg_posture") or 0)),
+        reverse=True,
+    )
+    strong = [
+        {
+            "actor": a.get("name"),
+            "avg_posture": a.get("avg_posture"),
+            "statement_count": a.get("statement_count"),
+            "highlight_type": "posture",
+        }
+        for a in ranked[:5]
+        if abs(float(a.get("avg_posture") or 0)) >= 0.5
+    ]
+    if strong:
+        return strong
+    by_volume = sorted(actors, key=lambda a: -(a.get("statement_count") or 0))
+    return [
+        {
+            "actor": a.get("name"),
+            "avg_posture": a.get("avg_posture"),
+            "statement_count": a.get("statement_count"),
+            "highlight_type": "top_activity",
+        }
+        for a in by_volume[:3]
+        if (a.get("statement_count") or 0) > 0
+    ]
+
+
 async def build_decision_annex(
     db: AsyncSession,
     case_id: int,
@@ -217,7 +268,8 @@ def decision_annex_html(annex: dict[str, Any]) -> str:
 async def build_case_intsum(db: AsyncSession, case_id: int, *, days: int = 7) -> dict[str, Any]:
     """Weekly-style intelligence summary for a case (does not replace dashboard)."""
     days = max(1, min(days, 90))
-    cutoff = _utc_now() - timedelta(days=days)
+    cutoff = _cutoff_naive(days)
+    period_end = _utc_now()
 
     from models.case import Case
 
@@ -226,7 +278,20 @@ async def build_case_intsum(db: AsyncSession, case_id: int, *, days: int = 7) ->
     if not case:
         return {"case_id": case_id, "found": False, "days": days}
 
-    alerts_r = await db.execute(
+    def _alert_row(match: AlertMatch, monitor: AlertMonitor) -> dict[str, Any]:
+        return {
+            "id": match.id,
+            "title": match.title,
+            "url": match.url,
+            "monitor": monitor.indicator,
+            "horizon_label": monitor.horizon_label,
+            "match_score": match.match_score,
+            "matched_keywords": match.matched_keywords or [],
+            "first_seen_at": match.first_seen_at.isoformat() if match.first_seen_at else None,
+            "status": match.status,
+        }
+
+    alerts_in_window_r = await db.execute(
         select(AlertMatch, AlertMonitor)
         .join(AlertMonitor, AlertMatch.monitor_id == AlertMonitor.id)
         .where(AlertMatch.case_id == case_id)
@@ -234,23 +299,22 @@ async def build_case_intsum(db: AsyncSession, case_id: int, *, days: int = 7) ->
         .order_by(AlertMatch.first_seen_at.desc())
         .limit(50)
     )
-    alert_items: list[dict[str, Any]] = []
-    for match, monitor in alerts_r.all():
-        alert_items.append(
-            {
-                "id": match.id,
-                "title": match.title,
-                "url": match.url,
-                "monitor": monitor.indicator,
-                "horizon_label": monitor.horizon_label,
-                "match_score": match.match_score,
-                "matched_keywords": match.matched_keywords or [],
-                "first_seen_at": match.first_seen_at.isoformat() if match.first_seen_at else None,
-                "status": match.status,
-            }
+    alerts_in_window_rows = alerts_in_window_r.all()
+    alert_items = [_alert_row(m, mon) for m, mon in alerts_in_window_rows]
+    alerts_in_window_count = len(alerts_in_window_rows)
+    alerts_fallback = False
+    if not alert_items:
+        alerts_recent_r = await db.execute(
+            select(AlertMatch, AlertMonitor)
+            .join(AlertMonitor, AlertMatch.monitor_id == AlertMonitor.id)
+            .where(AlertMatch.case_id == case_id)
+            .order_by(AlertMatch.first_seen_at.desc())
+            .limit(8)
         )
+        alert_items = [_alert_row(m, mon) for m, mon in alerts_recent_r.all()]
+        alerts_fallback = bool(alert_items)
 
-    stmts_r = await db.execute(
+    stmts_window_r = await db.execute(
         select(ExtractedStatement)
         .where(ExtractedStatement.case_id == case_id)
         .where(ExtractedStatement.extracted_at >= cutoff)
@@ -258,37 +322,22 @@ async def build_case_intsum(db: AsyncSession, case_id: int, *, days: int = 7) ->
         .order_by(ExtractedStatement.extracted_at.desc())
         .limit(40)
     )
-    statements = list(stmts_r.scalars().all())
-    stmt_items = [
-        {
-            "id": s.id,
-            "actor": s.actor,
-            "statement": (s.statement or "")[:240],
-            "posture_value": s.posture_value,
-            "topic": s.topic,
-            "signal_type": getattr(s, "signal_type", None),
-            "extracted_at": s.extracted_at.isoformat() if s.extracted_at else None,
-        }
-        for s in statements
-    ]
-
-    posture_highlights: list[dict[str, Any]] = []
-    net = await ActorNetworkService(db).build_network(case_id)
-    if net.get("found"):
-        ranked = sorted(
-            net.get("actors") or [],
-            key=lambda a: abs(float(a.get("avg_posture") or 0)),
-            reverse=True,
+    statements_in_window = list(stmts_window_r.scalars().all())
+    stmt_items = [_stmt_payload(s) for s in statements_in_window]
+    statements_fallback = False
+    if not stmt_items:
+        stmts_recent_r = await db.execute(
+            select(ExtractedStatement)
+            .where(ExtractedStatement.case_id == case_id)
+            .where(ExtractedStatement.cleanup_decision.in_(["KEEP", "PENDING"]))
+            .order_by(ExtractedStatement.extracted_at.desc())
+            .limit(8)
         )
-        for a in ranked[:5]:
-            if abs(float(a.get("avg_posture") or 0)) >= 0.5:
-                posture_highlights.append(
-                    {
-                        "actor": a.get("name"),
-                        "avg_posture": a.get("avg_posture"),
-                        "statement_count": a.get("statement_count"),
-                    }
-                )
+        stmt_items = [_stmt_payload(s) for s in stmts_recent_r.scalars().all()]
+        statements_fallback = bool(stmt_items)
+
+    net = await ActorNetworkService(db).build_network(case_id)
+    posture_highlights = _posture_highlights_from_network(net) if net.get("found") else []
 
     proj_r = await db.execute(
         select(ProspectiveProject.id)
@@ -306,21 +355,37 @@ async def build_case_intsum(db: AsyncSession, case_id: int, *, days: int = 7) ->
         )
         milestone_count = len(ms_r.all())
 
+    signal_breakdown = (net.get("summary") or {}).get("by_signal_type") or {}
+    new_statements_in_window = len(statements_in_window)
+
+    has_activity = bool(
+        alert_items
+        or stmt_items
+        or posture_highlights
+        or milestone_count
+        or any(signal_breakdown.values())
+    )
+
     return {
         "case_id": case_id,
         "found": True,
         "case_name": case.name,
         "days": days,
         "period_start": cutoff.isoformat(),
-        "period_end": _utc_now().isoformat(),
+        "period_end": period_end.isoformat(),
+        "has_activity": has_activity,
         "summary": {
-            "alert_matches": len(alert_items),
-            "new_statements": len(stmt_items),
+            "alert_matches": alerts_in_window_count,
+            "new_statements": new_statements_in_window,
             "posture_highlights": len(posture_highlights),
             "milestone_count": milestone_count,
+            "alerts_shown": len(alert_items),
+            "statements_shown": len(stmt_items),
+            "alerts_fallback": alerts_fallback,
+            "statements_fallback": statements_fallback,
         },
         "alerts": alert_items,
         "statements": stmt_items,
         "posture_highlights": posture_highlights,
-        "signal_breakdown": (net.get("summary") or {}).get("by_signal_type") or {},
+        "signal_breakdown": signal_breakdown,
     }
