@@ -28,6 +28,12 @@ class ProspectiveInquiry(Base):
     include_financial = Column(Integer, default=0)
     financial_text = Column(Text, default="")
 
+    auto_rerun_enabled = Column(Integer, default=0)
+    rerun_interval_hours = Column(Integer, default=24)
+    next_rerun_at = Column(DateTime(timezone=True), nullable=True)
+    last_rerun_at = Column(DateTime(timezone=True), nullable=True)
+    run_count = Column(Integer, default=0)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     completed_at = Column(DateTime(timezone=True), nullable=True)

@@ -155,6 +155,7 @@ def _log_startup_status() -> None:
 
 MONITOR_INTERVAL_SECONDS = settings.ALERT_MONITOR_INTERVAL_HOURS * 3600
 _monitor_batch_running = False
+_inquiry_batch_running = False
 
 
 async def _run_monitor_batch() -> None:
@@ -188,7 +189,37 @@ async def _monitor_scheduler_loop() -> None:
     await asyncio.sleep(120)
     while True:
         asyncio.create_task(_run_monitor_batch())
+        if settings.INQUIRY_SCHEDULER_ENABLED:
+            asyncio.create_task(_run_inquiry_batch())
         await asyncio.sleep(MONITOR_INTERVAL_SECONDS)
+
+
+async def _run_inquiry_batch() -> None:
+    """Re-run scheduled prospective inquiries (Q2FS)."""
+    global _inquiry_batch_running
+    if _inquiry_batch_running:
+        logger.info("Inquiry scheduler: lot anterior encara actiu, s'omet")
+        return
+
+    _inquiry_batch_running = True
+    try:
+        from app.database import AsyncSessionLocal
+        from services.inquiry_scheduler_service import InquirySchedulerService
+
+        async with AsyncSessionLocal() as db:
+            summary = await InquirySchedulerService(db).run_due_batch(limit=5)
+        if summary.get("due"):
+            logger.info(
+                "Inquiry scheduler: %d due, %d processed",
+                summary["due"],
+                summary.get("processed", 0),
+            )
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        logger.warning("Inquiry scheduler error: %s", exc)
+    finally:
+        _inquiry_batch_running = False
 
 
 @asynccontextmanager

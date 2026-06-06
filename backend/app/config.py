@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
     PORT: int = 8000
     ALERT_MONITOR_INTERVAL_HOURS: int = 6
+    INQUIRY_SCHEDULER_INTERVAL_HOURS: int = 6
+    INQUIRY_SCHEDULER_ENABLED: bool = True
 
     # Database
     DATABASE_URL: str = "sqlite+aiosqlite:///./osint_platform.db"

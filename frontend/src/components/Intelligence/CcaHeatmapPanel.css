@@ -1,0 +1,38 @@
+.cca-heatmap {
+  font-size: 0.85rem;
+}
+
+.cca-heatmap__params {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.cca-heatmap__param {
+  padding: 0.25rem 0.5rem;
+  background: var(--color-gray-100, #f5f5f5);
+  border-radius: 4px;
+}
+
+.cca-heatmap table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.cca-heatmap th,
+.cca-heatmap td {
+  border: 1px solid var(--border-color, #ddd);
+  padding: 0.35rem 0.5rem;
+}
+
+.cca-heatmap__bad {
+  color: #c62828;
+  font-weight: 600;
+}
+
+.cca-heatmap__empty,
+.cca-heatmap__more {
+  color: var(--text-muted, #666);
+  font-size: 0.85rem;
+}

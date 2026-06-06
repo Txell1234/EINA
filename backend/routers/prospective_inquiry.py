@@ -34,6 +34,11 @@ class ApplyMonitorsIn(BaseModel):
     project_id: int
 
 
+class InquiryScheduleIn(BaseModel):
+    enabled: bool
+    interval_hours: int = Field(24, ge=1, le=168)
+
+
 @router.get("/case/{case_id}")
 async def list_inquiries_for_case(
     case_id: int,
@@ -93,6 +98,63 @@ async def run_inquiry_stream(
             yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(event_gen(), media_type="text/event-stream")
+
+
+@router.post("/{inquiry_id}/rerun")
+async def rerun_inquiry_stream(
+    inquiry_id: int,
+    force_refresh: bool = Query(True, description="Refrescar OSINT i pipeline en el re-run"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _ = current_user
+    svc = InquiryOrchestratorService(db)
+    prep = await svc.prepare_rerun(inquiry_id)
+    if not prep.get("ok"):
+        raise HTTPException(status_code=404, detail=prep.get("error", "Not found"))
+
+    async def event_gen():
+        async for event in svc.run_stream(inquiry_id, force_refresh=force_refresh):
+            yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(event_gen(), media_type="text/event-stream")
+
+
+@router.patch("/{inquiry_id}/schedule")
+async def set_inquiry_schedule(
+    inquiry_id: int,
+    body: InquiryScheduleIn,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _ = current_user
+    result = await InquiryOrchestratorService(db).set_schedule(
+        inquiry_id,
+        enabled=body.enabled,
+        interval_hours=body.interval_hours,
+    )
+    if not result.get("ok"):
+        raise HTTPException(status_code=404, detail=result.get("error", "Not found"))
+    return result
+
+
+@router.get("/{inquiry_id}/audit")
+async def get_inquiry_audit(
+    inquiry_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _ = current_user
+    detail = await InquiryOrchestratorService(db).get_detail(inquiry_id)
+    if not detail.get("found"):
+        raise HTTPException(status_code=404, detail="Inquiry no trobada")
+    return {
+        "inquiry_id": inquiry_id,
+        "run_count": detail.get("run_count"),
+        "audit_trail": detail.get("audit_trail") or [],
+        "answer_diff": detail.get("answer_diff"),
+        "answer_history_count": len(detail.get("answer_history") or []),
+    }
 
 
 @router.get("/{inquiry_id}/morph-bootstrap")

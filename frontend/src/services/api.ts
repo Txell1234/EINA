@@ -903,7 +903,32 @@ export const prospectiveInquiryService = {
     if (!res.ok || !res.body) {
       throw new Error(`Inquiry run failed: ${res.status}`)
     }
-    const reader = res.body.getReader()
+    await prospectiveInquiryService._consumeSse(res, onEvent)
+  },
+  rerunStream: async (
+    inquiryId: number,
+    onEvent: (event: Record<string, unknown>) => void,
+    options?: { forceRefresh?: boolean },
+  ): Promise<void> => {
+    const token = localStorage.getItem('token')
+    const base = API_BASE_URL.replace(/\/$/, '')
+    const qs = options?.forceRefresh === false ? '?force_refresh=false' : '?force_refresh=true'
+    const res = await fetch(`${base}/api/prospective/inquiries/${inquiryId}/rerun${qs}`, {
+      method: 'POST',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    })
+    if (!res.ok || !res.body) {
+      throw new Error(`Inquiry rerun failed: ${res.status}`)
+    }
+    await prospectiveInquiryService._consumeSse(res, onEvent)
+  },
+  _consumeSse: async (
+    res: Response,
+    onEvent: (event: Record<string, unknown>) => void,
+  ): Promise<void> => {
+    const reader = res.body!.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
     while (true) {
@@ -922,6 +947,17 @@ export const prospectiveInquiryService = {
         }
       }
     }
+  },
+  setSchedule: async (inquiryId: number, enabled: boolean, intervalHours: number) => {
+    const response = await api.patch(`/api/prospective/inquiries/${inquiryId}/schedule`, {
+      enabled,
+      interval_hours: intervalHours,
+    })
+    return response.data
+  },
+  getAudit: async (inquiryId: number) => {
+    const response = await api.get(`/api/prospective/inquiries/${inquiryId}/audit`)
+    return response.data
   },
   synthesize: async (inquiryId: number) => {
     const response = await api.post(`/api/prospective/inquiries/${inquiryId}/synthesize`)

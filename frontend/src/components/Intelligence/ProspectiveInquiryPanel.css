@@ -80,3 +80,13 @@
   margin-top: 0.75rem;
   font-size: 0.9rem;
 }
+
+.prospective-inquiry-panel__hours {
+  width: 3.5rem;
+  margin-left: 0.35rem;
+}
+
+.prospective-inquiry-panel__diff {
+  font-size: 0.9rem;
+  color: var(--color-primary, #1565c0);
+}

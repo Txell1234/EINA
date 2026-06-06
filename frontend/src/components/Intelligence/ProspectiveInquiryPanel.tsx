@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { prospectiveInquiryService } from '../../services/api'
+import CcaHeatmapPanel, { type CcaCell } from './CcaHeatmapPanel'
 import './ProspectiveInquiryPanel.css'
 
 type ProspectiveInquiryPanelProps = {
@@ -22,85 +23,121 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
   const [question, setQuestion] = useState('')
   const [mode, setMode] = useState<'full' | 'lite'>('full')
   const [forceRefresh, setForceRefresh] = useState(false)
+  const [autoRerun, setAutoRerun] = useState(false)
+  const [rerunHours, setRerunHours] = useState(24)
   const [steps, setSteps] = useState<StepState[]>([])
   const [answer, setAnswer] = useState<Record<string, unknown> | null>(null)
+  const [answerDiff, setAnswerDiff] = useState<Record<string, unknown> | null>(null)
   const [awaitingGodet, setAwaitingGodet] = useState(false)
   const [lastInquiryId, setLastInquiryId] = useState<number | null>(null)
   const [morphPreview, setMorphPreview] = useState<Array<Record<string, unknown>>>([])
   const [monitorSuggestions, setMonitorSuggestions] = useState<Array<Record<string, unknown>>>([])
   const [wizardProjectId, setWizardProjectId] = useState<number | null>(null)
-  const [ccaCells, setCcaCells] = useState<Array<Record<string, unknown>>>([])
+  const [ccaCells, setCcaCells] = useState<CcaCell[]>([])
+  const [ccaParameters, setCcaParameters] = useState<
+    Array<{ code: string; name: string; states: string[] }>
+  >([])
 
   const { data: inquiries = [] } = useQuery({
     queryKey: ['prospective-inquiries', caseId],
     queryFn: () => prospectiveInquiryService.listForCase(caseId),
   })
 
+  const handleStreamEvent = (event: Record<string, unknown>) => {
+    if (event.event === 'step') {
+      const detail =
+        event.mode != null
+          ? `mode=${String(event.mode)}`
+          : event.companies != null
+            ? `empreses=${String(event.companies)}`
+            : event.valid_combinations != null
+              ? `combinacions=${String(event.valid_combinations)}`
+              : event.count != null
+                ? `monitors=${String(event.count)}`
+                : undefined
+      setSteps((prev) => {
+        const idx = prev.findIndex((s) => s.step === event.step)
+        const row: StepState = {
+          step: String(event.step),
+          status: String(event.status),
+          cached: Boolean(event.cached),
+          detail,
+        }
+        if (idx >= 0) {
+          const next = [...prev]
+          next[idx] = row
+          return next
+        }
+        return [...prev, row]
+      })
+      if (event.step === 'morph_bootstrap' && Array.isArray(event.godet_preview)) {
+        setMorphPreview(event.godet_preview as Array<Record<string, unknown>>)
+      }
+      if (event.step === 'monitors' && Array.isArray(event.suggested_monitors)) {
+        setMonitorSuggestions(event.suggested_monitors as Array<Record<string, unknown>>)
+      }
+    }
+    if (event.event === 'awaiting_godet') {
+      setAwaitingGodet(true)
+      const mb = event.morph_bootstrap as Record<string, unknown> | undefined
+      if (mb && Array.isArray(mb.godet_preview)) {
+        setMorphPreview(mb.godet_preview as Array<Record<string, unknown>>)
+      }
+    }
+    if (event.event === 'done') {
+      setAnswer(event.answer as Record<string, unknown>)
+      if (event.answer_diff) setAnswerDiff(event.answer_diff as Record<string, unknown>)
+    }
+  }
+
+  const resetRunState = () => {
+    setSteps([])
+    setAnswer(null)
+    setAnswerDiff(null)
+    setAwaitingGodet(false)
+    setMorphPreview([])
+    setMonitorSuggestions([])
+    setCcaCells([])
+    setCcaParameters([])
+  }
+
   const runMutation = useMutation({
     mutationFn: async () => {
-      setSteps([])
-      setAnswer(null)
-      setAwaitingGodet(false)
-      setMorphPreview([])
-      setMonitorSuggestions([])
-      setCcaCells([])
+      resetRunState()
       const created = await prospectiveInquiryService.create({
         case_id: caseId,
         question: question.trim(),
         mode,
       })
       setLastInquiryId(created.inquiry_id)
-      await prospectiveInquiryService.runStream(
-        created.inquiry_id,
-        (event) => {
-          if (event.event === 'step') {
-            const detail =
-              event.mode != null
-                ? `mode=${String(event.mode)}`
-                : event.companies != null
-                  ? `empreses=${String(event.companies)}`
-                  : event.valid_combinations != null
-                    ? `combinacions=${String(event.valid_combinations)}`
-                    : event.count != null
-                      ? `monitors=${String(event.count)}`
-                      : undefined
-            setSteps((prev) => {
-              const idx = prev.findIndex((s) => s.step === event.step)
-              const row: StepState = {
-                step: String(event.step),
-                status: String(event.status),
-                cached: Boolean(event.cached),
-                detail,
-              }
-              if (idx >= 0) {
-                const next = [...prev]
-                next[idx] = row
-                return next
-              }
-              return [...prev, row]
-            })
-            if (event.step === 'morph_bootstrap' && Array.isArray(event.godet_preview)) {
-              setMorphPreview(event.godet_preview as Array<Record<string, unknown>>)
-            }
-            if (event.step === 'monitors' && Array.isArray(event.suggested_monitors)) {
-              setMonitorSuggestions(event.suggested_monitors as Array<Record<string, unknown>>)
-            }
-          }
-          if (event.event === 'awaiting_godet') {
-            setAwaitingGodet(true)
-            const mb = event.morph_bootstrap as Record<string, unknown> | undefined
-            if (mb && Array.isArray(mb.godet_preview)) {
-              setMorphPreview(mb.godet_preview as Array<Record<string, unknown>>)
-            }
-          }
-          if (event.event === 'done') {
-            setAnswer(event.answer as Record<string, unknown>)
-          }
-        },
-        { forceRefresh },
-      )
+      await prospectiveInquiryService.runStream(created.inquiry_id, handleStreamEvent, {
+        forceRefresh,
+      })
+      if (autoRerun) {
+        await prospectiveInquiryService.setSchedule(created.inquiry_id, true, rerunHours)
+      }
       return created.inquiry_id
     },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['prospective-inquiries', caseId] })
+    },
+  })
+
+  const rerunMutation = useMutation({
+    mutationFn: async (inquiryId: number) => {
+      resetRunState()
+      setLastInquiryId(inquiryId)
+      await prospectiveInquiryService.rerunStream(inquiryId, handleStreamEvent, { forceRefresh })
+      return inquiryId
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['prospective-inquiries', caseId] })
+    },
+  })
+
+  const scheduleMutation = useMutation({
+    mutationFn: ({ inquiryId, enabled }: { inquiryId: number; enabled: boolean }) =>
+      prospectiveInquiryService.setSchedule(inquiryId, enabled, rerunHours),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['prospective-inquiries', caseId] })
     },
@@ -110,6 +147,7 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
     mutationFn: (inquiryId: number) => prospectiveInquiryService.synthesize(inquiryId),
     onSuccess: (data) => {
       setAnswer(data.answer as Record<string, unknown>)
+      if (data.answer_diff) setAnswerDiff(data.answer_diff as Record<string, unknown>)
       setAwaitingGodet(false)
       setLastInquiryId(data.inquiry_id as number)
       void queryClient.invalidateQueries({ queryKey: ['prospective-inquiries', caseId] })
@@ -135,8 +173,9 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
   const heatmapMutation = useMutation({
     mutationFn: (inquiryId: number) => prospectiveInquiryService.ccaHeatmap(inquiryId),
     onSuccess: (data) => {
-      const cells = (data.cca_heatmap as { cells?: Array<Record<string, unknown>> })?.cells
-      if (Array.isArray(cells)) setCcaCells(cells)
+      const heat = data.cca_heatmap as { cells?: CcaCell[]; parameters?: typeof ccaParameters }
+      if (Array.isArray(heat?.cells)) setCcaCells(heat.cells)
+      if (Array.isArray(heat?.parameters)) setCcaParameters(heat.parameters)
     },
   })
 
@@ -153,11 +192,12 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
       <header>
         <h3>Pregunta analítica (Q2FS)</h3>
         <p className="prospective-inquiry-panel__sub">
-          La pregunta dispara recollida OSINT <strong>filtrada</strong>, pipeline d&apos;intel·ligència,
-          capa financer (Policy×Indústria lite o crossover complet), suggeriments morfològics i síntesi
-          traçable.
+          La pregunta dispara recollida OSINT filtrada, pipeline, finances, morph, monitors i síntesi
+          traçable. Re-runs programats opcionals.
         </p>
-        <span className="prospective-inquiry-panel__badge">Scope must-match · Financial sempre actiu</span>
+        <span className="prospective-inquiry-panel__badge">
+          Scope must-match · Audit trail · Scheduler
+        </span>
       </header>
 
       <textarea
@@ -183,6 +223,24 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
           />
           Forçar reexecució (ignorar cache)
         </label>
+        <label className="prospective-inquiry-panel__check">
+          <input
+            type="checkbox"
+            checked={autoRerun}
+            onChange={(e) => setAutoRerun(e.target.checked)}
+          />
+          Auto re-run
+          <input
+            type="number"
+            min={1}
+            max={168}
+            value={rerunHours}
+            onChange={(e) => setRerunHours(Number(e.target.value) || 24)}
+            disabled={!autoRerun}
+            className="prospective-inquiry-panel__hours"
+          />
+          h
+        </label>
         <button
           type="button"
           className="btn btn-primary"
@@ -192,6 +250,35 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
           {runMutation.isPending ? 'Executant…' : 'Llançar inquiry'}
         </button>
       </div>
+
+      {exportId && (
+        <div className="prospective-inquiry-panel__row">
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={rerunMutation.isPending}
+            onClick={() => rerunMutation.mutate(exportId)}
+          >
+            {rerunMutation.isPending ? 'Reexecutant…' : `Re-run inquiry #${exportId}`}
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={scheduleMutation.isPending}
+            onClick={() => scheduleMutation.mutate({ inquiryId: exportId, enabled: true })}
+          >
+            Activar scheduler
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={scheduleMutation.isPending}
+            onClick={() => scheduleMutation.mutate({ inquiryId: exportId, enabled: false })}
+          >
+            Desactivar scheduler
+          </button>
+        </div>
+      )}
 
       {steps.length > 0 && (
         <div className="prospective-inquiry-panel__steps">
@@ -249,64 +336,37 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
             </tbody>
           </table>
           {exportId && (
-            <button
-              type="button"
-              className="btn btn-secondary"
-              disabled={morphMutation.isPending}
-              onClick={() => morphMutation.mutate(exportId)}
-            >
-              Actualitzar morph bootstrap
-            </button>
-          )}
-          {exportId && (
-            <button
-              type="button"
-              className="btn btn-secondary"
-              disabled={wizardMutation.isPending}
-              onClick={() => wizardMutation.mutate(exportId)}
-            >
-              {wizardMutation.isPending ? 'Sembrant…' : 'Aplicar al wizard Godet'}
-            </button>
+            <>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={wizardMutation.isPending}
+                onClick={() => wizardMutation.mutate(exportId)}
+              >
+                {wizardMutation.isPending ? 'Sembrant…' : 'Aplicar al wizard Godet'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={heatmapMutation.isPending}
+                onClick={() => heatmapMutation.mutate(exportId)}
+              >
+                Carregar heatmap CCA
+              </button>
+            </>
           )}
           {wizardProjectId && (
             <p className="prospective-inquiry-panel__sub">
               Projecte #{wizardProjectId} — continua MIC-MAC/MACTOR a Anàlisi Prospectiva.
             </p>
           )}
-          {exportId && (
-            <button
-              type="button"
-              className="btn btn-secondary"
-              disabled={heatmapMutation.isPending}
-              onClick={() => heatmapMutation.mutate(exportId)}
-            >
-              Carregar heatmap CCA
-            </button>
-          )}
         </details>
       )}
 
-      {ccaCells.length > 0 && (
-        <details className="prospective-inquiry-panel__morph">
-          <summary>Heatmap CCA (inconsistències)</summary>
-          <table>
-            <thead>
-              <tr>
-                <th>A</th>
-                <th>B</th>
-                <th>Valor</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ccaCells.filter((c) => c.value === -1).slice(0, 12).map((c) => (
-                <tr key={`${String(c.param_a)}-${String(c.state_a)}-${String(c.param_b)}`}>
-                  <td>{String(c.param_a)}/{String(c.state_a)}</td>
-                  <td>{String(c.param_b)}/{String(c.state_b)}</td>
-                  <td>{String(c.value)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {(ccaCells.length > 0 || ccaParameters.length > 0) && (
+        <details open className="prospective-inquiry-panel__morph">
+          <summary>Heatmap CCA (Zwicky)</summary>
+          <CcaHeatmapPanel cells={ccaCells} parameters={ccaParameters} />
         </details>
       )}
 
@@ -329,6 +389,12 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
             {String(answer.possibility ?? '—')}
             {answer.financial_mode != null ? ` · Financial: ${String(answer.financial_mode)}` : ''}
           </p>
+          {answerDiff && answerDiff.probability_delta != null && (
+            <p className="prospective-inquiry-panel__diff">
+              Δ probabilitat vs run anterior: {String(answerDiff.probability_delta)} pts
+              {answerDiff.possibility_changed ? ' · possibilitat canviada' : ''}
+            </p>
+          )}
           {reasoning.length > 0 && (
             <ul>
               {reasoning.map((r) => (
@@ -359,7 +425,7 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
             target="_blank"
             rel="noreferrer"
           >
-            Exportar informe HTML (inquiry #{exportId})
+            Exportar HTML (#{exportId})
           </a>
           {' · '}
           <a
@@ -376,9 +442,19 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
         <details>
           <summary>Inquiries anteriors ({inquiries.length})</summary>
           <ul>
-            {(inquiries as Array<{ id: number; question: string; status: string }>).map((i) => (
+            {(inquiries as Array<{
+              id: number
+              question: string
+              status: string
+              auto_rerun_enabled?: boolean
+              next_rerun_at?: string
+              run_count?: number
+            }>).map((i) => (
               <li key={i.id}>
-                #{i.id} [{i.status}] {i.question.slice(0, 80)}…
+                #{i.id} [{i.status}] runs={i.run_count ?? 0}
+                {i.auto_rerun_enabled ? ` · scheduler ${i.next_rerun_at ?? ''}` : ''}
+                {' — '}
+                {i.question.slice(0, 60)}…
               </li>
             ))}
           </ul>

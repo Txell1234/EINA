@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, AsyncGenerator
 
 from sqlalchemy import select
@@ -13,6 +13,8 @@ from models.prospective import ProspectiveProject, ProspectiveScenario, SMICResu
 from models.prospective_inquiry import ProspectiveInquiry
 from services.analysis_scope_service import merge_scope_into_query_params, resolve_scope_for_case
 from services.actor_impact_service import ActorImpactService
+from services.inquiry_audit_service import InquiryAuditService
+from services.inquiry_compare_service import compare_inquiry_answers
 from services.inquiry_financial_service import InquiryFinancialService
 from services.inquiry_monitor_service import InquiryMonitorService
 from services.inquiry_scope import build_inquiry_scope
@@ -41,6 +43,89 @@ _STEP_KEYS = (
 class InquiryOrchestratorService:
     def __init__(self, db: AsyncSession):
         self.db = db
+
+    def _audit(self, artifacts: dict[str, Any]) -> InquiryAuditService:
+        return InquiryAuditService(artifacts)
+
+    async def prepare_rerun(self, inquiry_id: int) -> dict[str, Any]:
+        inquiry = await self._get_inquiry(inquiry_id)
+        if not inquiry:
+            return {"ok": False, "error": "Inquiry no trobada"}
+
+        artifacts = self._artifacts(inquiry)
+        audit = self._audit(artifacts)
+        run_n = audit.begin_run()
+
+        if inquiry.answer:
+            history = list(artifacts.get("answer_history") or [])
+            history.append(
+                {
+                    "run_number": run_n - 1 if run_n > 1 else inquiry.run_count or 0,
+                    "answer": inquiry.answer,
+                    "completed_at": inquiry.completed_at.isoformat() if inquiry.completed_at else None,
+                }
+            )
+            artifacts["answer_history"] = history[-20:]
+
+        inquiry.status = "pending"
+        inquiry.error_message = ""
+        inquiry.run_count = (inquiry.run_count or 0) + 1
+        inquiry.last_rerun_at = datetime.now(timezone.utc)
+        artifacts["audit_trail"] = audit.trail()
+        inquiry.artifacts = artifacts
+        await self.db.commit()
+        return {"ok": True, "inquiry_id": inquiry.id, "run_number": run_n}
+
+    async def run_batch(self, inquiry_id: int, *, force_refresh: bool = True) -> dict[str, Any]:
+        """Non-SSE run for scheduler — collects final status."""
+        await self.prepare_rerun(inquiry_id)
+        last: dict[str, Any] = {"status": "unknown"}
+        async for event in self.run_stream(inquiry_id, force_refresh=force_refresh):
+            last = event
+        return {
+            "status": last.get("status") or last.get("event"),
+            "inquiry_id": inquiry_id,
+            "event": last.get("event"),
+        }
+
+    async def set_schedule(
+        self,
+        inquiry_id: int,
+        *,
+        enabled: bool,
+        interval_hours: int = 24,
+    ) -> dict[str, Any]:
+        inquiry = await self._get_inquiry(inquiry_id)
+        if not inquiry:
+            return {"ok": False, "error": "Inquiry no trobada"}
+
+        hours = max(1, min(interval_hours, 168))
+        inquiry.auto_rerun_enabled = 1 if enabled else 0
+        inquiry.rerun_interval_hours = hours
+        if enabled:
+            inquiry.next_rerun_at = datetime.now(timezone.utc) + timedelta(hours=hours)
+        else:
+            inquiry.next_rerun_at = None
+
+        artifacts = self._artifacts(inquiry)
+        self._audit(artifacts).log_event(
+            "schedule_updated",
+            {"enabled": enabled, "interval_hours": hours},
+        )
+        inquiry.artifacts = artifacts
+        await self.db.commit()
+        return {
+            "ok": True,
+            "inquiry_id": inquiry.id,
+            "auto_rerun_enabled": bool(inquiry.auto_rerun_enabled),
+            "rerun_interval_hours": hours,
+            "next_rerun_at": inquiry.next_rerun_at.isoformat() if inquiry.next_rerun_at else None,
+        }
+
+    async def _schedule_next_if_enabled(self, inquiry: ProspectiveInquiry) -> None:
+        if inquiry.auto_rerun_enabled and inquiry.rerun_interval_hours:
+            hours = max(1, min(inquiry.rerun_interval_hours or 24, 168))
+            inquiry.next_rerun_at = datetime.now(timezone.utc) + timedelta(hours=hours)
 
     async def _get_inquiry(self, inquiry_id: int) -> ProspectiveInquiry | None:
         r = await self.db.execute(select(ProspectiveInquiry).where(ProspectiveInquiry.id == inquiry_id))
@@ -256,6 +341,11 @@ class InquiryOrchestratorService:
 
         artifacts = self._artifacts(inquiry)
         parsed = inquiry.parsed_trigger or {}
+        audit = self._audit(artifacts)
+        if audit.run_number() == 0:
+            audit.begin_run()
+            artifacts = audit.artifacts
+            inquiry.artifacts = artifacts
 
         try:
             # --- parse ---
@@ -488,6 +578,10 @@ class InquiryOrchestratorService:
 
             if inquiry.mode == "full" and not godet_ready:
                 inquiry.status = "awaiting_godet"
+                await self._schedule_next_if_enabled(inquiry)
+                audit.log_event("awaiting_godet", {"godet_ready": False})
+                artifacts["audit_trail"] = audit.trail()
+                inquiry.artifacts = artifacts
                 await self.db.commit()
                 yield {
                     "event": "awaiting_godet",
@@ -518,18 +612,37 @@ class InquiryOrchestratorService:
                 scope_audit=inquiry.scope_audit,
                 godet_ready=godet_ready,
             )
+            prev_answer = None
+            history = artifacts.get("answer_history") or []
+            if history:
+                prev_answer = history[-1].get("answer")
+            diff = compare_inquiry_answers(prev_answer, answer)
+            artifacts["answer_diff"] = diff
+            audit.log_event("synthesis_completed", {"probability_pct": answer.get("probability_pct")})
+            artifacts["audit_trail"] = audit.trail()
+
             inquiry.answer = answer
             inquiry.status = "completed"
             inquiry.completed_at = datetime.now(timezone.utc)
             self._cache_step(artifacts, "synthesis", {"ok": True, "answer": answer})
             inquiry.artifacts = artifacts
+            await self._schedule_next_if_enabled(inquiry)
             await self.db.commit()
             await self._append_step(inquiry, {"step": "synthesis", "ok": True})
 
-            yield {"event": "done", "inquiry_id": inquiry.id, "status": "completed", "answer": answer}
+            yield {
+                "event": "done",
+                "inquiry_id": inquiry.id,
+                "status": "completed",
+                "answer": answer,
+                "answer_diff": diff,
+            }
 
         except Exception as exc:
             logger.exception("Inquiry %s failed: %s", inquiry_id, exc)
+            audit = self._audit(self._artifacts(inquiry))
+            audit.log_event("run_failed", {"error": str(exc)[:200]})
+            inquiry.artifacts = audit.artifacts
             inquiry.status = "failed"
             inquiry.error_message = str(exc)[:500]
             await self.db.commit()
@@ -596,9 +709,24 @@ class InquiryOrchestratorService:
         inquiry.answer = answer
         inquiry.status = "completed"
         inquiry.completed_at = datetime.now(timezone.utc)
+        prev_answer = None
+        history = artifacts.get("answer_history") or []
+        if history:
+            prev_answer = history[-1].get("answer")
+        artifacts["answer_diff"] = compare_inquiry_answers(prev_answer, answer)
+        audit = self._audit(artifacts)
+        audit.log_event("synthesis_completed", {"probability_pct": answer.get("probability_pct"), "manual": True})
+        artifacts["audit_trail"] = audit.trail()
         inquiry.artifacts = artifacts
+        await self._schedule_next_if_enabled(inquiry)
         await self.db.commit()
-        return {"found": True, "inquiry_id": inquiry.id, "answer": answer, "godet_ready": godet_ready}
+        return {
+            "found": True,
+            "inquiry_id": inquiry.id,
+            "answer": answer,
+            "godet_ready": godet_ready,
+            "answer_diff": artifacts.get("answer_diff"),
+        }
 
     async def list_for_case(self, case_id: int) -> list[dict[str, Any]]:
         r = await self.db.execute(
@@ -615,6 +743,9 @@ class InquiryOrchestratorService:
                 "created_at": row.created_at.isoformat() if row.created_at else None,
                 "completed_at": row.completed_at.isoformat() if row.completed_at else None,
                 "has_answer": bool(row.answer),
+                "auto_rerun_enabled": bool(row.auto_rerun_enabled),
+                "next_rerun_at": row.next_rerun_at.isoformat() if row.next_rerun_at else None,
+                "run_count": row.run_count or 0,
             }
             for row in r.scalars().all()
         ]
@@ -637,4 +768,12 @@ class InquiryOrchestratorService:
             "artifacts": inquiry.artifacts,
             "answer": inquiry.answer,
             "error_message": inquiry.error_message,
+            "auto_rerun_enabled": bool(inquiry.auto_rerun_enabled),
+            "rerun_interval_hours": inquiry.rerun_interval_hours,
+            "next_rerun_at": inquiry.next_rerun_at.isoformat() if inquiry.next_rerun_at else None,
+            "last_rerun_at": inquiry.last_rerun_at.isoformat() if inquiry.last_rerun_at else None,
+            "run_count": inquiry.run_count or 0,
+            "audit_trail": (inquiry.artifacts or {}).get("audit_trail"),
+            "answer_diff": (inquiry.artifacts or {}).get("answer_diff"),
+            "answer_history": (inquiry.artifacts or {}).get("answer_history"),
         }
