@@ -77,6 +77,7 @@ type TranslationKeys =
   | 'nav.mactor'
   | 'nav.morph'
   | 'nav.scenarios'
+  | 'nav.inquiries'
   | 'nav.intelligence'
   | 'nav.alerts'
   | 'nav.alertMonitors'
@@ -178,6 +179,7 @@ const translations: Record<SupportedLocale, Translations> = {
     'nav.mactor': '5. MACTOR',
     'nav.morph': '6. Morphological',
     'nav.scenarios': '7. Scenarios & export',
+    'nav.inquiries': 'Q2FS Inquiries',
     'nav.intelligence': 'Intelligence Unit',
     'nav.reputation': 'Reputation',
     'nav.publicAffairs': 'Public affairs',
@@ -276,6 +278,7 @@ const translations: Record<SupportedLocale, Translations> = {
     'nav.mactor': '5. MACTOR',
     'nav.morph': '6. Morfológico',
     'nav.scenarios': '7. Escenarios y exportación',
+    'nav.inquiries': 'Inquiries Q2FS',
     'nav.intelligence': 'Unidad de Inteligencia',
     'nav.reputation': 'Reputación',
     'nav.publicAffairs': 'Asuntos públicos',
@@ -374,6 +377,7 @@ const translations: Record<SupportedLocale, Translations> = {
     'nav.mactor': '5. MACTOR',
     'nav.morph': '6. Morfològic',
     'nav.scenarios': '7. Escenaris i exportació',
+    'nav.inquiries': 'Inquiries Q2FS',
     'nav.intelligence': 'Intelligence Unit',
     'nav.reputation': 'Reputació',
     'nav.publicAffairs': 'Assumptes públics',
@@ -472,6 +476,7 @@ const translations: Record<SupportedLocale, Translations> = {
     'nav.mactor': '5. MACTOR',
     'nav.morph': '6. Morphologique',
     'nav.scenarios': '7. Scénarios et export',
+    'nav.inquiries': 'Inquiries Q2FS',
     'nav.intelligence': 'Unité de renseignement',
     'nav.reputation': 'Réputation',
     'nav.publicAffairs': 'Affaires publiques',

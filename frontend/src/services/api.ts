@@ -868,6 +868,36 @@ export const intelligenceService = {
 }
 
 export const prospectiveInquiryService = {
+  dashboard: async (params?: { status?: string; caseId?: number; scheduledOnly?: boolean; limit?: number }) => {
+    const qs = new URLSearchParams()
+    if (params?.status) qs.set('status', params.status)
+    if (params?.caseId) qs.set('case_id', String(params.caseId))
+    if (params?.scheduledOnly) qs.set('scheduled_only', 'true')
+    if (params?.limit) qs.set('limit', String(params.limit))
+    const q = qs.toString()
+    const response = await api.get(`/api/prospective/inquiries/dashboard${q ? `?${q}` : ''}`)
+    return response.data
+  },
+  exportBatch: async (ids: number[]) => {
+    const token = localStorage.getItem('token')
+    const base = API_BASE_URL.replace(/\/$/, '')
+    const res = await fetch(
+      `${base}/api/prospective/inquiries/export/batch?ids=${ids.join(',')}`,
+      {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      },
+    )
+    if (!res.ok) throw new Error(`Export batch failed: ${res.status}`)
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `inquiries_batch_${Date.now()}.zip`
+    a.click()
+    URL.revokeObjectURL(url)
+  },
   compareForCase: async (caseId: number, ids?: number[]) => {
     const qs = ids?.length ? `?ids=${ids.join(',')}` : ''
     const response = await api.get(`/api/prospective/inquiries/case/${caseId}/compare${qs}`)
@@ -1488,6 +1518,15 @@ export const prospectiveService = {
     })
     return response.data
   },
+  getCompatibilities: async (projectId: number) => {
+    const response = await api.get(`/api/prospective/projects/${projectId}/compatibilities`)
+    return response.data as Array<{
+      component_a: string
+      config_a: string
+      component_b: string
+      config_b: string
+    }>
+  },
   saveCompatibility: async (
     projectId: number,
     pairs: Array<{
@@ -1515,6 +1554,28 @@ export const prospectiveService = {
   },
   getMorphSpace: async (projectId: number) => {
     const response = await api.get(`/api/prospective/projects/${projectId}/morph-space`)
+    return response.data
+  },
+  getCcaSuggestions: async (projectId: number, inquiryId?: number) => {
+    const qs = inquiryId ? `?inquiry_id=${inquiryId}` : ''
+    const response = await api.get(`/api/prospective/projects/${projectId}/cca-suggestions${qs}`)
+    return response.data
+  },
+  applyCcaSuggestions: async (
+    projectId: number,
+    rules: Array<{
+      id?: string
+      component_a: string
+      config_a: string
+      component_b: string
+      config_b: string
+      consistency?: number
+      selected?: boolean
+    }>,
+  ) => {
+    const response = await api.post(`/api/prospective/projects/${projectId}/cca-suggestions/apply`, {
+      rules,
+    })
     return response.data
   },
   previewMicmac: async (projectId: number, matrix: number[][]) => {

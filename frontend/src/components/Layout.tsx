@@ -8,6 +8,7 @@ import {
   ChartScatter,
   ChevronLeft,
   ChevronRight,
+  ClipboardList,
   Cpu,
   FileText,
   FolderOpen,
@@ -50,6 +51,7 @@ type NavLabelKey =
   | 'nav.mactor'
   | 'nav.morph'
   | 'nav.scenarios'
+  | 'nav.inquiries'
   | 'nav.intelligence'
   | 'nav.alertMonitors'
   | 'nav.alertMonitorsTriggered'
@@ -97,6 +99,7 @@ const NAV_GROUPS: {
     labelKey: 'nav.group.resultats',
     items: [
       { path: '/intelligence', labelKey: 'nav.intelligence', icon: Globe2 },
+      { path: '/prospective/inquiries', labelKey: 'nav.inquiries', icon: ClipboardList },
       { path: '/prospective-analysis', labelKey: 'nav.scenarios', icon: Telescope },
       { path: '/alert-monitors', labelKey: 'nav.alertMonitors', icon: Bell },
     ],
@@ -127,6 +130,7 @@ const PAGE_TITLES: Record<string, NavLabelKey | 'nav.intelligence'> = {
   '/direct-analysis': 'nav.directAnalysis',
   '/data-synchronization': 'nav.extraction',
   '/intelligence': 'nav.intelligence',
+  '/prospective/inquiries': 'nav.inquiries',
   '/prospective-analysis': 'nav.scenarios',
   '/alert-monitors': 'nav.alertMonitors',
   '/ai-analysis': 'nav.aiAnalysis',

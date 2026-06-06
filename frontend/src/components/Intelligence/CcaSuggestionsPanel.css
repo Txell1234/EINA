@@ -1,0 +1,49 @@
+.cca-suggestions {
+  margin: 1rem 0;
+  padding: 0.75rem;
+  border: 1px solid var(--border-color, #ddd);
+  border-radius: 6px;
+  background: #f8fafc;
+}
+
+.cca-suggestions header h4 {
+  margin: 0 0 0.35rem;
+  color: var(--color-primary);
+}
+
+.cca-suggestions header p {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  color: var(--text-muted, #666);
+}
+
+.cca-suggestions table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  margin-bottom: 0.75rem;
+}
+
+.cca-suggestions th,
+.cca-suggestions td {
+  border: 1px solid var(--border-color, #ddd);
+  padding: 0.35rem 0.45rem;
+}
+
+.cca-suggestions__applied {
+  opacity: 0.55;
+}
+
+.cca-suggestions__actions {
+  margin-bottom: 0.5rem;
+}
+
+.cca-suggestions__heatmap {
+  margin-top: 0.5rem;
+}
+
+.cca-suggestions__loading,
+.cca-suggestions__empty {
+  font-size: 0.85rem;
+  color: var(--text-muted, #666);
+}

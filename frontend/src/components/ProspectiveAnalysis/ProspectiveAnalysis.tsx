@@ -4,6 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { useCase, type ActiveCase } from '../../contexts/CaseContext'
 import { useCasesList } from '../../hooks/useCasesList'
 import { extractService, prospectiveInquiryService, prospectiveService } from '../../services/api'
+import CcaSuggestionsPanel from '../Intelligence/CcaSuggestionsPanel'
 import ExtractStatementsTable from '../shared/ExtractStatementsTable'
 import AnalysisScopeBar from '../shared/AnalysisScopeBar'
 import ExtractionFiltersRow from '../shared/ExtractionFiltersRow'
@@ -2264,6 +2265,23 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
           <p style={{ color: 'var(--color-gray-600)' }}>
             Una configuració per línia dins de cada component (espai combinatori simplificat).
           </p>
+
+          {projectId !== null && (
+            <CcaSuggestionsPanel
+              projectId={projectId}
+              inquiryId={linkedInquiryId}
+              onApplied={async (result) => {
+                const stats = result.morph_stats as typeof morphSpaceStats
+                if (stats) setMorphSpaceStats(stats)
+                const rows = await prospectiveService.getCompatibilities(projectId)
+                setIncompatibilities(rows)
+                void queryClient.invalidateQueries({
+                  queryKey: ['prospective-project-detail', projectId],
+                })
+              }}
+            />
+          )}
+
           {morphRows.map((m, idx) => (
             <div key={idx} className="card" style={{ marginBottom: 'var(--spacing-md)' }}>
               <div className="prospective-field">

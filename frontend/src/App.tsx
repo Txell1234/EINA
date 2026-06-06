@@ -35,6 +35,7 @@ const ProspectiveAnalysis = lazy(
 )
 const DirectAnalysis = lazy(() => import('./components/DirectAnalysis/DirectAnalysis'))
 const IntelligenceCenter = lazy(() => import('./components/Intelligence/IntelligenceCenter'))
+const InquiryDashboard = lazy(() => import('./components/Intelligence/InquiryDashboard'))
 
 function AppRoutes() {
   return (
@@ -58,6 +59,7 @@ function AppRoutes() {
           <Route path="data-synchronization" element={<ProspectiveAnalysis entryStep={0} />} />
           <Route path="direct-analysis" element={<DirectAnalysis />} />
           <Route path="intelligence" element={<IntelligenceCenter />} />
+          <Route path="prospective/inquiries" element={<InquiryDashboard />} />
           <Route path="admin" element={<AdminPanel />} />
           <Route path="reputation" element={<ReputationDashboard />} />
           <Route path="public-affairs" element={<PublicAffairsDashboard />} />

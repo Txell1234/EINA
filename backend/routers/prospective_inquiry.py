@@ -39,6 +39,49 @@ class InquiryScheduleIn(BaseModel):
     interval_hours: int = Field(24, ge=1, le=168)
 
 
+@router.get("/dashboard")
+async def inquiry_dashboard(
+    status: str | None = Query(None),
+    case_id: int | None = Query(None),
+    scheduled_only: bool = Query(False),
+    limit: int = Query(100, ge=1, le=200),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _ = current_user
+    from services.inquiry_dashboard_service import InquiryDashboardService
+
+    return await InquiryDashboardService(db).list_dashboard(
+        status=status,
+        case_id=case_id,
+        scheduled_only=scheduled_only,
+        limit=limit,
+    )
+
+
+@router.get("/export/batch")
+async def export_inquiries_batch(
+    ids: str = Query(..., description="IDs separats per coma"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _ = current_user
+    from services.inquiry_dashboard_service import InquiryDashboardService
+
+    inquiry_ids = [int(x.strip()) for x in ids.split(",") if x.strip().isdigit()]
+    if not inquiry_ids:
+        raise HTTPException(status_code=400, detail="IDs invalids")
+    try:
+        payload = await InquiryDashboardService(db).export_batch_zip(inquiry_ids)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return Response(
+        content=payload,
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=inquiries_batch.zip"},
+    )
+
+
 @router.get("/case/{case_id}/compare")
 async def compare_inquiries_for_case(
     case_id: int,
