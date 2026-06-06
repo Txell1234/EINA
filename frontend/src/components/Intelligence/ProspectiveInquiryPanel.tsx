@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
+import { useI18n } from '../../contexts/I18nContext'
+import type { PanelTranslationKey } from '../../i18n/panelBundles'
 import { prospectiveInquiryService } from '../../services/api'
 import CcaHeatmapPanel, { type CcaCell } from './CcaHeatmapPanel'
 import InquiryComparePanel, { type InquiryCompareItem } from './InquiryComparePanel'
@@ -18,21 +20,23 @@ type StepState = {
   detail?: string
 }
 
-const SAMPLE =
-  'Trump announces US blockade of Hormuz lifted by December 2026?'
-
-const GODET_CHECKLIST = [
-  { key: 'project', label: 'Projecte', path: '/prospective/project' },
-  { key: 'variables', label: 'Variables', path: '/prospective/variables' },
-  { key: 'micmac', label: 'MIC-MAC', path: '/prospective/micmac' },
-  { key: 'actors', label: 'Actors', path: '/prospective/actors' },
-  { key: 'mactor', label: 'MACTOR', path: '/prospective/mactor' },
-  { key: 'morph', label: 'Morph', path: '/prospective/morph' },
-  { key: 'smic', label: 'SMIC', path: '/prospective-analysis' },
-  { key: 'scenarios', label: 'Escenaris', path: '/prospective-analysis' },
-] as const
+const GODET_CHECKLIST: Array<{
+  key: string
+  labelKey: PanelTranslationKey
+  path: string
+}> = [
+  { key: 'project', labelKey: 'inquiry.panel.godet.project', path: '/prospective/project' },
+  { key: 'variables', labelKey: 'inquiry.panel.godet.variables', path: '/prospective/variables' },
+  { key: 'micmac', labelKey: 'inquiry.panel.godet.micmac', path: '/prospective/micmac' },
+  { key: 'actors', labelKey: 'inquiry.panel.godet.actors', path: '/prospective/actors' },
+  { key: 'mactor', labelKey: 'inquiry.panel.godet.mactor', path: '/prospective/mactor' },
+  { key: 'morph', labelKey: 'inquiry.panel.godet.morph', path: '/prospective/morph' },
+  { key: 'smic', labelKey: 'inquiry.panel.godet.smic', path: '/prospective-analysis' },
+  { key: 'scenarios', labelKey: 'inquiry.panel.godet.scenarios', path: '/prospective-analysis' },
+]
 
 export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPanelProps) {
+  const { t } = useI18n()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [question, setQuestion] = useState('')
@@ -310,43 +314,38 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
       data-testid="prospective-inquiry-panel"
     >
       <header>
-        <h3>Pregunta analítica (Q2FS)</h3>
-        <p className="prospective-inquiry-panel__sub">
-          La pregunta dispara recollida OSINT filtrada, pipeline, finances, morph, monitors i síntesi
-          traçable. Re-runs programats opcionals.
-        </p>
-        <span className="prospective-inquiry-panel__badge">
-          Scope must-match · Audit trail · Scheduler
-        </span>
+        <h3>{t('inquiry.panel.title')}</h3>
+        <p className="prospective-inquiry-panel__sub">{t('inquiry.panel.subtitle')}</p>
+        <span className="prospective-inquiry-panel__badge">{t('inquiry.panel.badge')}</span>
       </header>
 
       <textarea
         rows={3}
         value={question}
         onChange={(e) => setQuestion(e.target.value)}
-        placeholder={SAMPLE}
+        placeholder={t('inquiry.panel.questionPlaceholder')}
         data-testid="inquiry-question"
       />
 
       {parsePreview?.ok ? (
         <p className="prospective-inquiry-panel__parse-preview" data-testid="inquiry-parse-preview">
-          <strong>Parse</strong>
-          <span>confiança {String(parsePreview.confidence ?? '—')}</span>
-          <span>{parsePreview.llm_used ? 'LLM' : 'regles'}</span>
+          <strong>{t('inquiry.panel.parse.label')}</strong>
+          <span>{t('inquiry.panel.parse.confidence', { value: String(parsePreview.confidence ?? '—') })}</span>
+          <span>{parsePreview.llm_used ? t('inquiry.panel.parse.llm') : t('inquiry.panel.parse.rules')}</span>
           {parsePreview.event_type ? <span>{String(parsePreview.event_type)}</span> : null}
         </p>
       ) : null}
 
       <div className="prospective-inquiry-panel__row prospective-inquiry-panel__actions">
         <label>
-          Mode
+          {t('inquiry.panel.mode.label')}
           <select
             value={mode}
             onChange={(e) => setMode(e.target.value as 'full' | 'lite')}
             data-testid="inquiry-mode"
           >
-            <option value="full">Complet (espera Godet manual)</option>
-            <option value="lite">Lite (OSINT + síntesi parcial)</option>
+            <option value="full">{t('inquiry.panel.mode.full')}</option>
+            <option value="lite">{t('inquiry.panel.mode.lite')}</option>
           </select>
         </label>
         <label className="prospective-inquiry-panel__check">
@@ -355,7 +354,7 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
             checked={forceRefresh}
             onChange={(e) => setForceRefresh(e.target.checked)}
           />
-          Forçar reexecució (ignorar cache)
+          {t('inquiry.panel.forceRefresh')}
         </label>
         <label className="prospective-inquiry-panel__check">
           <input
@@ -363,7 +362,7 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
             checked={autoRerun}
             onChange={(e) => setAutoRerun(e.target.checked)}
           />
-          Auto re-run
+          {t('inquiry.panel.autoRerun')}
           <input
             type="number"
             min={1}
@@ -373,7 +372,7 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
             disabled={!autoRerun}
             className="prospective-inquiry-panel__hours"
           />
-          h
+          {t('inquiry.panel.hoursSuffix')}
         </label>
         <button
           type="button"
@@ -382,7 +381,7 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
           onClick={() => runMutation.mutate()}
           data-testid="inquiry-launch"
         >
-          {runMutation.isPending ? 'Executant…' : 'Llançar inquiry'}
+          {runMutation.isPending ? t('inquiry.panel.launch.running') : t('inquiry.panel.launch')}
         </button>
       </div>
 
@@ -394,7 +393,9 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
             disabled={rerunMutation.isPending}
             onClick={() => rerunMutation.mutate(exportId)}
           >
-            {rerunMutation.isPending ? 'Reexecutant…' : `Re-run inquiry #${exportId}`}
+            {rerunMutation.isPending
+              ? t('inquiry.panel.rerun.running')
+              : t('inquiry.panel.rerun', { id: exportId })}
           </button>
           <button
             type="button"
@@ -402,7 +403,7 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
             disabled={scheduleMutation.isPending}
             onClick={() => scheduleMutation.mutate({ inquiryId: exportId, enabled: true })}
           >
-            Activar scheduler
+            {t('inquiry.panel.scheduler.enable')}
           </button>
           <button
             type="button"
@@ -410,14 +411,14 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
             disabled={scheduleMutation.isPending}
             onClick={() => scheduleMutation.mutate({ inquiryId: exportId, enabled: false })}
           >
-            Desactivar scheduler
+            {t('inquiry.panel.scheduler.disable')}
           </button>
         </div>
       )}
 
       {steps.length > 0 && (
         <div className="prospective-inquiry-panel__steps" data-testid="inquiry-steps">
-          <h4>Monitor de passos</h4>
+          <h4>{t('inquiry.panel.steps.title')}</h4>
           <ul>
             {steps.map((s) => {
               const statusKey = (s.cached ? 'cached' : s.status || 'pending')
@@ -430,7 +431,9 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
                 >
                   <strong>{s.step}</strong>
                   <span className="prospective-inquiry-panel__step-status">{s.status}</span>
-                  {s.cached ? <span className="prospective-inquiry-panel__step-status">cache</span> : null}
+                  {s.cached ? (
+                    <span className="prospective-inquiry-panel__step-status">{t('inquiry.panel.steps.cached')}</span>
+                  ) : null}
                   {s.detail ? (
                     <span className="prospective-inquiry-panel__step-detail">{s.detail}</span>
                   ) : null}
@@ -443,10 +446,8 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
 
       {showGodetGuide && (
         <div className="prospective-inquiry-panel__godet" data-testid="inquiry-awaiting-godet">
-          <h4>Checklist Godet (mode complet)</h4>
-          <p className="prospective-inquiry-panel__sub">
-            Completa els passos al wizard prospectiu. El monitor s&apos;actualitza cada 15 s.
-          </p>
+          <h4>{t('inquiry.panel.godet.title')}</h4>
+          <p className="prospective-inquiry-panel__sub">{t('inquiry.panel.godet.subtitle')}</p>
           <ul className="prospective-inquiry-panel__godet-list">
             {GODET_CHECKLIST.map((step) => {
               const done = Boolean(godetStatus?.checklist?.[step.key])
@@ -455,9 +456,9 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
                   key={step.key}
                   className={`prospective-inquiry-panel__godet-item${done ? ' prospective-inquiry-panel__godet-item--done' : ''}`}
                 >
-                  <span className="prospective-inquiry-panel__godet-label">{step.label}</span>
+                  <span className="prospective-inquiry-panel__godet-label">{t(step.labelKey)}</span>
                   <span className="prospective-inquiry-panel__godet-state">
-                    {done ? 'completat' : 'pendent'}
+                    {done ? t('inquiry.panel.godet.done') : t('inquiry.panel.godet.pending')}
                   </span>
                   {!done && (
                     <button
@@ -465,7 +466,7 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
                       className="btn btn-sm btn-secondary"
                       onClick={() => openGodetStep(step.path)}
                     >
-                      Obrir
+                      {t('inquiry.panel.godet.open')}
                     </button>
                   )}
                 </li>
@@ -474,7 +475,7 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
           </ul>
           {godetStatus?.missing_steps?.length ? (
             <p className="prospective-inquiry-panel__sub" data-testid="inquiry-godet-missing">
-              Pendents: {godetStatus.missing_steps.join(', ')}
+              {t('inquiry.panel.godet.missing', { steps: godetStatus.missing_steps.join(', ') })}
             </p>
           ) : null}
           <div className="prospective-inquiry-panel__godet-actions">
@@ -487,10 +488,10 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
                 data-testid="inquiry-synthesize"
               >
                 {synthMutation.isPending
-                  ? 'Sintetitzant…'
+                  ? t('inquiry.panel.synthesize.running')
                   : canSynthesize
-                    ? `Síntesi inquiry #${synthTargetId}`
-                    : 'Síntesi (espera Godet)'}
+                    ? t('inquiry.panel.synthesize', { id: synthTargetId })
+                    : t('inquiry.panel.synthesize.waitGodet')}
               </button>
             )}
             {synthTargetId && (
@@ -499,7 +500,7 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
                 className="btn btn-secondary"
                 onClick={() => void openWizard(synthTargetId, godetStatus?.project_id ?? wizardProjectId)}
               >
-                Obrir wizard morph
+                {t('inquiry.panel.godet.wizardMorph')}
               </button>
             )}
           </div>
@@ -508,13 +509,13 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
 
       {morphPreview.length > 0 && (
         <details open className="prospective-inquiry-panel__morph">
-          <summary>Suggeriments morfològics (Zwicky preview)</summary>
+          <summary>{t('inquiry.panel.morph.summary')}</summary>
           <table>
             <thead>
               <tr>
-                <th>Escenari</th>
-                <th>Config</th>
-                <th>Possibilitat</th>
+                <th>{t('inquiry.panel.morph.col.scenario')}</th>
+                <th>{t('inquiry.panel.morph.col.config')}</th>
+                <th>{t('inquiry.panel.morph.col.possibility')}</th>
               </tr>
             </thead>
             <tbody>
@@ -535,14 +536,16 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
                 disabled={wizardMutation.isPending}
                 onClick={() => wizardMutation.mutate(exportId)}
               >
-                {wizardMutation.isPending ? 'Sembrant…' : 'Aplicar al wizard Godet'}
+                {wizardMutation.isPending
+                  ? t('inquiry.panel.morph.seeding')
+                  : t('inquiry.panel.morph.applyWizard')}
               </button>
               <button
                 type="button"
                 className="btn btn-secondary"
                 onClick={() => void openWizard(exportId, wizardProjectId)}
               >
-                Obrir wizard (morph)
+                {t('inquiry.panel.wizard.openMorph')}
               </button>
               <button
                 type="button"
@@ -550,7 +553,7 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
                 disabled={heatmapMutation.isPending}
                 onClick={() => heatmapMutation.mutate(exportId)}
               >
-                Carregar heatmap CCA
+                {t('inquiry.panel.morph.loadHeatmap')}
               </button>
             </>
           )}
@@ -582,10 +585,10 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
 
       {answer && (
         <div className="prospective-inquiry-panel__answer">
-          <h4>Resposta (determinista)</h4>
+          <h4>{t('inquiry.panel.answer.title')}</h4>
           <p>
-            Probabilitat: {String(answer.probability_pct ?? '—')}% · Possibilitat:{' '}
-            {String(answer.possibility ?? '—')}
+            {t('inquiry.panel.answer.probability')}: {String(answer.probability_pct ?? '—')}% ·{' '}
+            {t('inquiry.panel.answer.possibility')}: {String(answer.possibility ?? '—')}
             {answer.financial_mode != null ? ` · Financial: ${String(answer.financial_mode)}` : ''}
           </p>
           {answerDiff && answerDiff.probability_delta != null && (
@@ -599,14 +602,14 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
               {reasoning.map((r) => (
                 <li key={r.conclusion}>
                   {r.conclusion}
-                  {r.because ? ` — Per què: ${r.because}` : ''}
+                  {r.because ? ` — ${t('inquiry.panel.answer.why')} ${r.because}` : ''}
                 </li>
               ))}
             </ul>
           )}
           {conclusions.length > 0 && (
             <div>
-              <h5>Conclusions</h5>
+              <h5>{t('inquiry.panel.answer.conclusions')}</h5>
               <ul>
                 {conclusions.map((c) => (
                   <li key={c}>{c}</li>
@@ -619,7 +622,7 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
 
       {traceInquiryId && (
         <details open className="prospective-inquiry-panel__trace">
-          <summary>Traçabilitat inquiry #{traceInquiryId}</summary>
+          <summary>{t('inquiry.panel.trace.title', { id: traceInquiryId })}</summary>
           <InquiryTracePanel
             scopeAudit={(scopeAuditData as ScopeAuditData | undefined) ?? scopeAuditLive ?? undefined}
             auditTrail={(auditData?.audit_trail as AuditTrailEntry[]) ?? []}
@@ -647,7 +650,7 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
             target="_blank"
             rel="noreferrer"
           >
-            Exportar HTML (#{exportId})
+            {t('inquiry.panel.export.html', { id: exportId })}
           </a>
           {' · '}
           <a
@@ -655,14 +658,14 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
             target="_blank"
             rel="noreferrer"
           >
-            Exportar PDF
+            {t('inquiry.panel.export.pdf')}
           </a>
         </p>
       )}
 
       {((compareData?.items as InquiryCompareItem[] | undefined)?.length ?? 0) >= 2 && (
         <details open className="prospective-inquiry-panel__compare">
-          <summary>Comparativa inquiries del cas ({compareData?.count})</summary>
+          <summary>{t('inquiry.panel.compare.title', { count: compareData?.count ?? 0 })}</summary>
           <InquiryComparePanel
             items={(compareData?.items as InquiryCompareItem[]) ?? []}
             probabilitySeries={
@@ -675,7 +678,7 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
 
       {inquiries.length > 0 && (
         <details>
-          <summary>Inquiries anteriors ({inquiries.length})</summary>
+          <summary>{t('inquiry.panel.history.titleWithCount', { count: inquiries.length })}</summary>
           <ul>
             {(inquiries as Array<{
               id: number

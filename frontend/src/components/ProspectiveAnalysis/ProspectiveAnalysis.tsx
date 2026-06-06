@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useCase, type ActiveCase } from '../../contexts/CaseContext'
+import { useI18n } from '../../contexts/I18nContext'
+import type { PanelTranslationKey } from '../../i18n/panelBundles'
 import { useCasesList } from '../../hooks/useCasesList'
 import { extractService, prospectiveInquiryService, prospectiveService } from '../../services/api'
 import MorphBox from './MorphBox'
@@ -19,16 +21,16 @@ import MactorSociogram from './MactorSociogram'
 import RetroStep from './RetroStep'
 import './ProspectiveAnalysis.css'
 
-const STEP_LABELS = [
-  'Extracció OSINT',
-  'Projecte',
-  'Retrospectiva',
-  'Variables',
-  'MIC-MAC',
-  'Actors',
-  'MACTOR',
-  'Morfològic',
-  'Escenaris',
+const STEP_LABEL_KEYS: PanelTranslationKey[] = [
+  'prospective.step.osint',
+  'prospective.step.project',
+  'prospective.step.retrospective',
+  'prospective.step.variables',
+  'prospective.step.micmac',
+  'prospective.step.actors',
+  'prospective.step.mactor',
+  'prospective.step.morph',
+  'prospective.step.scenarios',
 ]
 
 interface VariableRow {
@@ -183,6 +185,8 @@ export interface ProspectiveAnalysisProps {
 }
 
 export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalysisProps) {
+  const { t } = useI18n()
+  const stepLabels = useMemo(() => STEP_LABEL_KEYS.map((key) => t(key)), [t])
   const queryClient = useQueryClient()
   const { activeCase, setActiveCase } = useCase()
   const [searchParams] = useSearchParams()
@@ -803,7 +807,7 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
 
   const startExtractStream = () => {
     if (!extractionCaseId) {
-      setErrorMsg('Selecciona un cas amb dades OSINT.')
+      setErrorMsg(t('prospective.empty.noOsintCase'))
       return
     }
     setErrorMsg(null)
@@ -851,13 +855,11 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
 
   return (
     <div className="card prospective-page">
-      <h1 className="prospective-title">Anàlisi prospectiva</h1>
-      <p style={{ color: 'var(--color-gray-600)', marginTop: 0 }}>
-        Metodologia MIC-MAC, MACTOR, morfològica i escenaris narratius (Claude).
-      </p>
+      <h1 className="prospective-title">{t('prospective.title')}</h1>
+      <p style={{ color: 'var(--color-gray-600)', marginTop: 0 }}>{t('prospective.subtitle')}</p>
 
       <div className="prospective-steps">
-        {STEP_LABELS.map((label, i) => (
+        {stepLabels.map((label, i) => (
           <span
             key={label}
             className={`prospective-step-chip ${step === i ? 'prospective-step-chip--active' : ''}`}

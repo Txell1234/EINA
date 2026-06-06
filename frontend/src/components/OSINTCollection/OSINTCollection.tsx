@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCase } from '../../contexts/CaseContext'
+import { useI18n } from '../../contexts/I18nContext'
+import type { PanelTranslationKey } from '../../i18n/panelBundles'
+import { formatLocaleDateTime } from '../../utils/formatLocale'
 import { toActiveCase } from '../../utils/caseUtils'
 import { integrationService, osintService } from '../../services/api'
 import { formatApiErrorDetail } from '../../utils/apiErrors'
@@ -716,16 +719,17 @@ const RSS_SOURCES = [
   { value: 'ecfr', label: 'ECFR' },
 ]
 
-const CATEGORIES = [
-  { id: 'geopolitica', label: '◈ Geopolítica' },
-  { id: 'xarxes_socials', label: '◎ Xarxes socials' },
-  { id: 'notícies', label: '○ Notícies' },
-  { id: 'infraestructura', label: '⊞ Infraestructura' },
-] as const
+const CATEGORIES: Array<{ id: string; labelKey: PanelTranslationKey }> = [
+  { id: 'geopolitica', labelKey: 'osint.category.geopolitica' },
+  { id: 'xarxes_socials', labelKey: 'osint.category.xarxesSocials' },
+  { id: 'notícies', labelKey: 'osint.category.noticies' },
+  { id: 'infraestructura', labelKey: 'osint.category.infraestructura' },
+]
 
 const OPTIONAL_FIELD_NAMES = new Set(['domain', 'instructions', 'count', 'max_results'])
 
 export default function OSINTCollection() {
+  const { t, locale } = useI18n()
   const { activeCase, setActiveCase, clearActiveCase } = useCase()
   const queryClient = useQueryClient()
   const [selectedCategory, setSelectedCategory] = useState<string>('geopolitica')
@@ -811,14 +815,14 @@ export default function OSINTCollection() {
     if (source.id === 'nikkei') {
       const mode = fieldValues.mode || 'latest'
       if (mode === 'url' && !fieldValues.url?.trim()) {
-        return 'Omple la URL de Nikkei Asia abans de cercar.'
+        return t('osint.error.nikkeiUrlRequired')
       }
       return null
     }
     if (source.id === 'bloomberg') {
       const mode = fieldValues.mode || 'latest'
       if (mode === 'url' && !fieldValues.url?.trim()) {
-        return 'Omple la URL de Bloomberg abans de cercar.'
+        return t('osint.error.bloombergUrlRequired')
       }
       return null
     }
@@ -827,7 +831,7 @@ export default function OSINTCollection() {
       if (OPTIONAL_FIELD_NAMES.has(field.name)) continue
       const val = fieldValues[field.name]?.trim()
       if (!val) {
-        return `Omple el camp «${field.label}» abans de cercar.`
+        return t('osint.error.fieldRequired', { label: field.label })
       }
     }
     return null
@@ -844,13 +848,11 @@ export default function OSINTCollection() {
 
   const runSearch = () => {
     if (!activeCase?.id) {
-      setResultError('Selecciona un cas actiu abans de cercar — sinó les dades no entraran a l\'extracció.')
+      setResultError(t('osint.error.noActiveCase'))
       return
     }
     if (isEnsembledataSource && !ensembledataConfigured) {
-      setResultError(
-        'Configura ENSEMBLEDATA_API_KEY al backend per usar fonts de xarxes socials (TikTok, Instagram, X, etc.).',
-      )
+      setResultError(t('osint.error.ensembledataNotConfigured'))
       return
     }
     const validationError = validateFields()
@@ -882,11 +884,11 @@ export default function OSINTCollection() {
     if (failed) {
       if (options?.skipError) return false
       const raw = String(
-        inner.error ?? inner.message ?? payload.data?.error ?? 'Error de la font OSINT',
+        inner.error ?? inner.message ?? payload.data?.error ?? t('osint.error.sourceGeneric'),
       )
       const userMsg =
         raw.includes('429') || raw.toLowerCase().includes('rate limit')
-          ? 'GDELT ha limitat les peticions. Espera 1-2 minuts i torna-ho a provar (màx. 90 dies).'
+          ? t('osint.error.gdeltRateLimit')
           : raw
       setResultError(userMsg)
       return false
@@ -902,15 +904,13 @@ export default function OSINTCollection() {
       .coverage
     if (coverage?.pending_extraction != null) {
       setResultInfo(
-        `Recollida completada. ${coverage.pending_extraction} articles pendents d'extracció (${coverage.coverage_percent ?? 0}% cobert).`,
+        t('osint.info.collectionComplete', {
+          pending: coverage.pending_extraction,
+          percent: coverage.coverage_percent ?? 0,
+        }),
       )
     } else if (inner.fallback) {
-      setResultInfo(
-        String(
-          inner.message ??
-            'GDELT no disponible — resultats obtinguts via Google News RSS.',
-        ),
-      )
+      setResultInfo(String(inner.message ?? t('osint.info.gdeltFallback')))
     } else {
       setResultInfo(null)
     }
@@ -986,7 +986,7 @@ export default function OSINTCollection() {
               : Array.isArray(inner.articles)
                 ? inner.articles.length
                 : 0
-          infoExtra = `Tavily ha afegit ${n} resultats web complementaris al cas.`
+          infoExtra = t('osint.info.tavilyCompanion', { count: n })
         }
       }
 
@@ -1006,24 +1006,24 @@ export default function OSINTCollection() {
       }
       const raw = formatApiErrorDetail(
         axiosErr?.response?.data?.detail ?? axiosErr?.message,
-        'Error inesperat. Revisa la consola per a més detalls.',
+        t('osint.error.unexpected'),
       )
 
       const userMsg =
         axiosErr?.response?.status === 422
           ? raw.includes('query') || raw.includes('Field required')
-            ? 'Omple tots els camps obligatoris abans de cercar.'
+            ? t('osint.error.requiredFields')
             : raw
           : raw.includes('timeout') || raw.includes('TIMEOUT')
-          ? 'La font OSINT no ha respost a temps. Torna a intentar-ho en uns segons.'
+          ? t('osint.error.timeout')
           : raw.includes('429') || raw.includes('rate')
-          ? 'La font OSINT ha limitat les peticions. Espera 1 minut i torna a intentar-ho.'
+          ? t('osint.error.rateLimit')
           : raw.includes('403') || raw.includes('Forbidden')
-          ? 'Accés denegat a la font OSINT. Comprova la configuració de la clau API.'
+          ? t('osint.error.forbidden')
           : raw.includes('404') || raw.includes('Not Found')
-          ? 'La font OSINT no ha trobat resultats per a aquesta cerca.'
+          ? t('osint.error.notFound')
           : raw.includes('Network') || raw.includes('ECONNREFUSED')
-          ? 'Error de connexió. Comprova que el servidor backend és accessible.'
+          ? t('osint.error.connection')
           : raw
 
       setResultError(userMsg)
@@ -1036,7 +1036,7 @@ export default function OSINTCollection() {
     <div className="osint-layout">
       <aside className="osint-sidebar">
         <div className="osint-case-selector">
-          <label className="osint-field-label">Cas actiu</label>
+          <label className="osint-field-label">{t('osint.case.activeLabel')}</label>
           <select
             className="osint-select"
             value={activeCase?.id ?? ''}
@@ -1053,7 +1053,7 @@ export default function OSINTCollection() {
               }
             }}
           >
-            <option value="">— Sense cas —</option>
+            <option value="">{t('osint.case.none')}</option>
             {(cases ?? []).map((c) => (
               <option key={c.id} value={c.id}>
                 #{c.id} — {c.name}
@@ -1061,14 +1061,12 @@ export default function OSINTCollection() {
             ))}
           </select>
           {!activeCase && (
-            <p className="osint-case-hint">
-              Crea un cas nou o selecciona&apos;n un per associar les cerques OSINT.
-            </p>
+            <p className="osint-case-hint">{t('osint.case.hint')}</p>
           )}
           <CreateCaseModal className="btn-create-case-osint" />
           {activeCase && (
             <div className="osint-case-badge">
-              Cas: <strong>{activeCase.name}</strong>
+              {t('osint.case.badge', { name: activeCase.name })}
             </div>
           )}
           {activeCase?.id ? (
@@ -1079,7 +1077,7 @@ export default function OSINTCollection() {
                   checked={applyScopeExtraction}
                   onChange={(e) => setApplyScopeExtraction(e.target.checked)}
                 />
-                Aplicar delimitació (dates, dominis, temàtica) a l&apos;extracció de pendents
+                {t('osint.scope.applyExtraction')}
               </label>
               <ExtractionCoveragePanel
                 caseId={activeCase.id}
@@ -1111,6 +1109,7 @@ export default function OSINTCollection() {
               key={cat.id}
               type="button"
               data-category={cat.id}
+              data-testid={`osint-category-${cat.id}`}
               className={`osint-category-btn ${selectedCategory === cat.id ? 'active' : ''}`}
               onClick={() => {
                 setSelectedCategory(cat.id)
@@ -1121,7 +1120,7 @@ export default function OSINTCollection() {
                 }
               }}
             >
-              {cat.label}
+              {t(cat.labelKey)}
             </button>
           ))}
         </div>
@@ -1142,7 +1141,7 @@ export default function OSINTCollection() {
                 <span
                   className={`osint-key-badge${s.category === 'xarxes_socials' ? ' osint-key-badge--social' : ''}`}
                 >
-                  clau API
+                  {t('osint.source.apiKeyBadge')}
                 </span>
               )}
             </button>
@@ -1157,13 +1156,13 @@ export default function OSINTCollection() {
 
           {isEnsembledataSource && !ensembledataConfigured && (
             <p className="osint-api-warning" role="status">
-              ENSEMBLEDATA_API_KEY no configurada. Afegeix la clau al backend i reinicia el servei.
+              {t('osint.warning.ensembledata')}
             </p>
           )}
 
           {scopeProfile && source.fields.some((f) => f.name === 'query') && (
             <div className="osint-case-concepts">
-              <span className="osint-case-concepts__label">Conceptes del cas:</span>
+              <span className="osint-case-concepts__label">{t('osint.caseConcepts.label')}</span>
               {scopeProfile.themes?.length ? (
                 <span className="osint-case-concepts__chip">
                   {scopeProfile.themes.join(', ')}
@@ -1186,7 +1185,7 @@ export default function OSINTCollection() {
                     }))
                   }}
                 >
-                  Aplicar: {resolvedQuery}
+                  {t('osint.caseConcepts.apply', { query: resolvedQuery })}
                 </button>
               )}
             </div>
@@ -1302,11 +1301,11 @@ export default function OSINTCollection() {
                 onChange={(e) => setIncludeTavilyCompanion(e.target.checked)}
               />
               <span>
-                També cercar amb Tavily (web en temps real)
+                {t('osint.tavilyCompanion.label')}
                 {!tavilyConfigured && (
                   <span className="osint-tavily-companion-hint">
                     {' '}
-                    — configura TAVILY_API_KEY al backend
+                    {t('osint.tavilyCompanion.hint')}
                   </span>
                 )}
               </span>
@@ -1320,11 +1319,13 @@ export default function OSINTCollection() {
               disabled={searchMutation.isPending || !canSearch}
               onClick={runSearch}
             >
-              {searchMutation.isPending ? 'Cercant...' : `Cercar amb ${source.label}`}
+              {searchMutation.isPending
+                ? t('osint.search.running')
+                : t('osint.search', { source: source.label })}
             </button>
             {results.length > 0 && (
               <button type="button" className="btn" onClick={() => setResults([])}>
-                Netejar resultats
+                {t('osint.results.clear')}
               </button>
             )}
           </div>
@@ -1342,14 +1343,14 @@ export default function OSINTCollection() {
               className={resultView === 'session' ? 'active' : ''}
               onClick={() => setResultView('session')}
             >
-              Última sessió
+              {t('osint.view.session')}
             </button>
             <button
               type="button"
               className={resultView === 'inventory' ? 'active' : ''}
               onClick={() => setResultView('inventory')}
             >
-              Inventari del cas
+              {t('osint.view.inventory')}
             </button>
           </div>
         ) : null}
@@ -1361,7 +1362,7 @@ export default function OSINTCollection() {
         {resultView === 'session' && results.length > 0 && (
           <div className="osint-results">
             <h3 className="osint-results-title">
-              {results.length} resultat{results.length !== 1 ? 's' : ''} (sessió actual)
+              {t('osint.results.sessionCount', { count: results.length })}
             </h3>
             {results.map((r, i) => (
               <div key={i} className="card osint-result-card">
@@ -1381,17 +1382,15 @@ export default function OSINTCollection() {
           <div className="card">
             <div className="empty-state">
               <div className="empty-state-icon">◎</div>
-              <h3 className="empty-state-title">Cap resultat encara</h3>
-              <p className="empty-state-desc">
-                Selecciona una font OSINT, omple els camps i executa la cerca.
-              </p>
+              <h3 className="empty-state-title">{t('osint.empty.title')}</h3>
+              <p className="empty-state-desc">{t('osint.empty.desc')}</p>
             </div>
           </div>
         )}
 
         {Array.isArray(recentSearches) && recentSearches.length > 0 && (
           <div className="card osint-history-card">
-            <h3 className="osint-history-title">Cerques recents</h3>
+            <h3 className="osint-history-title">{t('osint.history.title')}</h3>
             <ul className="osint-history-list">
               {(recentSearches as Array<{
                 id: number
@@ -1405,7 +1404,7 @@ export default function OSINTCollection() {
                   <span className="osint-history-text">{q.query_text || '—'}</span>
                   <span className="osint-history-date">
                     {q.created_at
-                      ? new Date(q.created_at).toLocaleDateString('ca-ES', {
+                      ? formatLocaleDateTime(locale, q.created_at, {
                           day: '2-digit',
                           month: '2-digit',
                           hour: '2-digit',

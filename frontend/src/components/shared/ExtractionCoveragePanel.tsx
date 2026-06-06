@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useI18n } from '../../contexts/I18nContext'
 import { extractService, osintService } from '../../services/api'
 import './ExtractionCoverage.css'
 
@@ -48,6 +49,7 @@ export default function ExtractionCoveragePanel({
   scope,
   applyScopeToExtraction = false,
 }: ExtractionCoveragePanelProps) {
+  const { t } = useI18n()
   const queryClient = useQueryClient()
   const [extractRunning, setExtractRunning] = useState(false)
   const [extractProgress, setExtractProgress] = useState<string | null>(null)
@@ -126,7 +128,7 @@ export default function ExtractionCoveragePanel({
   if (isLoading || !cov) {
     return (
       <div className={`extraction-coverage ${compact ? 'extraction-coverage--compact' : ''}`}>
-        <p className="extraction-coverage-loading">Carregant cobertura d&apos;extracció…</p>
+        <p className="extraction-coverage-loading">{t('extraction.loading')}</p>
       </div>
     )
   }
@@ -146,7 +148,7 @@ export default function ExtractionCoveragePanel({
   return (
     <div className={`extraction-coverage ${compact ? 'extraction-coverage--compact' : ''}`}>
       <div className="extraction-coverage-header">
-        <h4>Cobertura fonts → extracció</h4>
+        <h4>{t('extraction.title')}</h4>
         <span className={`extraction-coverage-pct ${pct >= 50 ? 'ok' : pct >= 20 ? 'mid' : 'low'}`}>
           {pct}%
         </span>
@@ -154,32 +156,32 @@ export default function ExtractionCoveragePanel({
 
       <div className="extraction-coverage-bars">
         <div className="extraction-coverage-row">
-          <span>Articles recollits</span>
+          <span>{t('extraction.row.articlesTotal')}</span>
           <strong>{a?.articles_total ?? 0}</strong>
         </div>
         <div className="extraction-coverage-row">
-          <span>Extractables</span>
+          <span>{t('extraction.row.extractable')}</span>
           <strong>{a.extractable}</strong>
         </div>
         <div className="extraction-coverage-row">
-          <span>Enriqueïts (cos complet)</span>
+          <span>{t('extraction.row.enriched')}</span>
           <strong>{a.enriched}</strong>
         </div>
         <div className="extraction-coverage-row highlight">
-          <span>Pendents d&apos;extracció</span>
+          <span>{t('extraction.row.pending')}</span>
           <strong>{a.pending_extraction}</strong>
         </div>
         <div className="extraction-coverage-row">
-          <span>URLs ja extretes</span>
+          <span>{t('extraction.row.extractedUrls')}</span>
           <strong>{a.extracted_urls}</strong>
         </div>
         <div className="extraction-coverage-row">
-          <span>Declaracions totals</span>
+          <span>{t('extraction.row.statementsTotal')}</span>
           <strong>{cov.statements?.total ?? 0}</strong>
         </div>
         {cov.alerts.pending_extraction > 0 && (
           <div className="extraction-coverage-row warn">
-            <span>Alertes pendents</span>
+            <span>{t('extraction.row.pendingAlerts')}</span>
             <strong>{cov.alerts.pending_extraction}</strong>
           </div>
         )}
@@ -201,7 +203,7 @@ export default function ExtractionCoveragePanel({
             disabled={extractRunning}
             onClick={startExtractPending}
           >
-            {extractRunning ? 'Extraint…' : 'Extreure tot el pendent'}
+            {extractRunning ? t('extraction.action.extract.running') : t('extraction.action.extract')}
           </button>
         )}
         {showRepairOrphans && cov.osint.orphan_queries_global > 0 && (
@@ -211,11 +213,13 @@ export default function ExtractionCoveragePanel({
             disabled={repairBusy}
             onClick={repairOrphans}
           >
-            {repairBusy ? 'Reparant…' : `Reparar ${cov.osint.orphan_queries_global} consultes orfes`}
+            {repairBusy
+              ? t('extraction.action.repair.running')
+              : t('extraction.action.repair', { count: cov.osint.orphan_queries_global })}
           </button>
         )}
         <button type="button" className="btn btn-ghost" onClick={() => refetch()}>
-          Actualitzar
+          {t('extraction.action.refresh')}
         </button>
       </div>
 

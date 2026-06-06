@@ -16,7 +16,7 @@ test.describe('Inquiry full mode', () => {
 
     await expect(inquiry.steps.getByText('morph_bootstrap')).toBeVisible({ timeout: 20_000 })
     await expect(inquiry.awaitingGodet).toBeVisible()
-    await expect(page.getByText('Checklist Godet')).toBeVisible()
+    await expect(page.getByTestId('inquiry-awaiting-godet')).toContainText(/Checklist Godet/i)
     await expect(page.getByTestId('inquiry-godet-missing')).toBeVisible()
     await expect(page.getByTestId('inquiry-synthesize')).toBeDisabled()
   })

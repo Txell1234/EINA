@@ -19,7 +19,7 @@ test.describe('OSINT social EnsembleData', () => {
     })
     await caseSelect.selectOption(String(MOCK_CASE.id))
 
-    await page.getByRole('button', { name: /Xarxes socials/i }).click()
+    await page.getByTestId('osint-category-xarxes_socials').click()
     await page
       .locator('.osint-source-list .osint-source-btn')
       .filter({ hasText: 'TikTok (paraula clau)' })

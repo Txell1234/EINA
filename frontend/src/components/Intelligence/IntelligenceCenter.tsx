@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, Brain, CheckCircle2, Circle, RefreshCw, Search, Zap } from 'lucide-react'
 import { useCase, type ActiveCase } from '../../contexts/CaseContext'
+import { useI18n } from '../../contexts/I18nContext'
 import { useCasesList } from '../../hooks/useCasesList'
 import { countPromptLines, toActiveCase } from '../../utils/caseUtils'
 import { casesService, dashboardService, intelligenceService, prospectiveService } from '../../services/api'
@@ -40,6 +41,7 @@ interface IntelStatus {
 const STEP_ORDER: StepKey[] = ['osint', 'extraction', 'events', 'risks', 'actor_impact', 'investment']
 
 export default function IntelligenceCenter() {
+  const { t } = useI18n()
   const queryClient = useQueryClient()
   const { activeCase, setActiveCase } = useCase()
   const [selectedCaseId, setSelectedCaseId] = useState<number | null>(activeCase?.id ?? null)
@@ -117,14 +119,14 @@ export default function IntelligenceCenter() {
         applyScope: pipelineApplyScope,
         autoCleanup: pipelineAutoCleanup,
       }),
-    onMutate: () => setPipelineMsg('Executant pipeline d\'intel·ligència…'),
+    onMutate: () => setPipelineMsg(t('intel.pipeline.running')),
     onSuccess: (result) => {
       const steps = (result?.steps ?? []) as Array<{ label: string; ok: boolean; error?: string }>
       const failed = steps.filter((s) => !s.ok)
       setPipelineMsg(
         failed.length === 0
-          ? 'Pipeline completat — dades llestes per visualitzar.'
-          : `Pipeline finalitzat amb ${failed.length} pas(s) amb errors.`,
+          ? t('intel.pipeline.success')
+          : t('intel.pipeline.partialError', { count: failed.length }),
       )
       queryClient.invalidateQueries({ queryKey: ['intel-status'] })
       queryClient.invalidateQueries({ queryKey: ['geo-events-timeline'] })
@@ -142,7 +144,7 @@ export default function IntelligenceCenter() {
       setTimeout(() => setPipelineMsg(null), 6000)
     },
     onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : 'Error durant el pipeline.'
+      const msg = err instanceof Error ? err.message : t('intel.pipeline.error')
       setPipelineMsg(msg)
     },
   })
@@ -155,25 +157,22 @@ export default function IntelligenceCenter() {
   const blockerMessage = useMemo(() => {
     if (!status) return null
     if (status.blocker === 'no_osint') {
-      return 'Primer cal recollir OSINT (notícies, RSS, GDELT…) abans d\'executar el pipeline.'
+      return t('intel.blocker.noOsint')
     }
     if (status.blocker === 'no_llm') {
-      return 'Configura la clau LLM al backend (.env) per habilitar extracció i classificació.'
+      return t('intel.blocker.noLlm')
     }
     return null
-  }, [status])
+  }, [status, t])
 
   const canRunPipeline = Boolean(status?.pipeline_ready && selectedCaseId && !pipelineMutation.isPending)
 
   return (
     <div className="intelligence-center">
       <header className="intel-center-header">
-        <p className="intel-center-kicker">Intelligence Unit</p>
-        <h1 className="intel-center-title">Centre operatiu d&apos;intel·ligència</h1>
-        <p className="intel-center-desc">
-          Selecciona un cas, verifica el pipeline (OSINT → extracció → geopolítica → finances) i explora
-          mapes, timeline, xarxa i mètriques quan les dades estiguin preparades.
-        </p>
+        <p className="intel-center-kicker">{t('intel.kicker')}</p>
+        <h1 className="intel-center-title">{t('intel.title')}</h1>
+        <p className="intel-center-desc">{t('intel.subtitle')}</p>
 
         <div className="intel-center-toolbar">
           <select
@@ -182,7 +181,9 @@ export default function IntelligenceCenter() {
             onChange={(e) => handleCaseChange(e.target.value ? Number(e.target.value) : null)}
             disabled={casesLoading}
           >
-            <option value="">{casesLoading ? 'Carregant casos…' : '— Selecciona un cas —'}</option>
+            <option value="">
+              {casesLoading ? t('intel.case.loading') : t('intel.case.select')}
+            </option>
             {cases?.map((c) => (
               <option key={c.id} value={c.id}>
                 #{c.id} — {c.name}
@@ -197,10 +198,10 @@ export default function IntelligenceCenter() {
             className="intel-action-btn primary"
             disabled={!canRunPipeline}
             onClick={() => pipelineMutation.mutate()}
-            title={blockerMessage ?? 'Executa extracció, classificació, esdeveniments, riscos i inversions'}
+            title={blockerMessage ?? t('intel.pipeline.runTitle')}
           >
             <Zap size={15} />
-            {pipelineMutation.isPending ? 'Processant…' : 'Executar pipeline'}
+            {pipelineMutation.isPending ? t('intel.pipeline.runPending') : t('intel.pipeline.run')}
           </button>
 
           <button
@@ -210,18 +211,18 @@ export default function IntelligenceCenter() {
             onClick={() => {
               refetchStatus()
               queryClient.invalidateQueries()
-              setPipelineMsg('Dades refrescades.')
+              setPipelineMsg(t('intel.refresh.done'))
               setTimeout(() => setPipelineMsg(null), 2500)
             }}
           >
             <RefreshCw size={15} />
-            Refrescar
+            {t('intel.refresh')}
           </button>
 
           {selectedCaseId ? (
             <Link to="/osint-collection" className="intel-action-btn">
               <Search size={15} />
-              Recollida OSINT
+              {t('intel.osintCollection')}
             </Link>
           ) : null}
         </div>
@@ -236,7 +237,7 @@ export default function IntelligenceCenter() {
                 checked={pipelineApplyScope}
                 onChange={(e) => setPipelineApplyScope(e.target.checked)}
               />
-              Aplicar delimitació d&apos;anàlisi a l&apos;extracció (dates, dominis, temàtica)
+              {t('intel.pipeline.applyScope')}
             </label>
             <label className="intel-pipeline-opt">
               <input
@@ -244,7 +245,7 @@ export default function IntelligenceCenter() {
                 checked={pipelineAutoCleanup}
                 onChange={(e) => setPipelineAutoCleanup(e.target.checked)}
               />
-              Neteja automàtica post-extracció (opt-in)
+              {t('intel.pipeline.autoCleanup')}
             </label>
           </div>
         ) : null}
@@ -265,17 +266,18 @@ export default function IntelligenceCenter() {
           <>
             <div className="intel-status-bar">
               <span className="intel-status-pill">
-                Cas: <strong>{status.case_name ?? selectedCase?.name ?? `#${selectedCaseId}`}</strong>
+                {t('intel.status.case')}{' '}
+                <strong>{status.case_name ?? selectedCase?.name ?? `#${selectedCaseId}`}</strong>
               </span>
               <span className="intel-status-pill">
-                Pipeline:{' '}
-                <strong>
-                  {status.ready_steps ?? 0}/{status.total_steps ?? 6} passos
-                </strong>
+                {t('intel.status.pipeline', {
+                  ready: status.ready_steps ?? 0,
+                  total: status.total_steps ?? 6,
+                })}
               </span>
               {!status.llm_configured ? (
                 <span className="intel-status-pill warn">
-                  <AlertTriangle size={12} /> LLM no configurat
+                  <AlertTriangle size={12} /> {t('intel.status.llmMissing')}
                 </span>
               ) : null}
             </div>
@@ -286,7 +288,7 @@ export default function IntelligenceCenter() {
                 <span>{blockerMessage}</span>
                 {status.blocker === 'no_osint' ? (
                   <Link to="/osint-collection" className="intel-blocker-link">
-                    Anar a recollida →
+                    {t('intel.blocker.goOsint')}
                   </Link>
                 ) : null}
               </div>
@@ -312,8 +314,10 @@ export default function IntelligenceCenter() {
             {caseDescription ? (
               <details className="intel-case-briefing">
                 <summary>
-                  Briefing ({countPromptLines(caseDescription)} línies,{' '}
-                  {caseDescription.length.toLocaleString()} caràcters)
+                  {t('intel.briefing.summary', {
+                    lines: countPromptLines(caseDescription),
+                    chars: caseDescription.length,
+                  })}
                 </summary>
                 <pre className="intel-case-briefing-text">{caseDescription}</pre>
               </details>
@@ -323,7 +327,7 @@ export default function IntelligenceCenter() {
               <section className="intel-intsum" aria-label="Resum setmanal INTSUM">
                 <div className="intel-intsum-head">
                   <h2 className="intel-intsum-title">
-                    INTSUM · últims {intsum?.days ?? 7} dies
+                    {t('intel.intsum.title', { days: intsum?.days ?? 7 })}
                     {intsum?.case_name ? (
                       <span className="intel-intsum-case"> — {intsum.case_name}</span>
                     ) : null}
@@ -333,21 +337,21 @@ export default function IntelligenceCenter() {
                     className="intel-intsum-refresh"
                     onClick={() => refetchIntsum()}
                     disabled={intsumLoading}
-                    title="Actualitzar resum"
+                    title={t('intel.intsum.refreshTitle')}
                   >
                     <RefreshCw size={14} className={intsumLoading ? 'spin' : ''} />
                   </button>
                 </div>
 
                 {intsumLoading && !intsum ? (
-                  <p className="intel-intsum-muted">Carregant resum d&apos;intel·ligència…</p>
+                  <p className="intel-intsum-muted">{t('intel.intsum.loading')}</p>
                 ) : null}
 
                 {intsumError ? (
                   <p className="intel-intsum-error">
-                    No s&apos;ha pogut carregar l&apos;INTSUM.{' '}
+                    {t('intel.intsum.error')}{' '}
                     <button type="button" className="intel-intsum-link" onClick={() => refetchIntsum()}>
-                      Reintentar
+                      {t('intel.intsum.retry')}
                     </button>
                   </p>
                 ) : null}
@@ -365,14 +369,13 @@ export default function IntelligenceCenter() {
 
                     {!intsum.has_activity ? (
                       <p className="intel-intsum-muted">
-                        Cap activitat registrada en els últims {intsum.days} dies. Executa recollida
-                        OSINT i el pipeline per omplir l&apos;INTSUM.
+                        {t('intel.intsum.noActivity', { days: intsum.days })}
                       </p>
                     ) : null}
 
                     {intsum.summary.alerts_fallback || intsum.summary.statements_fallback ? (
                       <p className="intel-intsum-muted intel-intsum-fallback">
-                        Sense novetats a la finestra — es mostren els registres més recents del cas.
+                        {t('intel.intsum.fallback')}
                       </p>
                     ) : null}
 
@@ -457,15 +460,15 @@ export default function IntelligenceCenter() {
               <div className="intel-kpi-row">
                 <div className="intel-kpi">
                   <div className="intel-kpi-value">{totalMentions.toLocaleString()}</div>
-                  <div className="intel-kpi-label">Mencions (30d)</div>
+                  <div className="intel-kpi-label">{t('intel.kpi.mentions')}</div>
                 </div>
                 <div className="intel-kpi">
                   <div className="intel-kpi-value">{sentimentScore}%</div>
-                  <div className="intel-kpi-label">Sentiment</div>
+                  <div className="intel-kpi-label">{t('intel.kpi.sentiment')}</div>
                 </div>
                 <div className="intel-kpi">
                   <div className="intel-kpi-value">{criticalAlerts}</div>
-                  <div className="intel-kpi-label">Alertes</div>
+                  <div className="intel-kpi-label">{t('intel.kpi.alerts')}</div>
                 </div>
               </div>
             ) : null}
@@ -495,15 +498,12 @@ export default function IntelligenceCenter() {
 
       {!selectedCaseId ? (
         <div className="card intel-empty-panel">
-          <h2 className="intel-empty-title">Selecciona o crea un cas</h2>
-          <p className="intel-empty-desc">
-            Tria un cas per veure l&apos;estat del pipeline i les visualitzacions. Si encara no en tens cap,
-            crea&apos;n un o ves al dashboard principal.
-          </p>
+          <h2 className="intel-empty-title">{t('intel.empty.selectCase.title')}</h2>
+          <p className="intel-empty-desc">{t('intel.empty.selectCase.desc')}</p>
           <div className="intel-empty-actions">
             <CreateCaseModal onCaseCreated={handleCaseCreated} />
             <Link to="/" className="btn btn-primary">
-              Anar al dashboard
+              {t('intel.empty.goDashboard')}
             </Link>
           </div>
         </div>
@@ -518,14 +518,11 @@ export default function IntelligenceCenter() {
       ) : (
         <div className="card intel-empty-panel">
           <Brain size={32} className="intel-empty-icon" />
-          <h2 className="intel-empty-title">Pipeline pendent</h2>
-          <p className="intel-empty-desc">
-            Encara no hi ha dades OSINT per aquest cas. Ves a <strong>Recollida OSINT</strong>, executa
-            consultes (News, GDELT, RSS…) i després torna aquí per llançar el pipeline d&apos;intel·ligència.
-          </p>
+          <h2 className="intel-empty-title">{t('intel.empty.pipelinePending.title')}</h2>
+          <p className="intel-empty-desc">{t('intel.empty.pipelinePending.desc')}</p>
           <div className="intel-empty-actions">
             <Link to="/osint-collection" className="btn btn-primary">
-              <Search size={14} /> Recollida OSINT
+              <Search size={14} /> {t('intel.osintCollection')}
             </Link>
           </div>
         </div>

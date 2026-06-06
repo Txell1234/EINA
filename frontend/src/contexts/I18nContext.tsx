@@ -1,8 +1,8 @@
 import { createContext, useContext, useMemo, useState } from 'react'
+import { interpolate, panelBundles, type PanelTranslationKey } from '../i18n/panelBundles'
+import type { SupportedLocale, TranslateParams } from '../i18n/types'
 
-type SupportedLocale = 'en' | 'es' | 'ca' | 'fr'
-
-type TranslationKeys =
+type CoreTranslationKeys =
   | 'app.name'
   | 'nav.dashboard'
   | 'nav.osintCollection'
@@ -120,7 +120,9 @@ type TranslationKeys =
   | 'inquiry.empty'
   | 'inquiry.wizard'
 
-type Translations = Record<TranslationKeys, string>
+export type TranslationKeys = CoreTranslationKeys | PanelTranslationKey
+
+type Translations = Record<CoreTranslationKeys, string>
 
 const translations: Record<SupportedLocale, Translations> = {
   en: {
@@ -600,7 +602,7 @@ const translations: Record<SupportedLocale, Translations> = {
 type I18nContextValue = {
   locale: SupportedLocale
   setLocale: (locale: SupportedLocale) => void
-  t: (key: TranslationKeys) => string
+  t: (key: TranslationKeys, params?: TranslateParams) => string
 }
 
 const I18nContext = createContext<I18nContextValue | undefined>(undefined)
@@ -620,7 +622,12 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
       window.localStorage.setItem('locale', nextLocale)
       setLocale(nextLocale)
     },
-    t: (key) => translations[locale][key] ?? key,
+    t: (key, params) => {
+      const core = translations[locale][key as CoreTranslationKeys]
+      const panel = panelBundles[locale][key as PanelTranslationKey]
+      const template = core ?? panel ?? key
+      return interpolate(template, params)
+    },
   }), [locale])
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>
