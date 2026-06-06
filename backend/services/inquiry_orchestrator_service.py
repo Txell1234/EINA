@@ -9,12 +9,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.case import Case, CasePrompt
-from models.prospective import ProspectiveProject, ProspectiveScenario
+from models.prospective import ProspectiveProject, ProspectiveScenario, SMICResult
 from models.prospective_inquiry import ProspectiveInquiry
 from services.analysis_scope_service import merge_scope_into_query_params, resolve_scope_for_case
 from services.actor_impact_service import ActorImpactService
 from services.inquiry_financial_service import InquiryFinancialService
+from services.inquiry_monitor_service import InquiryMonitorService
 from services.inquiry_scope import build_inquiry_scope
+from services.inquiry_wizard_bridge_service import InquiryWizardBridgeService
 from services.intelligence_service import IntelligenceService
 from services.morph_bootstrap_service import MorphBootstrapService
 from services.osint_service import OSINTService
@@ -31,6 +33,7 @@ _STEP_KEYS = (
     "policy_industry",
     "financial",
     "morph_bootstrap",
+    "monitors",
     "synthesis",
 )
 
@@ -84,6 +87,81 @@ class InquiryOrchestratorService:
             return False, []
         ai = await ActorImpactService(self.db).build_assessment(case_id, project.id)
         return True, ai.get("scenarios") or []
+
+    async def _smic_for_case(self, case_id: int) -> dict[str, Any] | None:
+        r = await self.db.execute(
+            select(ProspectiveProject)
+            .where(ProspectiveProject.case_id == case_id)
+            .order_by(ProspectiveProject.created_at.desc())
+            .limit(1)
+        )
+        project = r.scalar_one_or_none()
+        if not project:
+            return None
+        smic_r = await self.db.execute(
+            select(SMICResult).where(SMICResult.project_id == project.id)
+        )
+        smic = smic_r.scalar_one_or_none()
+        if not smic:
+            return None
+        return {
+            "initial_probs": smic.initial_probs,
+            "final_probs": smic.final_probs,
+            "final_labels": smic.final_labels,
+        }
+
+    async def apply_to_wizard(
+        self,
+        inquiry_id: int,
+        *,
+        project_id: int | None = None,
+    ) -> dict[str, Any]:
+        inquiry = await self._get_inquiry(inquiry_id)
+        if not inquiry:
+            return {"ok": False, "error": "Inquiry no trobada"}
+        morph = (inquiry.artifacts or {}).get("morph_bootstrap")
+        if not morph:
+            parsed = inquiry.parsed_trigger or {}
+            morph = MorphBootstrapService().bootstrap(
+                question=inquiry.question,
+                event_type=parsed.get("event_type", "geopolitical"),
+                actors=parsed.get("actors"),
+            )
+        result = await InquiryWizardBridgeService(self.db).apply_morph_bootstrap(
+            case_id=inquiry.case_id,
+            question=inquiry.question,
+            morph_bootstrap=morph,
+            project_id=project_id,
+        )
+        if result.get("ok"):
+            artifacts = self._artifacts(inquiry)
+            artifacts["wizard_project_id"] = result.get("project_id")
+            inquiry.artifacts = artifacts
+            await self.db.commit()
+        return result
+
+    async def apply_monitors(
+        self,
+        inquiry_id: int,
+        *,
+        project_id: int,
+    ) -> dict[str, Any]:
+        inquiry = await self._get_inquiry(inquiry_id)
+        if not inquiry:
+            return {"ok": False, "error": "Inquiry no trobada"}
+        suggestions = (inquiry.artifacts or {}).get("monitor_suggestions")
+        if not suggestions:
+            suggestions = InquiryMonitorService().suggest(
+                question=inquiry.question,
+                parsed_trigger=inquiry.parsed_trigger or {},
+                morph_bootstrap=(inquiry.artifacts or {}).get("morph_bootstrap"),
+            )
+        return await InquiryMonitorService().apply_to_project(
+            self.db,
+            case_id=inquiry.case_id,
+            project_id=project_id,
+            suggestions=suggestions,
+        )
 
     async def create_inquiry(
         self,
@@ -366,6 +444,38 @@ class InquiryOrchestratorService:
                     "godet_preview": morph.get("godet_preview"),
                 }
 
+            # --- monitors (suggestions) ---
+            hit = self._cached(artifacts, "monitors", force_refresh)
+            if hit:
+                mon = hit.get("monitors") or artifacts.get("monitor_suggestions") or {}
+                artifacts["monitor_suggestions"] = mon
+                yield {
+                    "event": "step",
+                    "step": "monitors",
+                    "status": "done",
+                    "cached": True,
+                    "count": mon.get("count", 0),
+                }
+            else:
+                yield {"event": "step", "step": "monitors", "status": "running"}
+                mon = InquiryMonitorService().suggest(
+                    question=inquiry.question,
+                    parsed_trigger=parsed,
+                    morph_bootstrap=artifacts.get("morph_bootstrap"),
+                    horizon_label=parsed.get("horizon_label", ""),
+                )
+                artifacts["monitor_suggestions"] = mon
+                self._cache_step(artifacts, "monitors", {"ok": True, "monitors": mon, "count": mon.get("count")})
+                inquiry.artifacts = artifacts
+                await self._append_step(inquiry, {"step": "monitors", "ok": True, "count": mon.get("count")})
+                yield {
+                    "event": "step",
+                    "step": "monitors",
+                    "status": "done",
+                    "count": mon.get("count"),
+                    "suggested_monitors": mon.get("suggested_monitors"),
+                }
+
             actor_impact = artifacts.get("actor_impact")
             if not actor_impact or force_refresh:
                 actor_impact = await ActorImpactService(self.db).build_assessment(case_id)
@@ -373,6 +483,7 @@ class InquiryOrchestratorService:
                 inquiry.artifacts = artifacts
 
             godet_ready, scenario_rows = await self._godet_ready(case_id)
+            smic_result = await self._smic_for_case(case_id) if godet_ready else None
             inquiry.artifacts = artifacts
 
             if inquiry.mode == "full" and not godet_ready:
@@ -382,10 +493,11 @@ class InquiryOrchestratorService:
                     "event": "awaiting_godet",
                     "message": (
                         "Completa MIC-MAC, MACTOR, morfològic i SMIC a Anàlisi Prospectiva. "
-                        "Usa les suggerències morph_bootstrap com a punt de partida. "
+                        "Usa «Aplicar al wizard» per sembrar el pas morfològic. "
                         "Després crida POST /api/prospective/inquiries/{id}/synthesize"
                     ),
                     "morph_bootstrap": artifacts.get("morph_bootstrap"),
+                    "monitor_suggestions": artifacts.get("monitor_suggestions"),
                 }
                 return
 
@@ -401,6 +513,8 @@ class InquiryOrchestratorService:
                 financial_crossover=artifacts.get("financial_crossover"),
                 policy_industry=artifacts.get("policy_industry"),
                 morph_bootstrap=artifacts.get("morph_bootstrap"),
+                monitor_suggestions=artifacts.get("monitor_suggestions"),
+                smic_result=smic_result,
                 scope_audit=inquiry.scope_audit,
                 godet_ready=godet_ready,
             )
@@ -456,6 +570,16 @@ class InquiryOrchestratorService:
                 actors=parsed.get("actors"),
             )
 
+        if not artifacts.get("monitor_suggestions"):
+            parsed = inquiry.parsed_trigger or {}
+            artifacts["monitor_suggestions"] = InquiryMonitorService().suggest(
+                question=inquiry.question,
+                parsed_trigger=parsed,
+                morph_bootstrap=artifacts.get("morph_bootstrap"),
+            )
+
+        smic_result = await self._smic_for_case(inquiry.case_id) if godet_ready else None
+
         answer = ProspectiveSynthesisService().synthesize(
             question=inquiry.question,
             parsed_trigger=inquiry.parsed_trigger or {},
@@ -464,6 +588,8 @@ class InquiryOrchestratorService:
             financial_crossover=fc,
             policy_industry=artifacts.get("policy_industry"),
             morph_bootstrap=artifacts.get("morph_bootstrap"),
+            monitor_suggestions=artifacts.get("monitor_suggestions"),
+            smic_result=smic_result,
             scope_audit=inquiry.scope_audit,
             godet_ready=godet_ready,
         )

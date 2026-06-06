@@ -1,8 +1,13 @@
-"""HTML export for prospective inquiry reports."""
+"""HTML/PDF export for prospective inquiry reports."""
 from __future__ import annotations
 
+import asyncio
 import html
+import tempfile
+from pathlib import Path
 from typing import Any
+
+from services.export_backends import ExportBackendError, render_pdf_from_html
 
 
 def _esc(s: Any) -> str:
@@ -14,7 +19,9 @@ def build_inquiry_report_html(detail: dict[str, Any]) -> str:
     q = detail.get("question", "")
     answer = detail.get("answer") or {}
     scope_audit = detail.get("scope_audit") or {}
-    morph = (detail.get("artifacts") or {}).get("morph_bootstrap") or {}
+    artifacts = detail.get("artifacts") or {}
+    morph = artifacts.get("morph_bootstrap") or {}
+    monitors = artifacts.get("monitor_suggestions") or {}
     steps = detail.get("steps_log") or []
 
     parts = [
@@ -35,8 +42,10 @@ def build_inquiry_report_html(detail: dict[str, Any]) -> str:
             f"<strong>Possibilitat:</strong> {_esc(answer.get('possibility'))}</p>"
         )
         parts.append(f"<p>{_esc(answer.get('possibility_rationale'))}</p>")
+        parts.append("<ul>")
         for c in answer.get("conclusions") or []:
             parts.append(f"<li>{_esc(c)}</li>")
+        parts.append("</ul>")
 
     if scope_audit:
         parts.append("<h2>Filtre OSINT (scope inquiry)</h2><ul>")
@@ -44,11 +53,12 @@ def build_inquiry_report_html(detail: dict[str, Any]) -> str:
             if k in scope_audit:
                 parts.append(f"<li>{_esc(k)}: {_esc(scope_audit[k])}</li>")
         parts.append("</ul>")
-        for sample in scope_audit.get("rejected_samples") or []:
-            parts.append(
-                f"<p class='muted'>Descartat: {_esc(sample.get('title'))} — "
-                f"{_esc('; '.join(sample.get('reasons') or []))}</p>"
-            )
+
+    if monitors.get("suggested_monitors"):
+        parts.append("<h2>Monitors suggerits</h2><ul>")
+        for m in monitors["suggested_monitors"]:
+            parts.append(f"<li>{_esc(m.get('indicator'))}</li>")
+        parts.append("</ul>")
 
     if morph.get("godet_preview"):
         parts.append("<h2>Previsualització morfològica (Zwicky)</h2><table><tr>"
@@ -70,3 +80,39 @@ def build_inquiry_report_html(detail: dict[str, Any]) -> str:
     parts.append("<p class='muted'>Generat per EINA Q2FS — sense inferència LLM a conclusions.</p>")
     parts.append("</body></html>")
     return "\n".join(parts)
+
+
+async def export_inquiry_pdf(detail: dict[str, Any], *, output_dir: Path | None = None) -> dict[str, Any]:
+    """Export inquiry report as PDF via WeasyPrint; returns metadata or error."""
+    html_str = build_inquiry_report_html(detail)
+    inquiry_id = detail.get("id", "inquiry")
+    out_dir = output_dir or Path("reports")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    pdf_path = out_dir / f"inquiry_{inquiry_id}.pdf"
+    try:
+        await asyncio.to_thread(render_pdf_from_html, html_str, pdf_path)
+        return {"ok": True, "format": "pdf", "file_path": str(pdf_path.resolve())}
+    except ExportBackendError as exc:
+        return {
+            "ok": False,
+            "format": "pdf",
+            "error": str(exc),
+            "fallback": "html",
+            "html": html_str,
+        }
+
+
+def export_inquiry_pdf_bytes(detail: dict[str, Any]) -> tuple[bytes | None, str]:
+    """Sync PDF bytes for download response."""
+    import tempfile
+
+    html_str = build_inquiry_report_html(detail)
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+        tmp_path = Path(tmp.name)
+    try:
+        render_pdf_from_html(html_str, tmp_path)
+        return tmp_path.read_bytes(), "application/pdf"
+    except ExportBackendError as exc:
+        return None, str(exc)
+    finally:
+        tmp_path.unlink(missing_ok=True)

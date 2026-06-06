@@ -5,14 +5,14 @@ import json
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
 from models.user import User
-from services.inquiry_export_service import build_inquiry_report_html
+from services.inquiry_export_service import build_inquiry_report_html, export_inquiry_pdf_bytes
 from services.inquiry_orchestrator_service import InquiryOrchestratorService
 
 router = APIRouter(prefix="/api/prospective/inquiries", tags=["Prospective Inquiry Q2FS"])
@@ -24,6 +24,14 @@ class InquiryCreateIn(BaseModel):
     mode: Literal["full", "lite"] = "full"
     include_financial: bool = False
     financial_text: str = ""
+
+
+class ApplyWizardIn(BaseModel):
+    project_id: int | None = None
+
+
+class ApplyMonitorsIn(BaseModel):
+    project_id: int
 
 
 @router.get("/case/{case_id}")
@@ -112,6 +120,78 @@ async def export_inquiry_html(
         raise HTTPException(status_code=404, detail="Inquiry no trobada")
     html = build_inquiry_report_html(detail)
     return HTMLResponse(content=html)
+
+
+@router.get("/{inquiry_id}/export/pdf")
+async def export_inquiry_pdf(
+    inquiry_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _ = current_user
+    detail = await InquiryOrchestratorService(db).get_detail(inquiry_id)
+    if not detail.get("found"):
+        raise HTTPException(status_code=404, detail="Inquiry no trobada")
+    pdf_bytes, meta = export_inquiry_pdf_bytes(detail)
+    if pdf_bytes is None:
+        raise HTTPException(
+            status_code=503,
+            detail=f"PDF no disponible: {meta}. Usa export/html o instal·la WeasyPrint.",
+        )
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=inquiry_{inquiry_id}.pdf"},
+    )
+
+
+@router.get("/{inquiry_id}/cca-heatmap")
+async def get_inquiry_cca_heatmap(
+    inquiry_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _ = current_user
+    result = await InquiryOrchestratorService(db).morph_bootstrap_for_inquiry(inquiry_id)
+    if not result.get("found"):
+        raise HTTPException(status_code=404, detail=result.get("error", "Not found"))
+    return {
+        "inquiry_id": inquiry_id,
+        "cca_heatmap": result.get("cca_heatmap"),
+        "valid_combinations_count": result.get("valid_combinations_count"),
+    }
+
+
+@router.post("/{inquiry_id}/apply-to-wizard")
+async def apply_inquiry_to_wizard(
+    inquiry_id: int,
+    body: ApplyWizardIn,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _ = current_user
+    result = await InquiryOrchestratorService(db).apply_to_wizard(
+        inquiry_id, project_id=body.project_id
+    )
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Error"))
+    return result
+
+
+@router.post("/{inquiry_id}/apply-monitors")
+async def apply_inquiry_monitors(
+    inquiry_id: int,
+    body: ApplyMonitorsIn,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _ = current_user
+    result = await InquiryOrchestratorService(db).apply_monitors(
+        inquiry_id, project_id=body.project_id
+    )
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Error"))
+    return result
 
 
 @router.post("/{inquiry_id}/synthesize")

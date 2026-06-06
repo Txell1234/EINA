@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import Any
 
 from services.morph_space import (
+    _get_pair_consistency,
     backtrack_valid_combinations,
     filter_valid_combinations,
     morph_space_stats,
@@ -171,10 +172,46 @@ class MorphBootstrapService:
             "morph_stats": stats,
             "valid_combinations_count": len(valid),
             "godet_preview": godet_four,
+            "cca_heatmap": self.build_cca_heatmap(components, incompatibilities),
             "methodology": "rule_based_morph_bootstrap",
             "llm_used": False,
             "note": (
                 "Suggeriment per iniciar el pas morfològic al wizard. "
                 "Valida i ajusta manualment abans de generar escenaris."
             ),
+        }
+
+    def build_cca_heatmap(
+        self,
+        components: list[dict],
+        incompatibilities: list[dict],
+    ) -> dict[str, Any]:
+        """Pairwise CCA matrix for UI heat-map (deterministic)."""
+        normalized = normalize_components(components)
+        codes = [c["code"] for c in normalized]
+        cells: list[dict[str, Any]] = []
+        for i, ca in enumerate(codes):
+            for j, cb in enumerate(codes):
+                if j <= i:
+                    continue
+                comp_a = next(c for c in normalized if c["code"] == ca)
+                comp_b = next(c for c in normalized if c["code"] == cb)
+                for cfg_a in comp_a["configs"]:
+                    for cfg_b in comp_b["configs"]:
+                        val = _get_pair_consistency(ca, cfg_a, cb, cfg_b, incompatibilities)
+                        if val != 0:
+                            cells.append(
+                                {
+                                    "param_a": ca,
+                                    "state_a": cfg_a,
+                                    "param_b": cb,
+                                    "state_b": cfg_b,
+                                    "value": val,
+                                }
+                            )
+        return {
+            "parameters": [{"code": c["code"], "name": c["name"], "states": c["configs"]} for c in normalized],
+            "cells": cells,
+            "inconsistent_count": sum(1 for x in cells if x["value"] == -1),
+            "neutral_count": sum(1 for x in cells if x["value"] == 0),
         }

@@ -935,6 +935,26 @@ export const prospectiveInquiryService = {
     const base = API_BASE_URL.replace(/\/$/, '')
     return `${base}/api/prospective/inquiries/${inquiryId}/export/html`
   },
+  exportPdfUrl: (inquiryId: number) => {
+    const base = API_BASE_URL.replace(/\/$/, '')
+    return `${base}/api/prospective/inquiries/${inquiryId}/export/pdf`
+  },
+  ccaHeatmap: async (inquiryId: number) => {
+    const response = await api.get(`/api/prospective/inquiries/${inquiryId}/cca-heatmap`)
+    return response.data
+  },
+  applyToWizard: async (inquiryId: number, projectId?: number) => {
+    const response = await api.post(`/api/prospective/inquiries/${inquiryId}/apply-to-wizard`, {
+      project_id: projectId ?? null,
+    })
+    return response.data
+  },
+  applyMonitors: async (inquiryId: number, projectId: number) => {
+    const response = await api.post(`/api/prospective/inquiries/${inquiryId}/apply-monitors`, {
+      project_id: projectId,
+    })
+    return response.data
+  },
 }
 
 export const dashboardService = {

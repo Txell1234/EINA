@@ -17,6 +17,8 @@ def test_morph_bootstrap_security_maritime():
     assert result["valid_combinations_count"] >= 1
     assert len(result["godet_preview"]) <= 4
     assert result["methodology"] == "rule_based_morph_bootstrap"
+    assert "cca_heatmap" in result
+    assert "parameters" in result["cca_heatmap"]
 
 
 @pytest.mark.unit

@@ -17,6 +17,8 @@ class ProspectiveSynthesisService:
         financial_crossover: dict[str, Any] | None = None,
         policy_industry: dict[str, Any] | None = None,
         morph_bootstrap: dict[str, Any] | None = None,
+        monitor_suggestions: dict[str, Any] | None = None,
+        smic_result: dict[str, Any] | None = None,
         scope_audit: dict[str, Any] | None = None,
         godet_ready: bool = False,
     ) -> dict[str, Any]:
@@ -155,6 +157,35 @@ class ProspectiveSynthesisService:
                     }
                 )
 
+        mon = monitor_suggestions or {}
+        suggested = mon.get("suggested_monitors") or []
+        if suggested:
+            reasoning.append(
+                {
+                    "conclusion": f"{len(suggested)} monitors OSINT suggerits per la pregunta",
+                    "because": (
+                        f"Indicadors derivats de termes obligatoris, actors i preview morfològic: "
+                        f"{suggested[0].get('indicator', '')[:120]}…"
+                    ),
+                    "sources": [{"origin": "inquiry_monitors", "field": "suggested_monitors"}],
+                }
+            )
+
+        smic = smic_result or {}
+        final_probs = smic.get("final_probs") or []
+        if final_probs and isinstance(final_probs, list):
+            nums = [float(p) for p in final_probs if isinstance(p, (int, float))]
+            if nums and probability_pct is None:
+                probability_pct = round(sum(nums) / len(nums), 1)
+            if nums:
+                reasoning.append(
+                    {
+                        "conclusion": f"SMIC: probabilitats finals {final_probs}",
+                        "because": "Valors calculats al wizard SMIC del projecte prospectiu (no LLM).",
+                        "sources": [{"origin": "eina_smic", "field": "final_probs"}],
+                    }
+                )
+
         if scope_audit:
             removed = scope_audit.get("removed_topic", 0) + scope_audit.get("removed_must_match", 0)
             if removed:
@@ -203,4 +234,6 @@ class ProspectiveSynthesisService:
             "financial_mode": fin_mode,
             "policy_companies_count": len(companies),
             "morph_valid_combinations": morph.get("valid_combinations_count"),
+            "suggested_monitors_count": len(suggested),
+            "smic_available": bool(final_probs),
         }

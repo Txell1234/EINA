@@ -27,6 +27,9 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
   const [awaitingGodet, setAwaitingGodet] = useState(false)
   const [lastInquiryId, setLastInquiryId] = useState<number | null>(null)
   const [morphPreview, setMorphPreview] = useState<Array<Record<string, unknown>>>([])
+  const [monitorSuggestions, setMonitorSuggestions] = useState<Array<Record<string, unknown>>>([])
+  const [wizardProjectId, setWizardProjectId] = useState<number | null>(null)
+  const [ccaCells, setCcaCells] = useState<Array<Record<string, unknown>>>([])
 
   const { data: inquiries = [] } = useQuery({
     queryKey: ['prospective-inquiries', caseId],
@@ -39,6 +42,8 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
       setAnswer(null)
       setAwaitingGodet(false)
       setMorphPreview([])
+      setMonitorSuggestions([])
+      setCcaCells([])
       const created = await prospectiveInquiryService.create({
         case_id: caseId,
         question: question.trim(),
@@ -56,7 +61,9 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
                   ? `empreses=${String(event.companies)}`
                   : event.valid_combinations != null
                     ? `combinacions=${String(event.valid_combinations)}`
-                    : undefined
+                    : event.count != null
+                      ? `monitors=${String(event.count)}`
+                      : undefined
             setSteps((prev) => {
               const idx = prev.findIndex((s) => s.step === event.step)
               const row: StepState = {
@@ -74,6 +81,9 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
             })
             if (event.step === 'morph_bootstrap' && Array.isArray(event.godet_preview)) {
               setMorphPreview(event.godet_preview as Array<Record<string, unknown>>)
+            }
+            if (event.step === 'monitors' && Array.isArray(event.suggested_monitors)) {
+              setMonitorSuggestions(event.suggested_monitors as Array<Record<string, unknown>>)
             }
           }
           if (event.event === 'awaiting_godet') {
@@ -112,6 +122,21 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
       if (Array.isArray(data.godet_preview)) {
         setMorphPreview(data.godet_preview as Array<Record<string, unknown>>)
       }
+    },
+  })
+
+  const wizardMutation = useMutation({
+    mutationFn: (inquiryId: number) => prospectiveInquiryService.applyToWizard(inquiryId),
+    onSuccess: (data) => {
+      if (data.project_id) setWizardProjectId(data.project_id as number)
+    },
+  })
+
+  const heatmapMutation = useMutation({
+    mutationFn: (inquiryId: number) => prospectiveInquiryService.ccaHeatmap(inquiryId),
+    onSuccess: (data) => {
+      const cells = (data.cca_heatmap as { cells?: Array<Record<string, unknown>> })?.cells
+      if (Array.isArray(cells)) setCcaCells(cells)
     },
   })
 
@@ -233,6 +258,66 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
               Actualitzar morph bootstrap
             </button>
           )}
+          {exportId && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={wizardMutation.isPending}
+              onClick={() => wizardMutation.mutate(exportId)}
+            >
+              {wizardMutation.isPending ? 'Sembrant…' : 'Aplicar al wizard Godet'}
+            </button>
+          )}
+          {wizardProjectId && (
+            <p className="prospective-inquiry-panel__sub">
+              Projecte #{wizardProjectId} — continua MIC-MAC/MACTOR a Anàlisi Prospectiva.
+            </p>
+          )}
+          {exportId && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={heatmapMutation.isPending}
+              onClick={() => heatmapMutation.mutate(exportId)}
+            >
+              Carregar heatmap CCA
+            </button>
+          )}
+        </details>
+      )}
+
+      {ccaCells.length > 0 && (
+        <details className="prospective-inquiry-panel__morph">
+          <summary>Heatmap CCA (inconsistències)</summary>
+          <table>
+            <thead>
+              <tr>
+                <th>A</th>
+                <th>B</th>
+                <th>Valor</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ccaCells.filter((c) => c.value === -1).slice(0, 12).map((c) => (
+                <tr key={`${String(c.param_a)}-${String(c.state_a)}-${String(c.param_b)}`}>
+                  <td>{String(c.param_a)}/{String(c.state_a)}</td>
+                  <td>{String(c.param_b)}/{String(c.state_b)}</td>
+                  <td>{String(c.value)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </details>
+      )}
+
+      {monitorSuggestions.length > 0 && (
+        <details open className="prospective-inquiry-panel__monitors">
+          <summary>Monitors suggerits ({monitorSuggestions.length})</summary>
+          <ul>
+            {monitorSuggestions.map((m) => (
+              <li key={String(m.indicator)}>{String(m.indicator)}</li>
+            ))}
+          </ul>
         </details>
       )}
 
@@ -275,6 +360,14 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
             rel="noreferrer"
           >
             Exportar informe HTML (inquiry #{exportId})
+          </a>
+          {' · '}
+          <a
+            href={prospectiveInquiryService.exportPdfUrl(exportId)}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Exportar PDF
           </a>
         </p>
       )}
