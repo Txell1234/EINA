@@ -100,6 +100,25 @@ type TranslationKeys =
   | 'alerts.triggered'
   | 'alerts.monitoring'
   | 'alerts.selectProject'
+  | 'inquiry.title'
+  | 'inquiry.subtitle'
+  | 'inquiry.refresh'
+  | 'inquiry.stats.total'
+  | 'inquiry.stats.completed'
+  | 'inquiry.stats.awaitingGodet'
+  | 'inquiry.stats.scheduler'
+  | 'inquiry.stats.due'
+  | 'inquiry.banner.due'
+  | 'inquiry.filter.status'
+  | 'inquiry.filter.all'
+  | 'inquiry.filter.scheduledOnly'
+  | 'inquiry.exportZip'
+  | 'inquiry.exporting'
+  | 'inquiry.rerunBatch'
+  | 'inquiry.rerunning'
+  | 'inquiry.rerunDue'
+  | 'inquiry.empty'
+  | 'inquiry.wizard'
 
 type Translations = Record<TranslationKeys, string>
 
@@ -202,6 +221,25 @@ const translations: Record<SupportedLocale, Translations> = {
     'alerts.triggered': 'Triggered',
     'alerts.monitoring': 'Monitoring',
     'alerts.selectProject': 'Select project',
+    'inquiry.title': 'Q2FS Inquiries',
+    'inquiry.subtitle': 'Global view of analytic questions, scheduled re-runs and batch export.',
+    'inquiry.refresh': 'Refresh',
+    'inquiry.stats.total': 'Total',
+    'inquiry.stats.completed': 'Completed',
+    'inquiry.stats.awaitingGodet': 'Awaiting Godet',
+    'inquiry.stats.scheduler': 'Active scheduler',
+    'inquiry.stats.due': 'Pending re-runs',
+    'inquiry.banner.due': 'inquiry(s) with overdue scheduled re-run — check the case Intelligence Center.',
+    'inquiry.filter.status': 'Status',
+    'inquiry.filter.all': 'All',
+    'inquiry.filter.scheduledOnly': 'Scheduler only',
+    'inquiry.exportZip': 'Export ZIP',
+    'inquiry.exporting': 'Exporting…',
+    'inquiry.rerunBatch': 'Re-run selected',
+    'inquiry.rerunning': 'Re-running…',
+    'inquiry.rerunDue': 'Re-run due',
+    'inquiry.empty': 'No inquiries yet. Create one in the Intelligence Center.',
+    'inquiry.wizard': 'Wizard',
   },
   es: {
     'app.name': 'Plataforma de Inteligencia OSINT',
@@ -301,6 +339,25 @@ const translations: Record<SupportedLocale, Translations> = {
     'alerts.triggered': 'Disparado',
     'alerts.monitoring': 'Monitorizando',
     'alerts.selectProject': 'Seleccionar proyecto',
+    'inquiry.title': 'Inquiries Q2FS',
+    'inquiry.subtitle': 'Vista global de preguntas analíticas, re-runs programados y exportación batch.',
+    'inquiry.refresh': 'Actualizar',
+    'inquiry.stats.total': 'Total',
+    'inquiry.stats.completed': 'Completadas',
+    'inquiry.stats.awaitingGodet': 'Esperando Godet',
+    'inquiry.stats.scheduler': 'Scheduler activo',
+    'inquiry.stats.due': 'Re-runs pendientes',
+    'inquiry.banner.due': 'inquiry(s) con re-run programado vencido — revisa el Centro de Inteligencia del caso.',
+    'inquiry.filter.status': 'Estado',
+    'inquiry.filter.all': 'Todos',
+    'inquiry.filter.scheduledOnly': 'Solo con scheduler',
+    'inquiry.exportZip': 'Exportar ZIP',
+    'inquiry.exporting': 'Exportando…',
+    'inquiry.rerunBatch': 'Re-ejecutar seleccionadas',
+    'inquiry.rerunning': 'Re-ejecutando…',
+    'inquiry.rerunDue': 'Re-run vencidos',
+    'inquiry.empty': 'Sin inquiries aún. Crea una en el Centro de Inteligencia.',
+    'inquiry.wizard': 'Wizard',
   },
   ca: {
     'app.name': 'Plataforma d’Intel·ligència OSINT',
@@ -400,6 +457,25 @@ const translations: Record<SupportedLocale, Translations> = {
     'alerts.triggered': 'Disparat',
     'alerts.monitoring': 'Monitoritzant',
     'alerts.selectProject': 'Selecciona projecte',
+    'inquiry.title': 'Inquiries Q2FS',
+    'inquiry.subtitle': 'Vista global de preguntes analítiques, re-runs programats i export batch.',
+    'inquiry.refresh': 'Actualitzar',
+    'inquiry.stats.total': 'Total',
+    'inquiry.stats.completed': 'Completades',
+    'inquiry.stats.awaitingGodet': 'Esperant Godet',
+    'inquiry.stats.scheduler': 'Scheduler actiu',
+    'inquiry.stats.due': 'Re-run pendents',
+    'inquiry.banner.due': 'inquiry(s) amb re-run programat vençut — revisa al Centre d\'Intel·ligència del cas.',
+    'inquiry.filter.status': 'Estat',
+    'inquiry.filter.all': 'Tots',
+    'inquiry.filter.scheduledOnly': 'Només amb scheduler',
+    'inquiry.exportZip': 'Export ZIP',
+    'inquiry.exporting': 'Exportant…',
+    'inquiry.rerunBatch': 'Re-run seleccionades',
+    'inquiry.rerunning': 'Re-run en curs…',
+    'inquiry.rerunDue': 'Re-run vençuts',
+    'inquiry.empty': 'Cap inquiry encara. Crea-ne una al Centre d\'Intel·ligència.',
+    'inquiry.wizard': 'Wizard',
   },
   fr: {
     'app.name': 'Plateforme d’intelligence OSINT',
@@ -499,6 +575,25 @@ const translations: Record<SupportedLocale, Translations> = {
     'alerts.triggered': 'Déclenché',
     'alerts.monitoring': 'Surveillance',
     'alerts.selectProject': 'Sélectionner projet',
+    'inquiry.title': 'Inquiries Q2FS',
+    'inquiry.subtitle': 'Vue globale des questions analytiques, re-runs planifiés et export batch.',
+    'inquiry.refresh': 'Actualiser',
+    'inquiry.stats.total': 'Total',
+    'inquiry.stats.completed': 'Terminées',
+    'inquiry.stats.awaitingGodet': 'En attente Godet',
+    'inquiry.stats.scheduler': 'Planificateur actif',
+    'inquiry.stats.due': 'Re-runs en attente',
+    'inquiry.banner.due': 'inquiry(s) avec re-run planifié en retard — voir le Centre d\'intelligence du cas.',
+    'inquiry.filter.status': 'Statut',
+    'inquiry.filter.all': 'Tous',
+    'inquiry.filter.scheduledOnly': 'Planificateur uniquement',
+    'inquiry.exportZip': 'Export ZIP',
+    'inquiry.exporting': 'Export…',
+    'inquiry.rerunBatch': 'Relancer la sélection',
+    'inquiry.rerunning': 'Relance…',
+    'inquiry.rerunDue': 'Relancer les échus',
+    'inquiry.empty': 'Aucune inquiry. Créez-en une dans le Centre d\'intelligence.',
+    'inquiry.wizard': 'Wizard',
   },
 }
 

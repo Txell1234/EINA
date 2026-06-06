@@ -24,11 +24,16 @@ backend_dir = Path(__file__).parent.parent
 if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
 
-# Configurar logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# Configurar logging (estructurat per Loki si està activat)
+from observability.logging_config import setup_structured_logging
+
+if settings.STRUCTURED_LOGGING:
+    setup_structured_logging(enabled=True, level=logging.INFO)
+else:
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
 logger = logging.getLogger(__name__)
 
 # Import all models first (so Base.metadata knows about them)
@@ -293,6 +298,12 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
 
+if settings.PROMETHEUS_ENABLED:
+    from observability.middleware import CorrelationLoggingMiddleware, PrometheusMiddleware
+
+    app.add_middleware(CorrelationLoggingMiddleware)
+    app.add_middleware(PrometheusMiddleware)
+
 # CORS middleware - Must be added before routers
 cors_origins = settings.cors_origins_list
 logger.info(f"CORS origins configurados: {cors_origins}")
@@ -343,6 +354,15 @@ app.include_router(
 )
 app.include_router(financial_crossover.router)
 app.include_router(prospective_inquiry.router)
+
+if settings.PROMETHEUS_ENABLED:
+    from observability.metrics import expose_metrics_app
+
+    app.mount("/metrics", expose_metrics_app())
+
+from observability.tracing import setup_jaeger_tracing
+
+setup_jaeger_tracing(app)
 
 @app.get("/")
 async def root():

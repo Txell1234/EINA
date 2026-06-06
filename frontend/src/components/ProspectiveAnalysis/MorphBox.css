@@ -1,0 +1,25 @@
+.morph-box__component {
+  margin-bottom: var(--spacing-md);
+}
+
+.morph-box__matrix {
+  margin-top: var(--spacing-lg);
+}
+
+.morph-box__stats {
+  font-size: var(--font-size-sm);
+  color: var(--color-gray-600);
+}
+
+.morph-box__pair {
+  margin-top: var(--spacing-md);
+}
+
+.morph-box__table-wrap {
+  overflow-x: auto;
+}
+
+.morph-box__scenarios ul {
+  font-size: var(--font-size-sm);
+  color: var(--color-gray-700);
+}

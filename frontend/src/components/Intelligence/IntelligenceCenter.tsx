@@ -508,13 +508,13 @@ export default function IntelligenceCenter() {
           </div>
         </div>
       ) : status?.steps?.osint?.ready ? (
-        <>
+        <div data-testid="intel-panels-ready">
           <ActorNetworkPanel caseId={selectedCaseId} />
           <PolicyIndustryPanel caseId={selectedCaseId} />
           <ProspectiveInquiryPanel caseId={selectedCaseId} />
           <FinancialCrossoverPanel caseId={selectedCaseId} />
           <VisualizationsDashboard caseId={selectedCaseId} hideScopeBar key={selectedCaseId} />
-        </>
+        </div>
       ) : (
         <div className="card intel-empty-panel">
           <Brain size={32} className="intel-empty-icon" />

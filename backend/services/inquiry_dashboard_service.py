@@ -119,3 +119,33 @@ class InquiryDashboardService:
                 "\n".join(f"inquiry_{iid}.html" for iid in inquiry_ids).encode("utf-8"),
             )
         return buf.getvalue()
+
+    async def rerun_batch(
+        self,
+        inquiry_ids: list[int],
+        *,
+        force_refresh: bool = True,
+        limit: int = 10,
+    ) -> dict[str, Any]:
+        if not inquiry_ids:
+            raise ValueError("Calen IDs d'inquiry")
+        if len(inquiry_ids) > limit:
+            raise ValueError(f"Màxim {limit} inquiries per batch re-run")
+
+        orchestrator = InquiryOrchestratorService(self.db)
+        results: list[dict[str, Any]] = []
+        for iid in inquiry_ids:
+            try:
+                summary = await orchestrator.run_batch(iid, force_refresh=force_refresh)
+                results.append({"inquiry_id": iid, "ok": True, **summary})
+            except Exception as exc:
+                results.append({"inquiry_id": iid, "ok": False, "error": str(exc)[:200]})
+
+        ok_count = sum(1 for r in results if r.get("ok"))
+        return {
+            "found": True,
+            "processed": len(results),
+            "ok_count": ok_count,
+            "failed_count": len(results) - ok_count,
+            "results": results,
+        }

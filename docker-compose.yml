@@ -10,6 +10,9 @@ services:
     container_name: eina-backend
     restart: unless-stopped
     env_file: ./backend/.env
+    environment:
+      Q2FS_STEP_CACHE_BACKEND: ${Q2FS_STEP_CACHE_BACKEND:-memory}
+      REDIS_URL: ${REDIS_URL:-}
     ports:
       - "8000:8000"
     volumes:
@@ -35,6 +38,78 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    container_name: eina-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    profiles: ["observability", "full"]
+
+  prometheus:
+    image: prom/prometheus:v2.55.0
+    container_name: eina-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./backend/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./backend/observability/alerts:/etc/prometheus/alerts:ro
+    ports:
+      - "9090:9090"
+    profiles: ["observability", "full"]
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: eina-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./backend/observability/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ./backend/observability/grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+      - ./backend/observability/grafana/dashboards/json:/etc/grafana/provisioning/dashboards/json:ro
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
+      - loki
+      - jaeger
+    profiles: ["observability", "full"]
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.63.0
+    container_name: eina-jaeger
+    restart: unless-stopped
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+    profiles: ["observability", "full"]
+
+  loki:
+    image: grafana/loki:3.2.0
+    container_name: eina-loki
+    restart: unless-stopped
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./backend/observability/loki-config.yml:/etc/loki/local-config.yaml:ro
+    ports:
+      - "3100:3100"
+    profiles: ["observability", "full"]
+
+  promtail:
+    image: grafana/promtail:3.2.0
+    container_name: eina-promtail
+    restart: unless-stopped
+    volumes:
+      - ./backend/observability/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - loki
+    profiles: ["observability", "full"]
 
 volumes:
   eina-db:

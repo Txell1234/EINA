@@ -1,0 +1,10 @@
+apiVersion: 1
+
+providers:
+  - name: Q2FS
+    orgId: 1
+    folder: Q2FS
+    type: file
+    disableDeletion: false
+    options:
+      path: /etc/grafana/provisioning/dashboards/json

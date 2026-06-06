@@ -154,3 +154,75 @@ class InquiryCcaService:
             "total_incompatibilities": len(merged),
             "morph_stats": stats,
         }
+
+    async def preview_cca_impact(
+        self,
+        project_id: int,
+        rules: list[dict[str, Any]],
+        *,
+        include_existing: bool = True,
+    ) -> dict[str, Any]:
+        """Live preview: how proposed CCA rules change valid morph combinations."""
+        from observability.metrics import (
+            CCA_COMBINATIONS_TOTAL,
+            CCA_PRUNED_TOTAL,
+            MORPH_VALID_CONFIGS,
+        )
+        from observability.tracing import q2fs_span
+        from services.morph_space import morph_space_stats
+
+        with q2fs_span("cca_preview", "cca", {"project_id": project_id}):
+            comp_r = await self.db.execute(
+                select(MorphComponent)
+                .where(MorphComponent.project_id == project_id)
+                .order_by(MorphComponent.order_index.asc())
+            )
+            components = [
+                {
+                    "code": m.code,
+                    "name": m.name,
+                    "configurations": m.configurations or [],
+                }
+                for m in comp_r.scalars().all()
+            ]
+            if not components:
+                return {"found": False, "error": "Cap component morfològic al projecte"}
+
+            existing = (
+                await ProspectiveService(self.db).get_incompatibilities(project_id)
+                if include_existing
+                else []
+            )
+            proposed = [
+                {
+                    "component_a": r["component_a"],
+                    "config_a": r["config_a"],
+                    "component_b": r["component_b"],
+                    "config_b": r["config_b"],
+                }
+                for r in rules
+                if r.get("selected", True) and r.get("consistency", -1) == -1
+            ]
+            before = morph_space_stats(components, existing)
+            merged = merge_cca_rules(existing, proposed)
+            after = morph_space_stats(components, merged)
+
+            CCA_COMBINATIONS_TOTAL.inc(before["total_combinations"])
+            pruned = after["filtered_out"] - before["filtered_out"]
+            if pruned > 0:
+                CCA_PRUNED_TOTAL.inc(pruned)
+            MORPH_VALID_CONFIGS.set(after["valid_combinations"])
+
+            return {
+                "found": True,
+                "project_id": project_id,
+                "before": before,
+                "after": after,
+                "delta_valid_combinations": after["valid_combinations"] - before["valid_combinations"],
+                "delta_filtered_out": after["filtered_out"] - before["filtered_out"],
+                "proposed_rules_count": len(proposed),
+                "survival_rate_pct": round(
+                    100.0 * after["valid_combinations"] / max(before["total_combinations"], 1),
+                    1,
+                ),
+            }

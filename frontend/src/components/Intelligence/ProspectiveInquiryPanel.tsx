@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { prospectiveInquiryService } from '../../services/api'
@@ -42,6 +42,7 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
     Array<{ code: string; name: string; states: string[] }>
   >([])
   const [scopeAuditLive, setScopeAuditLive] = useState<ScopeAuditData | null>(null)
+  const [parsePreview, setParsePreview] = useState<Record<string, unknown> | null>(null)
 
   const { data: inquiries = [] } = useQuery({
     queryKey: ['prospective-inquiries', caseId],
@@ -243,8 +244,23 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
       (i) => i.status === 'completed' || i.status === 'awaiting_godet',
     )?.id
 
+  useEffect(() => {
+    const trimmed = question.trim()
+    if (trimmed.length < 15) {
+      setParsePreview(null)
+      return
+    }
+    const timer = window.setTimeout(() => {
+      void prospectiveInquiryService
+        .parsePreview(trimmed, caseId)
+        .then((data) => setParsePreview(data as Record<string, unknown>))
+        .catch(() => setParsePreview(null))
+    }, 500)
+    return () => window.clearTimeout(timer)
+  }, [question, caseId])
+
   return (
-    <section className="prospective-inquiry-panel card">
+    <section className="prospective-inquiry-panel card" data-testid="prospective-inquiry-panel">
       <header>
         <h3>Pregunta analítica (Q2FS)</h3>
         <p className="prospective-inquiry-panel__sub">
@@ -261,12 +277,25 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
         value={question}
         onChange={(e) => setQuestion(e.target.value)}
         placeholder={SAMPLE}
+        data-testid="inquiry-question"
       />
+
+      {parsePreview?.ok ? (
+        <p className="prospective-inquiry-panel__sub" data-testid="inquiry-parse-preview">
+          Parse: confiança {String(parsePreview.confidence ?? '—')}
+          {parsePreview.llm_used ? ' · LLM' : ' · regles'}
+          {parsePreview.event_type ? ` · ${String(parsePreview.event_type)}` : ''}
+        </p>
+      ) : null}
 
       <div className="prospective-inquiry-panel__row">
         <label>
           Mode
-          <select value={mode} onChange={(e) => setMode(e.target.value as 'full' | 'lite')}>
+          <select
+            value={mode}
+            onChange={(e) => setMode(e.target.value as 'full' | 'lite')}
+            data-testid="inquiry-mode"
+          >
             <option value="full">Complet (espera Godet manual)</option>
             <option value="lite">Lite (OSINT + síntesi parcial)</option>
           </select>
@@ -302,6 +331,7 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
           className="btn btn-primary"
           disabled={question.trim().length < 15 || runMutation.isPending}
           onClick={() => runMutation.mutate()}
+          data-testid="inquiry-launch"
         >
           {runMutation.isPending ? 'Executant…' : 'Llançar inquiry'}
         </button>
@@ -337,7 +367,7 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
       )}
 
       {steps.length > 0 && (
-        <div className="prospective-inquiry-panel__steps">
+        <div className="prospective-inquiry-panel__steps" data-testid="inquiry-steps">
           <h4>Monitor de passos</h4>
           <ul>
             {steps.map((s) => (
@@ -352,7 +382,7 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
       )}
 
       {awaitingGodet && (
-        <div className="prospective-inquiry-panel__wait">
+        <div className="prospective-inquiry-panel__wait" data-testid="inquiry-awaiting-godet">
           <p>Completa Godet al wizard prospectiu i després:</p>
           {(inquiries as Array<{ id: number; status: string }>)
             .filter((i) => i.status === 'awaiting_godet')

@@ -8,14 +8,18 @@ from pathlib import Path
 from typing import Any
 
 from services.export_backends import ExportBackendError, render_pdf_from_html
+from services.inquiry_report_content import build_inquiry_executive_summary
+from services.report_i18n import get_report_strings, normalize_lang
 
 
 def _esc(s: Any) -> str:
     return html.escape(str(s) if s is not None else "")
 
 
-def build_inquiry_report_html(detail: dict[str, Any]) -> str:
+def build_inquiry_report_html(detail: dict[str, Any], *, lang: str | None = None) -> str:
     """Deterministic HTML report from inquiry detail payload."""
+    lang_code = normalize_lang(lang or detail.get("lang"))
+    strings = get_report_strings(lang_code)
     q = detail.get("question", "")
     answer = detail.get("answer") or {}
     scope_audit = detail.get("scope_audit") or {}
@@ -25,13 +29,14 @@ def build_inquiry_report_html(detail: dict[str, Any]) -> str:
     steps = detail.get("steps_log") or []
 
     parts = [
-        "<!DOCTYPE html><html lang='ca'><head><meta charset='utf-8'>",
-        "<title>Informe Inquiry Q2FS</title>",
+        f"<!DOCTYPE html><html lang='{lang_code}'><head><meta charset='utf-8'>",
+        f"<title>{_esc(strings.report_title)} — Q2FS</title>",
         "<style>body{font-family:system-ui;max-width:900px;margin:2rem auto;padding:0 1rem}",
         "table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:6px}",
-        ".muted{color:#666}</style></head><body>",
-        f"<h1>Informe analític Q2FS</h1>",
+        ".muted{color:#666}.executive-summary{background:#f8fafc;padding:1rem;border-radius:8px;margin:1rem 0}</style></head><body>",
+        f"<h1>{_esc(strings.report_title)} — Q2FS</h1>",
         f"<p class='muted'>Estat: {_esc(detail.get('status'))} · Mode: {_esc(detail.get('mode'))}</p>",
+        build_inquiry_executive_summary({**detail, "lang": lang_code}, lang=lang_code),
         f"<h2>Pregunta</h2><p>{_esc(q)}</p>",
     ]
 
@@ -82,9 +87,14 @@ def build_inquiry_report_html(detail: dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
-async def export_inquiry_pdf(detail: dict[str, Any], *, output_dir: Path | None = None) -> dict[str, Any]:
+async def export_inquiry_pdf(
+    detail: dict[str, Any],
+    *,
+    output_dir: Path | None = None,
+    lang: str | None = None,
+) -> dict[str, Any]:
     """Export inquiry report as PDF via WeasyPrint; returns metadata or error."""
-    html_str = build_inquiry_report_html(detail)
+    html_str = build_inquiry_report_html(detail, lang=lang)
     inquiry_id = detail.get("id", "inquiry")
     out_dir = output_dir or Path("reports")
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -102,11 +112,11 @@ async def export_inquiry_pdf(detail: dict[str, Any], *, output_dir: Path | None 
         }
 
 
-def export_inquiry_pdf_bytes(detail: dict[str, Any]) -> tuple[bytes | None, str]:
+def export_inquiry_pdf_bytes(detail: dict[str, Any], *, lang: str | None = None) -> tuple[bytes | None, str]:
     """Sync PDF bytes for download response."""
     import tempfile
 
-    html_str = build_inquiry_report_html(detail)
+    html_str = build_inquiry_report_html(detail, lang=lang)
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
         tmp_path = Path(tmp.name)
     try:

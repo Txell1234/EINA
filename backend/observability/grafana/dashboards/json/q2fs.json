@@ -1,0 +1,46 @@
+{
+  "uid": "q2fs-overview",
+  "title": "Q2FS Pipeline",
+  "tags": ["eina", "q2fs"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Parse latency (p95)",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(q2fs_parse_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p95"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Cache hit ratio",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(rate(q2fs_cache_operations_total{hit=\"true\"}[5m])) / clamp_min(sum(rate(q2fs_cache_operations_total[5m])), 1)",
+          "legendFormat": "hits"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "graph",
+      "title": "Morph valid configs",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [
+        {
+          "expr": "q2fs_morph_valid_configs",
+          "legendFormat": "valid"
+        }
+      ]
+    }
+  ]
+}

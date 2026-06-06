@@ -25,7 +25,8 @@ def test_build_inquiry_report_html():
         "steps_log": [{"step": "parse", "ok": True}],
     }
     html = build_inquiry_report_html(detail)
-    assert "Informe analític Q2FS" in html
+    assert "Informe prospectiu" in html
+    assert "Resum executiu" in html
     assert "Hormuz blockade lifted?" in html
     assert "42" in html
     assert "Escenari A" in html

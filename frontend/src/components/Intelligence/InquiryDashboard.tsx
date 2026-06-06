@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
+import { useI18n } from '../../contexts/I18nContext'
 import { prospectiveInquiryService } from '../../services/api'
 import './InquiryDashboard.css'
 
@@ -22,10 +23,12 @@ type DashboardItem = {
 }
 
 export default function InquiryDashboard() {
+  const { t } = useI18n()
   const [statusFilter, setStatusFilter] = useState('')
   const [scheduledOnly, setScheduledOnly] = useState(false)
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [exporting, setExporting] = useState(false)
+  const [rerunning, setRerunning] = useState(false)
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['inquiry-dashboard', statusFilter, scheduledOnly],
@@ -65,40 +68,59 @@ export default function InquiryDashboard() {
     }
   }
 
+  const handleBatchRerun = async (ids: number[]) => {
+    if (ids.length === 0) return
+    setRerunning(true)
+    try {
+      await prospectiveInquiryService.rerunBatch(ids)
+      setSelected(new Set())
+      await refetch()
+    } finally {
+      setRerunning(false)
+    }
+  }
+
   return (
-    <div className="card inquiry-dashboard">
+    <div className="card inquiry-dashboard" data-testid="inquiry-dashboard">
       <header className="inquiry-dashboard__header">
         <div>
-          <h1>Inquiries Q2FS</h1>
-          <p>Vista global de preguntes analítiques, re-runs programats i export batch.</p>
+          <h1>{t('inquiry.title')}</h1>
+          <p>{t('inquiry.subtitle')}</p>
         </div>
         <button type="button" className="btn btn-secondary" onClick={() => void refetch()}>
-          Actualitzar
+          {t('inquiry.refresh')}
         </button>
       </header>
 
       <div className="inquiry-dashboard__stats">
-        <span>Total: {stats.total ?? 0}</span>
-        <span>Completades: {stats.completed ?? 0}</span>
-        <span>Esperant Godet: {stats.awaiting_godet ?? 0}</span>
-        <span>Scheduler actiu: {stats.scheduled_active ?? 0}</span>
+        <span>
+          {t('inquiry.stats.total')}: {stats.total ?? 0}
+        </span>
+        <span>
+          {t('inquiry.stats.completed')}: {stats.completed ?? 0}
+        </span>
+        <span>
+          {t('inquiry.stats.awaitingGodet')}: {stats.awaiting_godet ?? 0}
+        </span>
+        <span>
+          {t('inquiry.stats.scheduler')}: {stats.scheduled_active ?? 0}
+        </span>
         <span className={dueItems.length ? 'inquiry-dashboard__alert' : ''}>
-          Re-run pendents: {stats.scheduled_due ?? 0}
+          {t('inquiry.stats.due')}: {stats.scheduled_due ?? 0}
         </span>
       </div>
 
       {dueItems.length > 0 && (
         <div className="inquiry-dashboard__banner">
-          {dueItems.length} inquiry(s) amb re-run programat vençut — revisa al Centre
-          d&apos;Intel·ligència del cas.
+          {dueItems.length} {t('inquiry.banner.due')}
         </div>
       )}
 
       <div className="inquiry-dashboard__filters">
         <label>
-          Estat
+          {t('inquiry.filter.status')}
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-            <option value="">Tots</option>
+            <option value="">{t('inquiry.filter.all')}</option>
             <option value="completed">completed</option>
             <option value="awaiting_godet">awaiting_godet</option>
             <option value="failed">failed</option>
@@ -111,22 +133,42 @@ export default function InquiryDashboard() {
             checked={scheduledOnly}
             onChange={(e) => setScheduledOnly(e.target.checked)}
           />
-          Només amb scheduler
+          {t('inquiry.filter.scheduledOnly')}
         </label>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={selected.size === 0 || rerunning}
+          onClick={() => void handleBatchRerun(Array.from(selected))}
+          data-testid="inquiry-dashboard-rerun"
+        >
+          {rerunning ? t('inquiry.rerunning') : `${t('inquiry.rerunBatch')} (${selected.size})`}
+        </button>
+        {dueItems.length > 0 && (
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={rerunning}
+            onClick={() => void handleBatchRerun(dueItems.map((i) => i.id))}
+          >
+            {t('inquiry.rerunDue')} ({dueItems.length})
+          </button>
+        )}
         <button
           type="button"
           className="btn btn-primary"
           disabled={selected.size === 0 || exporting}
           onClick={() => void handleBatchExport()}
+          data-testid="inquiry-dashboard-export"
         >
-          {exporting ? 'Exportant…' : `Export ZIP (${selected.size})`}
+          {exporting ? t('inquiry.exporting') : `${t('inquiry.exportZip')} (${selected.size})`}
         </button>
       </div>
 
       {isLoading ? (
-        <p>Carregant…</p>
+        <p>…</p>
       ) : items.length === 0 ? (
-        <p className="inquiry-dashboard__empty">Cap inquiry encara. Crea-ne una al Centre d&apos;Intel·ligència.</p>
+        <p className="inquiry-dashboard__empty">{t('inquiry.empty')}</p>
       ) : (
         <table className="inquiry-dashboard__table">
           <thead>
@@ -185,7 +227,7 @@ export default function InquiryDashboard() {
                     <Link
                       to={`/prospective/morph?project=${row.wizard_project_id}&inquiry=${row.id}`}
                     >
-                      Wizard
+                      {t('inquiry.wizard')}
                     </Link>
                   ) : (
                     '—'

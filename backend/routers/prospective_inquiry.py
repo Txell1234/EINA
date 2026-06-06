@@ -39,6 +39,16 @@ class InquiryScheduleIn(BaseModel):
     interval_hours: int = Field(24, ge=1, le=168)
 
 
+class ParsePreviewIn(BaseModel):
+    question: str = Field(..., min_length=15)
+    case_id: int | None = None
+
+
+class BatchRerunIn(BaseModel):
+    ids: list[int] = Field(..., min_length=1, max_length=10)
+    force_refresh: bool = True
+
+
 @router.get("/dashboard")
 async def inquiry_dashboard(
     status: str | None = Query(None),
@@ -57,6 +67,51 @@ async def inquiry_dashboard(
         scheduled_only=scheduled_only,
         limit=limit,
     )
+
+
+@router.post("/parse-preview")
+async def parse_inquiry_preview(
+    body: ParsePreviewIn,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _ = current_user
+    from models.case import Case
+    from services.parse_trigger_service import ParseTriggerService
+    from sqlalchemy import select
+
+    case_name = ""
+    case_description = ""
+    if body.case_id:
+        r = await db.execute(select(Case).where(Case.id == body.case_id))
+        case = r.scalar_one_or_none()
+        if case:
+            case_name = case.name or ""
+            case_description = case.description or ""
+
+    return await ParseTriggerService().parse_hybrid(
+        body.question,
+        case_name=case_name,
+        case_description=case_description,
+    )
+
+
+@router.post("/rerun/batch")
+async def rerun_inquiries_batch(
+    body: BatchRerunIn,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _ = current_user
+    from services.inquiry_dashboard_service import InquiryDashboardService
+
+    try:
+        return await InquiryDashboardService(db).rerun_batch(
+            body.ids,
+            force_refresh=body.force_refresh,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @router.get("/export/batch")
@@ -272,6 +327,7 @@ async def get_morph_bootstrap(
 @router.get("/{inquiry_id}/export/html")
 async def export_inquiry_html(
     inquiry_id: int,
+    lang: str | None = Query(None, description="ca | es | en"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -279,13 +335,14 @@ async def export_inquiry_html(
     detail = await InquiryOrchestratorService(db).get_detail(inquiry_id)
     if not detail.get("found"):
         raise HTTPException(status_code=404, detail="Inquiry no trobada")
-    html = build_inquiry_report_html(detail)
+    html = build_inquiry_report_html(detail, lang=lang)
     return HTMLResponse(content=html)
 
 
 @router.get("/{inquiry_id}/export/pdf")
 async def export_inquiry_pdf(
     inquiry_id: int,
+    lang: str | None = Query(None, description="ca | es | en"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -293,7 +350,7 @@ async def export_inquiry_pdf(
     detail = await InquiryOrchestratorService(db).get_detail(inquiry_id)
     if not detail.get("found"):
         raise HTTPException(status_code=404, detail="Inquiry no trobada")
-    pdf_bytes, meta = export_inquiry_pdf_bytes(detail)
+    pdf_bytes, meta = export_inquiry_pdf_bytes(detail, lang=lang)
     if pdf_bytes is None:
         raise HTTPException(
             status_code=503,

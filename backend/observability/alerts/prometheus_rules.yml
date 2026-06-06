@@ -1,0 +1,60 @@
+groups:
+  - name: q2fs_alerts
+    rules:
+      - alert: Q2FSInquiryHighErrorRate
+        expr: |
+          sum(rate(q2fs_inquiry_requests_total{status="failed"}[5m]))
+          / sum(rate(q2fs_inquiry_requests_total[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Q2FS inquiry error rate > 10%"
+          description: "More than 10% of inquiry requests failed in the last 5 minutes."
+
+      - alert: Q2FSParseLowConfidence
+        expr: rate(q2fs_llm_parse_low_confidence_total[10m]) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Frequent low-confidence LLM parses"
+          description: "Parse trigger confidence below threshold too often — review guardrails."
+
+      - alert: Q2FSParseLatencyHigh
+        expr: |
+          histogram_quantile(0.95, sum(rate(q2fs_llm_parse_duration_seconds_bucket[5m])) by (le))
+          > 8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Parse trigger p95 latency > 8s"
+          description: "LLM parse latency guard may trigger frequent fallbacks."
+
+      - alert: Q2FSPipelineErrors
+        expr: sum(rate(q2fs_errors_total[5m])) by (phase) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Q2FS pipeline errors in {{ $labels.phase }}"
+          description: "Elevated error rate in phase {{ $labels.phase }}."
+
+      - alert: Q2FSMorphConfigsZero
+        expr: q2fs_morph_valid_configs == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No valid morph configurations after CCA"
+          description: "CCA pruning eliminated all valid combinations — review rules."
+
+      - alert: Q2FSCacheHitRateLow
+        expr: q2fs_cache_hit_rate < 0.2
+        for: 15m
+        labels:
+          severity: info
+        annotations:
+          summary: "Low Q2FS step cache hit rate"
+          description: "Consider enabling Redis semantic cache for repeated inquiries."

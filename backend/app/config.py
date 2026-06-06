@@ -25,6 +25,24 @@ class Settings(BaseSettings):
     INQUIRY_SCHEDULER_INTERVAL_HOURS: int = 6
     INQUIRY_SCHEDULER_ENABLED: bool = True
 
+    # Q2FS parse trigger (hybrid LLM + rule-based)
+    Q2FS_PARSE_USE_LLM: bool = True
+    Q2FS_PARSE_CONFIDENCE_THRESHOLD: float = 0.75
+    Q2FS_PARSE_MAX_TOKENS: int = 800
+    Q2FS_PARSE_TIMEOUT_SECONDS: float = 8.0
+
+    # Q2FS step cache (memory | redis)
+    Q2FS_STEP_CACHE_BACKEND: str = "memory"
+    REDIS_URL: str = ""
+
+    # Observability
+    PROMETHEUS_ENABLED: bool = True
+    OTEL_ENABLED: bool = False
+    OTEL_EXPORTER_OTLP_ENDPOINT: str = "http://localhost:4317"
+    OTEL_TRACES_SAMPLER_RATE: float = 1.0
+    OTEL_SERVICE_NAME: str = "eina-q2fs"
+    STRUCTURED_LOGGING: bool = True
+
     # Database
     DATABASE_URL: str = "sqlite+aiosqlite:///./osint_platform.db"
     USE_ALEMBIC: bool = False

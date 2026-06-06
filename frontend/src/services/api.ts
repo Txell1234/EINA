@@ -878,6 +878,20 @@ export const prospectiveInquiryService = {
     const response = await api.get(`/api/prospective/inquiries/dashboard${q ? `?${q}` : ''}`)
     return response.data
   },
+  rerunBatch: async (ids: number[], forceRefresh = true) => {
+    const response = await api.post('/api/prospective/inquiries/rerun/batch', {
+      ids,
+      force_refresh: forceRefresh,
+    })
+    return response.data
+  },
+  parsePreview: async (question: string, caseId?: number) => {
+    const response = await api.post('/api/prospective/inquiries/parse-preview', {
+      question,
+      case_id: caseId,
+    })
+    return response.data
+  },
   exportBatch: async (ids: number[]) => {
     const token = localStorage.getItem('token')
     const base = API_BASE_URL.replace(/\/$/, '')
@@ -1559,6 +1573,24 @@ export const prospectiveService = {
   getCcaSuggestions: async (projectId: number, inquiryId?: number) => {
     const qs = inquiryId ? `?inquiry_id=${inquiryId}` : ''
     const response = await api.get(`/api/prospective/projects/${projectId}/cca-suggestions${qs}`)
+    return response.data
+  },
+  previewCcaSuggestions: async (
+    projectId: number,
+    rules: Array<{
+      id?: string
+      component_a: string
+      config_a: string
+      component_b: string
+      config_b: string
+      consistency?: number
+      selected?: boolean
+    }>,
+  ) => {
+    const response = await api.post(
+      `/api/prospective/projects/${projectId}/cca-suggestions/preview`,
+      { rules },
+    )
     return response.data
   },
   applyCcaSuggestions: async (

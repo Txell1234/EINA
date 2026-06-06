@@ -34,6 +34,8 @@ from services.osint_service import OSINTService
 from services.parse_trigger_service import ParseTriggerService
 from services.policy_industry_service import PolicyIndustryService
 from services.prospective_synthesis_service import ProspectiveSynthesisService
+from observability.step_cache import get_step_cache
+from observability.tracing import q2fs_span
 
 logger = logging.getLogger(__name__)
 
@@ -163,6 +165,45 @@ class InquiryOrchestratorService:
         hit = self._step_cache(artifacts).get(step)
         return hit if isinstance(hit, dict) else None
 
+    async def _cached_layer(
+        self,
+        *,
+        inquiry_id: int,
+        artifacts: dict[str, Any],
+        step: str,
+        question: str,
+        force_refresh: bool,
+    ) -> dict[str, Any] | None:
+        hit = self._cached(artifacts, step, force_refresh)
+        if hit:
+            return hit
+        cache = get_step_cache()
+        if not cache:
+            return None
+        hit = await cache.get(inquiry_id, step)
+        if hit:
+            return hit
+        if hasattr(cache, "get_semantic"):
+            return await cache.get_semantic(question, step)
+        return None
+
+    async def _store_layer(
+        self,
+        *,
+        artifacts: dict[str, Any],
+        inquiry_id: int,
+        step: str,
+        question: str,
+        payload: dict[str, Any],
+    ) -> None:
+        self._cache_step(artifacts, step, payload)
+        cache = get_step_cache()
+        if not cache:
+            return
+        await cache.set(inquiry_id, step, payload)
+        if hasattr(cache, "set_semantic"):
+            await cache.set_semantic(question, step, payload)
+
     async def _godet_ready(self, case_id: int) -> tuple[bool, list[dict[str, Any]]]:
         r = await self.db.execute(
             select(ProspectiveProject)
@@ -272,7 +313,7 @@ class InquiryOrchestratorService:
         if not case:
             raise ValueError("Cas no trobat")
 
-        parsed = ParseTriggerService().parse(
+        parsed = await ParseTriggerService().parse_hybrid(
             question,
             case_name=case.name or "",
             case_description=case.description or "",
@@ -357,20 +398,54 @@ class InquiryOrchestratorService:
             inquiry.artifacts = artifacts
 
         try:
+            question = inquiry.question
+
             # --- parse ---
-            hit = self._cached(artifacts, "parse", force_refresh)
-            if hit:
-                yield {"event": "step", "step": "parse", "status": "done", "cached": True, "parsed": parsed}
-            else:
-                inquiry.status = "parsing"
-                await self.db.commit()
-                self._cache_step(artifacts, "parse", {"ok": True, "parsed": parsed})
-                inquiry.artifacts = artifacts
-                await self._append_step(inquiry, {"step": "parse", "ok": True, "cached": False})
-                yield {"event": "step", "step": "parse", "status": "done", "parsed": parsed}
+            with q2fs_span("inquiry.parse", "orchestrator", {"inquiry_id": inquiry_id}):
+                if force_refresh:
+                    case_r = await self.db.execute(select(Case).where(Case.id == case_id))
+                    case = case_r.scalar_one_or_none()
+                    if case:
+                        reparsed = await ParseTriggerService().parse_hybrid(
+                            inquiry.question,
+                            case_name=case.name or "",
+                            case_description=case.description or "",
+                        )
+                        if reparsed.get("ok"):
+                            parsed = reparsed
+                            inquiry.parsed_trigger = parsed
+                hit = await self._cached_layer(
+                    inquiry_id=inquiry_id,
+                    artifacts=artifacts,
+                    step="parse",
+                    question=question,
+                    force_refresh=force_refresh,
+                )
+                if hit:
+                    yield {"event": "step", "step": "parse", "status": "done", "cached": True, "parsed": parsed}
+                else:
+                    inquiry.status = "parsing"
+                    await self.db.commit()
+                    await self._store_layer(
+                        artifacts=artifacts,
+                        inquiry_id=inquiry_id,
+                        step="parse",
+                        question=question,
+                        payload={"ok": True, "parsed": parsed},
+                    )
+                    inquiry.artifacts = artifacts
+                    await self._append_step(inquiry, {"step": "parse", "ok": True, "cached": False})
+                    yield {"event": "step", "step": "parse", "status": "done", "parsed": parsed}
 
             # --- osint ---
-            hit = self._cached(artifacts, "osint", force_refresh)
+            with q2fs_span("inquiry.osint", "orchestrator", {"inquiry_id": inquiry_id}):
+                hit = await self._cached_layer(
+                    inquiry_id=inquiry_id,
+                    artifacts=artifacts,
+                    step="osint",
+                    question=question,
+                    force_refresh=force_refresh,
+                )
             if hit:
                 scope_audit = hit.get("audit") or inquiry.scope_audit or {}
                 inquiry.scope_audit = scope_audit
@@ -418,13 +493,26 @@ class InquiryOrchestratorService:
                     scope_audit["rejected_samples"] = rejected_samples
 
                 inquiry.scope_audit = scope_audit
-                self._cache_step(artifacts, "osint", {"ok": True, "audit": scope_audit})
+                await self._store_layer(
+                    artifacts=artifacts,
+                    inquiry_id=inquiry_id,
+                    step="osint",
+                    question=question,
+                    payload={"ok": True, "audit": scope_audit},
+                )
                 inquiry.artifacts = artifacts
                 await self._append_step(inquiry, {"step": "osint", "ok": True, **scope_audit})
                 yield {"event": "step", "step": "osint", "status": "done", "audit": scope_audit}
 
             # --- intelligence ---
-            hit = self._cached(artifacts, "intelligence", force_refresh)
+            with q2fs_span("inquiry.intelligence", "orchestrator", {"inquiry_id": inquiry_id}):
+                hit = await self._cached_layer(
+                    inquiry_id=inquiry_id,
+                    artifacts=artifacts,
+                    step="intelligence",
+                    question=question,
+                    force_refresh=force_refresh,
+                )
             if hit:
                 pipe = hit.get("pipeline") or artifacts.get("pipeline") or {}
                 artifacts["pipeline"] = pipe
@@ -438,7 +526,13 @@ class InquiryOrchestratorService:
                     case_id, apply_scope=True, include_investment=True
                 )
                 artifacts["pipeline"] = pipe
-                self._cache_step(artifacts, "intelligence", {"ok": pipe.get("ok"), "pipeline": pipe})
+                await self._store_layer(
+                    artifacts=artifacts,
+                    inquiry_id=inquiry_id,
+                    step="intelligence",
+                    question=question,
+                    payload={"ok": pipe.get("ok"), "pipeline": pipe},
+                )
                 inquiry.artifacts = artifacts
                 await self._append_step(
                     inquiry, {"step": "intelligence", "ok": pipe.get("ok"), "steps": pipe.get("steps")}
@@ -446,7 +540,14 @@ class InquiryOrchestratorService:
                 yield {"event": "step", "step": "intelligence", "status": "done", "pipeline": pipe}
 
             # --- policy_industry ---
-            hit = self._cached(artifacts, "policy_industry", force_refresh)
+            with q2fs_span("inquiry.policy_industry", "orchestrator", {"inquiry_id": inquiry_id}):
+                hit = await self._cached_layer(
+                    inquiry_id=inquiry_id,
+                    artifacts=artifacts,
+                    step="policy_industry",
+                    question=question,
+                    force_refresh=force_refresh,
+                )
             if hit:
                 policy_map = hit.get("policy_industry") or artifacts.get("policy_industry") or {}
                 artifacts["policy_industry"] = policy_map
@@ -463,10 +564,16 @@ class InquiryOrchestratorService:
                     case_id, premise=inquiry.question
                 )
                 artifacts["policy_industry"] = policy_map
-                self._cache_step(
-                    artifacts,
-                    "policy_industry",
-                    {"ok": True, "policy_industry": policy_map, "companies": len(policy_map.get("companies") or [])},
+                await self._store_layer(
+                    artifacts=artifacts,
+                    inquiry_id=inquiry_id,
+                    step="policy_industry",
+                    question=question,
+                    payload={
+                        "ok": True,
+                        "policy_industry": policy_map,
+                        "companies": len(policy_map.get("companies") or []),
+                    },
                 )
                 inquiry.artifacts = artifacts
                 await self._append_step(
@@ -481,7 +588,14 @@ class InquiryOrchestratorService:
                 }
 
             # --- financial (always) ---
-            hit = self._cached(artifacts, "financial", force_refresh)
+            with q2fs_span("inquiry.financial", "orchestrator", {"inquiry_id": inquiry_id}):
+                hit = await self._cached_layer(
+                    inquiry_id=inquiry_id,
+                    artifacts=artifacts,
+                    step="financial",
+                    question=question,
+                    force_refresh=force_refresh,
+                )
             fin_text = inquiry.financial_text or ""
             if hit and not force_refresh:
                 fc = hit.get("financial") or artifacts.get("financial_crossover") or {}
@@ -503,7 +617,13 @@ class InquiryOrchestratorService:
                     source="inquiry",
                 )
                 artifacts["financial_crossover"] = fc
-                self._cache_step(artifacts, "financial", {"ok": fc.get("found"), "financial": fc, "mode": fc.get("mode")})
+                await self._store_layer(
+                    artifacts=artifacts,
+                    inquiry_id=inquiry_id,
+                    step="financial",
+                    question=question,
+                    payload={"ok": fc.get("found"), "financial": fc, "mode": fc.get("mode")},
+                )
                 inquiry.artifacts = artifacts
                 await self._append_step(
                     inquiry, {"step": "financial", "ok": fc.get("found"), "mode": fc.get("mode")}
@@ -517,7 +637,14 @@ class InquiryOrchestratorService:
                 }
 
             # --- morph_bootstrap ---
-            hit = self._cached(artifacts, "morph_bootstrap", force_refresh)
+            with q2fs_span("inquiry.morph_bootstrap", "orchestrator", {"inquiry_id": inquiry_id}):
+                hit = await self._cached_layer(
+                    inquiry_id=inquiry_id,
+                    artifacts=artifacts,
+                    step="morph_bootstrap",
+                    question=question,
+                    force_refresh=force_refresh,
+                )
             if hit:
                 morph = hit.get("morph") or artifacts.get("morph_bootstrap") or {}
                 artifacts["morph_bootstrap"] = morph
@@ -536,10 +663,16 @@ class InquiryOrchestratorService:
                     actors=parsed.get("actors"),
                 )
                 artifacts["morph_bootstrap"] = morph
-                self._cache_step(
-                    artifacts,
-                    "morph_bootstrap",
-                    {"ok": True, "morph": morph, "valid_combinations": morph.get("valid_combinations_count")},
+                await self._store_layer(
+                    artifacts=artifacts,
+                    inquiry_id=inquiry_id,
+                    step="morph_bootstrap",
+                    question=question,
+                    payload={
+                        "ok": True,
+                        "morph": morph,
+                        "valid_combinations": morph.get("valid_combinations_count"),
+                    },
                 )
                 inquiry.artifacts = artifacts
                 await self._append_step(
@@ -559,7 +692,14 @@ class InquiryOrchestratorService:
                 }
 
             # --- monitors (suggestions) ---
-            hit = self._cached(artifacts, "monitors", force_refresh)
+            with q2fs_span("inquiry.monitors", "orchestrator", {"inquiry_id": inquiry_id}):
+                hit = await self._cached_layer(
+                    inquiry_id=inquiry_id,
+                    artifacts=artifacts,
+                    step="monitors",
+                    question=question,
+                    force_refresh=force_refresh,
+                )
             if hit:
                 mon = hit.get("monitors") or artifacts.get("monitor_suggestions") or {}
                 artifacts["monitor_suggestions"] = mon
@@ -579,7 +719,13 @@ class InquiryOrchestratorService:
                     horizon_label=parsed.get("horizon_label", ""),
                 )
                 artifacts["monitor_suggestions"] = mon
-                self._cache_step(artifacts, "monitors", {"ok": True, "monitors": mon, "count": mon.get("count")})
+                await self._store_layer(
+                    artifacts=artifacts,
+                    inquiry_id=inquiry_id,
+                    step="monitors",
+                    question=question,
+                    payload={"ok": True, "monitors": mon, "count": mon.get("count")},
+                )
                 inquiry.artifacts = artifacts
                 await self._append_step(inquiry, {"step": "monitors", "ok": True, "count": mon.get("count")})
                 yield {
@@ -623,44 +769,51 @@ class InquiryOrchestratorService:
             await self.db.commit()
             yield {"event": "step", "step": "synthesis", "status": "running"}
 
-            answer = ProspectiveSynthesisService().synthesize(
-                question=inquiry.question,
-                parsed_trigger=parsed,
-                actor_impact=actor_impact,
-                scenarios=scenario_rows,
-                financial_crossover=artifacts.get("financial_crossover"),
-                policy_industry=artifacts.get("policy_industry"),
-                morph_bootstrap=artifacts.get("morph_bootstrap"),
-                monitor_suggestions=artifacts.get("monitor_suggestions"),
-                smic_result=smic_result,
-                scope_audit=inquiry.scope_audit,
-                godet_ready=godet_ready,
-            )
-            prev_answer = None
-            history = artifacts.get("answer_history") or []
-            if history:
-                prev_answer = history[-1].get("answer")
-            diff = compare_inquiry_answers(prev_answer, answer)
-            artifacts["answer_diff"] = diff
-            audit.log_event("synthesis_completed", {"probability_pct": answer.get("probability_pct")})
-            artifacts["audit_trail"] = audit.trail()
+            with q2fs_span("inquiry.synthesis", "orchestrator", {"inquiry_id": inquiry_id}):
+                answer = ProspectiveSynthesisService().synthesize(
+                    question=inquiry.question,
+                    parsed_trigger=parsed,
+                    actor_impact=actor_impact,
+                    scenarios=scenario_rows,
+                    financial_crossover=artifacts.get("financial_crossover"),
+                    policy_industry=artifacts.get("policy_industry"),
+                    morph_bootstrap=artifacts.get("morph_bootstrap"),
+                    monitor_suggestions=artifacts.get("monitor_suggestions"),
+                    smic_result=smic_result,
+                    scope_audit=inquiry.scope_audit,
+                    godet_ready=godet_ready,
+                )
+                prev_answer = None
+                history = artifacts.get("answer_history") or []
+                if history:
+                    prev_answer = history[-1].get("answer")
+                diff = compare_inquiry_answers(prev_answer, answer)
+                artifacts["answer_diff"] = diff
+                audit.log_event("synthesis_completed", {"probability_pct": answer.get("probability_pct")})
+                artifacts["audit_trail"] = audit.trail()
 
-            inquiry.answer = answer
-            inquiry.status = "completed"
-            inquiry.completed_at = datetime.now(timezone.utc)
-            self._cache_step(artifacts, "synthesis", {"ok": True, "answer": answer})
-            inquiry.artifacts = artifacts
-            await self._schedule_next_if_enabled(inquiry)
-            await self.db.commit()
-            await self._append_step(inquiry, {"step": "synthesis", "ok": True})
+                inquiry.answer = answer
+                inquiry.status = "completed"
+                inquiry.completed_at = datetime.now(timezone.utc)
+                await self._store_layer(
+                    artifacts=artifacts,
+                    inquiry_id=inquiry_id,
+                    step="synthesis",
+                    question=question,
+                    payload={"ok": True, "answer": answer},
+                )
+                inquiry.artifacts = artifacts
+                await self._schedule_next_if_enabled(inquiry)
+                await self.db.commit()
+                await self._append_step(inquiry, {"step": "synthesis", "ok": True})
 
-            yield {
-                "event": "done",
-                "inquiry_id": inquiry.id,
-                "status": "completed",
-                "answer": answer,
-                "answer_diff": diff,
-            }
+                yield {
+                    "event": "done",
+                    "inquiry_id": inquiry.id,
+                    "status": "completed",
+                    "answer": answer,
+                    "answer_diff": diff,
+                }
 
         except Exception as exc:
             logger.exception("Inquiry %s failed: %s", inquiry_id, exc)

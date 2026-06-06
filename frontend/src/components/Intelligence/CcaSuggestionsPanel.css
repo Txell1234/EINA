@@ -42,8 +42,16 @@
   margin-top: 0.5rem;
 }
 
-.cca-suggestions__loading,
-.cca-suggestions__empty {
-  font-size: 0.85rem;
-  color: var(--text-muted, #666);
+.cca-suggestions__preview {
+  margin: 0 0 0.75rem;
+  padding: 0.45rem 0.55rem;
+  font-size: 0.82rem;
+  background: #e8f5e9;
+  border-radius: 4px;
+}
+
+.cca-suggestions__inline {
+  width: 4.5rem;
+  margin-left: 0.25rem;
+  font-size: 0.78rem;
 }

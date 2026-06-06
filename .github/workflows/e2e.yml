@@ -1,0 +1,32 @@
+name: E2E Q2FS
+
+on:
+  push:
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/e2e.yml'
+  pull_request:
+    paths:
+      - 'frontend/**'
+
+jobs:
+  playwright:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Playwright
+        run: npx playwright install --with-deps chromium
+      - name: Run E2E tests
+        run: npm run e2e
+        env:
+          CI: true

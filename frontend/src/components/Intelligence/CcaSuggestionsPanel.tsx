@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { prospectiveService } from '../../services/api'
 import CcaHeatmapPanel, { type CcaCell } from './CcaHeatmapPanel'
@@ -39,6 +39,14 @@ export default function CcaSuggestionsPanel({
   const loadedRules = (data?.rules as CcaRule[]) ?? []
   const displayRules = rules.length > 0 ? rules : loadedRules
 
+  const previewMutation = useMutation({
+    mutationFn: () =>
+      prospectiveService.previewCcaSuggestions(
+        projectId,
+        displayRules.filter((r) => r.selected !== false),
+      ),
+  })
+
   const applyMutation = useMutation({
     mutationFn: () =>
       prospectiveService.applyCcaSuggestions(
@@ -48,9 +56,19 @@ export default function CcaSuggestionsPanel({
     onSuccess: (result) => {
       setRules([])
       void refetch()
+      previewMutation.reset()
       onApplied?.(result as Record<string, unknown>)
     },
   })
+
+  useEffect(() => {
+    if (!displayRules.length) return
+    const timer = window.setTimeout(() => {
+      previewMutation.mutate()
+    }, 400)
+    return () => window.clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- debounced preview on rule edits
+  }, [displayRules, projectId])
 
   const toggleRule = (id: string) => {
     setRules(
@@ -79,8 +97,24 @@ export default function CcaSuggestionsPanel({
           {data?.valid_combinations_count != null
             ? ` · ${String(data.valid_combinations_count)} combinacions vàlides`
             : ''}
+          {previewMutation.data?.after?.valid_combinations != null && (
+            <>
+              {' '}
+              · Live: {String(previewMutation.data.after.valid_combinations)} vàlides (
+              {String(previewMutation.data.survival_rate_pct)}% supervivència)
+            </>
+          )}
         </p>
       </header>
+
+      {previewMutation.data?.delta_valid_combinations != null && (
+        <p className="cca-suggestions__preview">
+          Impacte CCA: {String(previewMutation.data.before.valid_combinations)} →{' '}
+          {String(previewMutation.data.after.valid_combinations)} combinacions (
+          {previewMutation.data.delta_valid_combinations >= 0 ? '+' : ''}
+          {String(previewMutation.data.delta_valid_combinations)})
+        </p>
+      )}
 
       {displayRules.length > 0 && (
         <table>
@@ -108,10 +142,34 @@ export default function CcaSuggestionsPanel({
                   />
                 </td>
                 <td>
-                  {rule.component_a}/{rule.config_a}
+                  {rule.component_a}/
+                  <input
+                    className="cca-suggestions__inline"
+                    value={rule.config_a}
+                    disabled={Boolean(rule.already_applied)}
+                    onChange={(e) =>
+                      setRules(
+                        displayRules.map((r) =>
+                          r.id === rule.id ? { ...r, config_a: e.target.value } : r,
+                        ),
+                      )
+                    }
+                  />
                 </td>
                 <td>
-                  {rule.component_b}/{rule.config_b}
+                  {rule.component_b}/
+                  <input
+                    className="cca-suggestions__inline"
+                    value={rule.config_b}
+                    disabled={Boolean(rule.already_applied)}
+                    onChange={(e) =>
+                      setRules(
+                        displayRules.map((r) =>
+                          r.id === rule.id ? { ...r, config_b: e.target.value } : r,
+                        ),
+                      )
+                    }
+                  />
                 </td>
                 <td>{rule.justification ?? '—'}</td>
                 <td>{rule.source ?? '—'}</td>

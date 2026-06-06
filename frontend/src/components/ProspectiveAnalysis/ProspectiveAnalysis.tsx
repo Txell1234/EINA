@@ -4,7 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { useCase, type ActiveCase } from '../../contexts/CaseContext'
 import { useCasesList } from '../../hooks/useCasesList'
 import { extractService, prospectiveInquiryService, prospectiveService } from '../../services/api'
-import CcaSuggestionsPanel from '../Intelligence/CcaSuggestionsPanel'
+import MorphBox from './MorphBox'
 import ExtractStatementsTable from '../shared/ExtractStatementsTable'
 import AnalysisScopeBar from '../shared/AnalysisScopeBar'
 import ExtractionFiltersRow from '../shared/ExtractionFiltersRow'
@@ -615,41 +615,6 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
     [micmacMatrix, variables],
   )
 
-  const toggleMorphCompatibility = (
-    compA: string,
-    cfgA: string,
-    compB: string,
-    cfgB: string,
-    compatible: boolean,
-  ) => {
-    setIncompatibilities((prev) => {
-      if (compatible) {
-        return prev.filter(
-          (inc) =>
-            !(
-              (inc.component_a === compA &&
-                inc.config_a === cfgA &&
-                inc.component_b === compB &&
-                inc.config_b === cfgB) ||
-              (inc.component_a === compB &&
-                inc.config_a === cfgB &&
-                inc.component_b === compA &&
-                inc.config_b === cfgA)
-            ),
-        )
-      }
-      return [...prev, { component_a: compA, config_a: cfgA, component_b: compB, config_b: cfgB }]
-    })
-  }
-
-  const liveMorphTotal = useMemo(() => {
-    let total = 1
-    for (const m of morphRows) {
-      total *= Math.max(morphConfigsFromText(m.configsText).length, 1)
-    }
-    return total
-  }, [morphRows])
-
   const cleanupMutation = useMutation({
     mutationFn: () => extractService.runCleanup(extractionCaseId!),
     onSuccess: async () => {
@@ -915,7 +880,7 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
       {errorMsg && <div className="prospective-alert prospective-alert--error">{errorMsg}</div>}
 
       {linkedInquiryId && linkedInquiry && (
-        <div className="prospective-alert prospective-alert--success">
+        <div className="prospective-alert prospective-alert--success" data-testid="inquiry-wizard-banner">
           Originat des de inquiry #{linkedInquiryId}
           {' — '}
           {(linkedInquiry as { question?: string }).question?.slice(0, 100)}
@@ -2239,223 +2204,21 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
       )}
 
       {step === 7 && projectId !== null && (
-        <>
-          <h2 style={{ color: 'var(--color-primary)' }}>Components morfològics</h2>
-          <MethodologyHint title="Metodologia Godet — Pas 6: Anàlisi morfològic (Zwicky)" defaultOpen={false}>
-            <p>
-              Explora sistemàticament tots els futurs <strong>possibles</strong> (viabilitat lògica Zwicky).
-              Cada <strong>component</strong> és una dimensió d&apos;evolució del sistema.
-              Cada component té <strong>2–4 configuracions</strong> (estats alternatius).
-            </p>
-            <p style={{ marginTop: 'var(--spacing-sm)' }}>
-              <strong>Possibilitat ≠ Probabilitat:</strong> aquí es determina si un estat futur pot existir
-              dins l&apos;espai morfològic (sense incompatibilitats). La probabilitat d&apos;ocurrència
-              s&apos;estima després amb SMIC i senyals OSINT.
-            </p>
-            <code className="mhint-example">
-              {'C1: Estat BRI → Expansió plena | Estancament | Retrocés\n'}
-              {'C2: Cohesió QUAD → Alta cohesió | Divisió interna\n'}
-              {'Espai morfològic = 3 × 2 = 6 combinacions possibles'}
-            </code>
-            <p>
-              EINA selecciona automàticament 4 escenaris representatius de l&apos;espai:
-              Infern (pitjor), Tensió Crònica, Equilibri Dinàmic, i Cel (millor).
-            </p>
-          </MethodologyHint>
-          <p style={{ color: 'var(--color-gray-600)' }}>
-            Una configuració per línia dins de cada component (espai combinatori simplificat).
-          </p>
-
-          {projectId !== null && (
-            <CcaSuggestionsPanel
-              projectId={projectId}
-              inquiryId={linkedInquiryId}
-              onApplied={async (result) => {
-                const stats = result.morph_stats as typeof morphSpaceStats
-                if (stats) setMorphSpaceStats(stats)
-                const rows = await prospectiveService.getCompatibilities(projectId)
-                setIncompatibilities(rows)
-                void queryClient.invalidateQueries({
-                  queryKey: ['prospective-project-detail', projectId],
-                })
-              }}
-            />
-          )}
-
-          {morphRows.map((m, idx) => (
-            <div key={idx} className="card" style={{ marginBottom: 'var(--spacing-md)' }}>
-              <div className="prospective-field">
-                <label>Codi</label>
-                <input
-                  value={m.id}
-                  onChange={(e) =>
-                    setMorphRows((x) => x.map((row, i) => (i === idx ? { ...row, id: e.target.value } : row)))
-                  }
-                />
-              </div>
-              <div className="prospective-field">
-                <label>Nom del component</label>
-                <input
-                  value={m.name}
-                  onChange={(e) =>
-                    setMorphRows((x) => x.map((row, i) => (i === idx ? { ...row, name: e.target.value } : row)))
-                  }
-                />
-              </div>
-              <div className="prospective-field">
-                <label>Configuracions (una per línia)</label>
-                <textarea
-                  rows={4}
-                  value={m.configsText}
-                  onChange={(e) =>
-                    setMorphRows((x) =>
-                      x.map((row, i) => (i === idx ? { ...row, configsText: e.target.value } : row)),
-                    )
-                  }
-                />
-              </div>
-              <button
-                type="button"
-                className="btn btn-danger"
-                onClick={() => setMorphRows((x) => x.filter((_, i) => i !== idx))}
-              >
-                Eliminar
-              </button>
-            </div>
-          ))}
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() =>
-              setMorphRows((x) => [...x, { id: `C${x.length + 1}`, name: '', configsText: 'Estat A\nEstat B' }])
-            }
-          >
-            Afegir component
-          </button>
-
-          <div className="card" style={{ marginTop: 'var(--spacing-lg)' }}>
-            <h3 style={{ color: 'var(--color-primary)', marginBottom: 'var(--spacing-sm)' }}>
-              Matriu de compatibilitat Zwicky
-            </h3>
-            <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-gray-600)' }}>
-              Desmarca les parelles de configuracions <strong>incompatibles</strong> entre components
-              diferents. L&apos;espai combinatori es filtra abans de seleccionar els 4 escenaris
-              (això defineix la <strong>possibilitat lògica</strong>, no la probabilitat).
-            </p>
-            <p style={{ fontSize: 'var(--font-size-sm)', marginTop: 'var(--spacing-sm)' }}>
-              Combinacions totals: <strong>{liveMorphTotal}</strong>
-              {morphSpaceStats && (
-                <>
-                  {' · '}
-                  Vàlides després del filtre: <strong>{morphSpaceStats.valid_combinations}</strong>
-                  {morphSpaceStats.filtered_out > 0 && (
-                    <span> ({morphSpaceStats.filtered_out} excloses)</span>
-                  )}
-                </>
-              )}
-              {!morphSpaceStats && incompatibilities.length > 0 && (
-                <span> · {incompatibilities.length} parelles marcades com a incompatibles</span>
-              )}
-            </p>
-            {morphRows.flatMap((rowA, i) =>
-              morphRows.slice(i + 1).map((rowB, jOff) => {
-                const j = i + 1 + jOff
-                const cfgsA = morphConfigsFromText(rowA.configsText)
-                const cfgsB = morphConfigsFromText(rowB.configsText)
-                if (cfgsA.length === 0 || cfgsB.length === 0) return null
-                return (
-                  <div key={`${rowA.id}-${rowB.id}`} style={{ marginTop: 'var(--spacing-md)' }}>
-                    <h4 style={{ fontSize: 'var(--font-size-sm)', marginBottom: 4 }}>
-                      {rowA.id || `C${i + 1}`} × {rowB.id || `C${j + 1}`}
-                    </h4>
-                    <div style={{ overflowX: 'auto' }}>
-                      <table className="prospective-matrix morph-compat-table">
-                        <thead>
-                          <tr>
-                            <th />
-                            {cfgsB.map((cb) => (
-                              <th key={cb} style={{ fontSize: 'var(--font-size-xs)' }}>
-                                {cb}
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {cfgsA.map((ca) => (
-                            <tr key={ca}>
-                              <th style={{ fontSize: 'var(--font-size-xs)', textAlign: 'left' }}>{ca}</th>
-                              {cfgsB.map((cb) => {
-                                const compatible = !isPairIncompatible(
-                                  incompatibilities,
-                                  rowA.id,
-                                  ca,
-                                  rowB.id,
-                                  cb,
-                                )
-                                return (
-                                  <td key={cb} style={{ textAlign: 'center' }}>
-                                    <input
-                                      type="checkbox"
-                                      checked={compatible}
-                                      title={compatible ? 'Compatible' : 'Incompatible'}
-                                      onChange={(e) =>
-                                        toggleMorphCompatibility(
-                                          rowA.id,
-                                          ca,
-                                          rowB.id,
-                                          cb,
-                                          e.target.checked,
-                                        )
-                                      }
-                                    />
-                                  </td>
-                                )
-                              })}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )
-              }),
-            )}
-            {morphSpaceStats?.scenario_configs && (
-              <div style={{ marginTop: 'var(--spacing-md)' }}>
-                <h4 style={{ fontSize: 'var(--font-size-sm)' }}>Configuracions d&apos;escenari seleccionades</h4>
-                <ul style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-gray-700)' }}>
-                  {morphSpaceStats.scenario_configs.map((s) => (
-                    <li key={s.scenario_type}>
-                      <strong>{s.scenario_type}</strong>: {s.config || '—'}
-                      {s.possibility ? (
-                        <span style={{ color: 'var(--color-gray-600)' }}>
-                          {' '}
-                          · Possibilitat: {s.possibility}
-                          {s.probability ? ` · Probabilitat prior: ${s.probability}` : ''}
-                        </span>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-
-          <div className="prospective-actions">
-            <button type="button" className="btn" onClick={() => setStep(6)}>
-              Enrere
-            </button>
-            <button
-              type="button"
-              className="btn btn-accent"
-              disabled={saveMorphMutation.isPending}
-              onClick={() => saveMorphMutation.mutate()}
-            >
-              Guardar i escenaris
-            </button>
-          </div>
-        </>
+        <MorphBox
+          projectId={projectId}
+          inquiryId={linkedInquiryId}
+          morphRows={morphRows}
+          setMorphRows={setMorphRows}
+          incompatibilities={incompatibilities}
+          setIncompatibilities={setIncompatibilities}
+          morphSpaceStats={morphSpaceStats}
+          setMorphSpaceStats={setMorphSpaceStats}
+          onBack={() => setStep(6)}
+          onSave={() => saveMorphMutation.mutate()}
+          saving={saveMorphMutation.isPending}
+        />
       )}
+
 
       {step === 8 && projectId !== null && (
         <>

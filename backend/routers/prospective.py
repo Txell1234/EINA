@@ -433,6 +433,22 @@ async def get_cca_suggestions(
     return result
 
 
+@router.post("/projects/{project_id}/cca-suggestions/preview")
+async def preview_cca_suggestions(
+    project_id: int,
+    data: ApplyCcaRulesRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _ = current_user
+    from services.inquiry_cca_service import InquiryCcaService
+
+    result = await InquiryCcaService(db).preview_cca_impact(project_id, data.rules)
+    if not result.get("found"):
+        raise HTTPException(status_code=404, detail=result.get("error", "Not found"))
+    return result
+
+
 @router.post("/projects/{project_id}/cca-suggestions/apply")
 async def apply_cca_suggestions(
     project_id: int,
