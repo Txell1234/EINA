@@ -274,6 +274,7 @@ async def list_categories(
 @router.post("/categories", response_model=CategoryResponse, status_code=status.HTTP_201_CREATED)
 async def create_category(
     category_data: CategoryCreate,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Create a new classification category"""
@@ -297,7 +298,7 @@ async def create_category(
             examples_negative=category_data.examples_negative or [],
             is_active=category_data.is_active,
             priority=category_data.priority,
-            created_by="admin"  # TODO: Get from auth when implemented
+            created_by=current_user.username or str(current_user.id),
         )
         
         db.add(category)
@@ -421,6 +422,7 @@ async def delete_category(
 @router.post("/feedback", response_model=FeedbackResponse, status_code=status.HTTP_201_CREATED)
 async def add_feedback(
     feedback_data: FeedbackCreate,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Add feedback to a classification for training"""
@@ -433,7 +435,7 @@ async def add_feedback(
             correct_categories=feedback_data.correct_categories,
             correct_concepts=feedback_data.correct_concepts,
             feedback_notes=feedback_data.feedback_notes,
-            feedback_by="admin"  # TODO: Get from auth
+            feedback_by=current_user.username or str(current_user.id),
         )
         
         return FeedbackResponse(

@@ -17,7 +17,7 @@ test.describe('Inquiry lite + SSE', () => {
     await expect(inquiry.steps).toBeVisible({ timeout: 20_000 })
     await expect(inquiry.steps.getByText('parse')).toBeVisible()
     await expect(inquiry.steps.getByText('osint')).toBeVisible()
-    await expect(inquiry.steps.getByText('monitors')).toBeVisible()
+    await expect(inquiry.steps.locator('strong', { hasText: 'monitors' })).toBeVisible()
     await expect(page.getByText('Blocatge parcialment')).toBeVisible()
   })
 

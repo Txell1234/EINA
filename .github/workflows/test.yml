@@ -64,6 +64,10 @@ jobs:
         working-directory: frontend
         run: npx tsc --noEmit
 
+      - name: Unit tests (Vitest)
+        working-directory: frontend
+        run: npm run test
+
       - name: Build
         working-directory: frontend
         run: npm run build

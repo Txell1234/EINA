@@ -166,7 +166,55 @@ export async function installApiMocks(page: Page, options: MockOptions = {}) {
     }
 
     if (method === 'GET' && path.endsWith('/godet-status')) {
-      return json(route, { godet_ready: false, checklist: [] })
+      return json(route, {
+        found: true,
+        inquiry_id: MOCK_INQUIRY_ID,
+        status: options.inquiryMode === 'full' ? 'awaiting_godet' : 'completed',
+        project_id: 7,
+        godet_ready: false,
+        can_synthesize: false,
+        checklist: {
+          project: true,
+          variables: false,
+          micmac: false,
+          actors: false,
+          mactor: false,
+          morph: false,
+          smic: false,
+          scenarios: false,
+        },
+        missing_steps: ['variables', 'micmac', 'actors', 'mactor', 'morph', 'smic', 'scenarios'],
+      })
+    }
+
+    if (method === 'GET' && path === '/api/integration/status') {
+      return json(route, {
+        osint_apis: {
+          ensembledata: { configured: true, status: 'configured' },
+          tavily: { configured: true, status: 'configured' },
+        },
+      })
+    }
+
+    if (method === 'POST' && path === '/api/osint/collect') {
+      const body = route.request().postDataJSON() as {
+        query_type?: string
+        query_params?: Record<string, unknown>
+      }
+      return json(route, {
+        query_id: 901,
+        result_id: 902,
+        status: 'completed',
+        data: {
+          status: 'success',
+          query_type: body?.query_type,
+          data: [{ id: 1, text: 'mock social post' }],
+        },
+      })
+    }
+
+    if (method === 'GET' && path === '/api/osint/recent-searches') {
+      return json(route, [])
     }
 
     if (method === 'GET' && path === '/api/prospective/projects/7') {

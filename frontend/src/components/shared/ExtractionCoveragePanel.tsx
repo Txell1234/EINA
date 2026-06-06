@@ -131,8 +131,17 @@ export default function ExtractionCoveragePanel({
     )
   }
 
-  const a = cov.articles
-  const pct = cov.coverage_percent
+  const a = cov.articles ?? {
+    articles_total: 0,
+    extractable: 0,
+    enriched: 0,
+    needs_enrichment: 0,
+    extracted_urls: 0,
+    pending_extraction: 0,
+    pending_thin: 0,
+    top_domains: [],
+  }
+  const pct = cov.coverage_percent ?? 0
 
   return (
     <div className={`extraction-coverage ${compact ? 'extraction-coverage--compact' : ''}`}>
@@ -146,7 +155,7 @@ export default function ExtractionCoveragePanel({
       <div className="extraction-coverage-bars">
         <div className="extraction-coverage-row">
           <span>Articles recollits</span>
-          <strong>{a.articles_total}</strong>
+          <strong>{a?.articles_total ?? 0}</strong>
         </div>
         <div className="extraction-coverage-row">
           <span>Extractables</span>
@@ -166,7 +175,7 @@ export default function ExtractionCoveragePanel({
         </div>
         <div className="extraction-coverage-row">
           <span>Declaracions totals</span>
-          <strong>{cov.statements.total}</strong>
+          <strong>{cov.statements?.total ?? 0}</strong>
         </div>
         {cov.alerts.pending_extraction > 0 && (
           <div className="extraction-coverage-row warn">

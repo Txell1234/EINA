@@ -635,12 +635,12 @@ async def get_full_case(
             detail="Case not found"
         )
 
-    # TODO: Agregar datos relacionados (OSINT, AI, etc.)
+    from services.case_full_service import load_case_full_bundle
+
+    bundle = await load_case_full_bundle(db, case_id)
     return {
         "case": CaseResponse.model_validate(case).model_dump(),
-        "osint_data": [],
-        "ai_analyses": [],
-        "predictions": [],
+        **bundle,
     }
 
 @router.get("/{case_id}/context")

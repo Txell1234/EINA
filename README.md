@@ -14,7 +14,10 @@ Actors MACTOR → Espai morfològic → Escenaris narratius → Monitors d'alert
 
 - **Recollida OSINT**: GDELT (events geopolítics globals), RSS de think-tanks
   (IISS, Chatham House, RAND, CFR, CSIS, Brookings, Elcano), OpenSanctions,
-  Reddit, GitHub, Wayback Machine, DNS/WHOIS
+  Reddit, GitHub, Wayback Machine, DNS/WHOIS, **xarxes socials** (TikTok, Instagram,
+  X/Twitter, YouTube, Threads via EnsembleData)
+- **Q2FS (pregunta analítica)**: pipeline inquiry amb parse híbrid, OSINT scoped,
+  síntesi traçable, export PDF/HTML, dashboard batch rerun i mode lite/full
 - **Extracció estructurada**: Claude Haiku extreu actors, declaracions i postures
   (–2..+2) dels articles OSINT, amb detecció d'al·lucinacions (grounding score)
 - **Anàlisi prospectiva**: MIC-MAC (motricitat, dependència, VB/VR),
@@ -43,8 +46,11 @@ cp backend/env.example backend/.env
 #   SECRET_KEY  → genera amb: python -c "import secrets; print(secrets.token_hex(32))"
 #   ANTHROPIC_API_KEY → clau de console.anthropic.com (o OPENAI_API_KEY)
 
-# 3. Arrenca
+# 3. Arrenca (desenvolupament — SQLite)
 docker compose up --build
+
+# 3b. Staging/producció (PostgreSQL + Redis + traces OTEL + Prometheus/Grafana)
+docker compose -f docker-compose.yml -f docker-compose.full.yml --profile full up --build
 
 # 4. Accedeix a http://localhost:3000
 # 5. Crea un compte a la pantalla de registre
@@ -105,8 +111,31 @@ npm run dev
 | `OPENAI_API_KEY` | Una d'aquestes | Clau OpenAI |
 | `GEMINI_API_KEY` | Una d'aquestes | Clau Google Gemini |
 | `LLM_PROVIDER` | No | `auto` (defecte), `anthropic`, `openai`, `gemini` |
-| `DATABASE_URL` | No | SQLite per defecte, PostgreSQL per a producció |
+| `DATABASE_URL` | No | SQLite per defecte; PostgreSQL amb `--profile full` |
+| `ENSEMBLEDATA_API_KEY` | No | Xarxes socials OSINT (TikTok, Instagram, X, etc.) |
+| `REDIS_URL` | No | Cache Q2FS distribuïda (profile `full`) |
+| `OTEL_ENABLED` | No | Traces OpenTelemetry → Jaeger (profile `full`) |
 | `NEWS_API_KEY` | No | newsapi.org — millora la recollida de notícies |
+
+## Observabilitat (profile `full`)
+
+- **Prometheus**: http://localhost:9090
+- **Grafana**: http://localhost:3001 (admin/admin — canvia en producció)
+- **Jaeger**: http://localhost:16686
+- **Health ampliat**: `GET /health` inclou Redis, cache Q2FS i inquiry scheduler
+
+## Tests
+
+```bash
+# Backend (274+ tests)
+cd backend && python -m pytest tests/unit -q
+
+# Frontend unitari (Vitest)
+cd frontend && npm run test
+
+# E2E Playwright (Q2FS + OSINT social)
+cd frontend && npm run e2e
+```
 
 ## Llicència
 

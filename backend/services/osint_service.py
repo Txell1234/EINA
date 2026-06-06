@@ -320,6 +320,8 @@ class OSINTService:
             await self.db.commit()
 
             if case_id and not has_error:
+                from services.analysis_scope_service import scope_from_query_params
+
                 scope = scope_from_query_params(query_params)
                 if scope and (scope.apply_topic_filter or scope.domains or scope.start_date or scope.period_days):
                     try:

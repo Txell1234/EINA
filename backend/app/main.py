@@ -409,6 +409,26 @@ async def health_check():
             "Install WeasyPrint native libs for PDF export — see backend/Dockerfile"
         )
 
+    redis_status: dict = {"configured": False, "status": "not_configured"}
+    if settings.REDIS_URL and settings.REDIS_URL.strip():
+        redis_status["configured"] = True
+        try:
+            import redis.asyncio as redis
+
+            client = redis.from_url(settings.REDIS_URL, decode_responses=True)
+            pong = await client.ping()
+            await client.aclose()
+            redis_status["status"] = "available" if pong else "unreachable"
+        except Exception as exc:
+            redis_status["status"] = "unreachable"
+            redis_status["error"] = str(exc)[:120]
+
+    cache_backend = (settings.Q2FS_STEP_CACHE_BACKEND or "memory").strip().lower()
+    if cache_backend == "redis" and redis_status.get("status") != "available":
+        recommendations.append(
+            "Q2FS_STEP_CACHE_BACKEND=redis però Redis no respon — revisa REDIS_URL o usa memory"
+        )
+
     return JSONResponse({
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
@@ -422,6 +442,15 @@ async def health_check():
             "export": {
                 "weasyprint": weasyprint_status,
                 "openpyxl": openpyxl_status,
+            },
+            "redis": redis_status,
+            "q2fs_cache": {
+                "backend": cache_backend,
+                "status": "ok" if cache_backend == "memory" or redis_status.get("status") == "available" else "degraded",
+            },
+            "inquiry_scheduler": {
+                "enabled": settings.INQUIRY_SCHEDULER_ENABLED,
+                "interval_hours": settings.INQUIRY_SCHEDULER_INTERVAL_HOURS,
             },
         },
         "recommendations": recommendations,

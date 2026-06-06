@@ -3,6 +3,8 @@ import { lazy, Suspense } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import Layout from './components/Layout'
 import Login from './components/Auth/Login'
+import { ErrorBoundary } from './components/ErrorBoundary'
+import RouteSkeleton from './components/shared/RouteSkeleton'
 import { AuthProvider, ProtectedRoute } from './contexts/AuthContext'
 import { CaseProvider } from './contexts/CaseContext'
 import { I18nProvider } from './contexts/I18nContext'
@@ -39,7 +41,7 @@ const InquiryDashboard = lazy(() => import('./components/Intelligence/InquiryDas
 
 function AppRoutes() {
   return (
-    <Suspense fallback={<div className="spinner" style={{ margin: '4rem auto' }} />}>
+    <Suspense fallback={<RouteSkeleton />}>
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route
@@ -90,13 +92,15 @@ function App() {
         v7_relativeSplatPath: true,
       }}
     >
-      <I18nProvider>
-        <CaseProvider>
-          <AuthProvider>
-            <AppRoutes />
-          </AuthProvider>
-        </CaseProvider>
-      </I18nProvider>
+      <ErrorBoundary>
+        <I18nProvider>
+          <CaseProvider>
+            <AuthProvider>
+              <AppRoutes />
+            </AuthProvider>
+          </CaseProvider>
+        </I18nProvider>
+      </ErrorBoundary>
     </Router>
   )
 }

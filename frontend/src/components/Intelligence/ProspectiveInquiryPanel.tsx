@@ -21,6 +21,17 @@ type StepState = {
 const SAMPLE =
   'Trump announces US blockade of Hormuz lifted by December 2026?'
 
+const GODET_CHECKLIST = [
+  { key: 'project', label: 'Projecte', path: '/prospective/project' },
+  { key: 'variables', label: 'Variables', path: '/prospective/variables' },
+  { key: 'micmac', label: 'MIC-MAC', path: '/prospective/micmac' },
+  { key: 'actors', label: 'Actors', path: '/prospective/actors' },
+  { key: 'mactor', label: 'MACTOR', path: '/prospective/mactor' },
+  { key: 'morph', label: 'Morph', path: '/prospective/morph' },
+  { key: 'smic', label: 'SMIC', path: '/prospective-analysis' },
+  { key: 'scenarios', label: 'Escenaris', path: '/prospective-analysis' },
+] as const
+
 export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPanelProps) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
@@ -71,11 +82,15 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
     enabled: traceInquiryId !== null,
   })
 
+  const hasAwaitingGodetInquiry = (inquiries as Array<{ status: string }>).some(
+    (i) => i.status === 'awaiting_godet',
+  )
+
   const { data: godetStatusData } = useQuery({
     queryKey: ['prospective-inquiry-godet-status', traceInquiryId],
     queryFn: () => prospectiveInquiryService.getGodetStatus(traceInquiryId!),
     enabled: traceInquiryId !== null,
-    refetchInterval: awaitingGodet ? 15000 : false,
+    refetchInterval: awaitingGodet || hasAwaitingGodetInquiry ? 15000 : false,
   })
 
   const { data: compareData } = useQuery({
@@ -260,6 +275,34 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
   }, [question, caseId])
 
   const isRunning = runMutation.isPending || rerunMutation.isPending
+  const godetStatus = godetStatusData as
+    | {
+        checklist?: Record<string, boolean>
+        missing_steps?: string[]
+        godet_ready?: boolean
+        can_synthesize?: boolean
+        project_id?: number | null
+        status?: string
+      }
+    | undefined
+  const showGodetGuide = awaitingGodet || godetStatus?.status === 'awaiting_godet'
+  const godetReady = Boolean(godetStatus?.godet_ready)
+  const canSynthesize = Boolean(godetStatus?.can_synthesize) || godetReady
+  const synthTargetId =
+    lastInquiryId ??
+    (inquiries as Array<{ id: number; status: string }>).find((i) => i.status === 'awaiting_godet')
+      ?.id
+
+  const openGodetStep = (stepPath: string) => {
+    const projectId = godetStatus?.project_id ?? wizardProjectId
+    if (!projectId) {
+      navigate(stepPath)
+      return
+    }
+    const params = new URLSearchParams({ project: String(projectId) })
+    if (synthTargetId) params.set('inquiry', String(synthTargetId))
+    navigate(`${stepPath}?${params.toString()}`)
+  }
 
   return (
     <section
@@ -398,22 +441,68 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
         </div>
       )}
 
-      {awaitingGodet && (
-        <div className="prospective-inquiry-panel__wait" data-testid="inquiry-awaiting-godet">
-          <p>Completa Godet al wizard prospectiu i després:</p>
-          {(inquiries as Array<{ id: number; status: string }>)
-            .filter((i) => i.status === 'awaiting_godet')
-            .map((i) => (
+      {showGodetGuide && (
+        <div className="prospective-inquiry-panel__godet" data-testid="inquiry-awaiting-godet">
+          <h4>Checklist Godet (mode complet)</h4>
+          <p className="prospective-inquiry-panel__sub">
+            Completa els passos al wizard prospectiu. El monitor s&apos;actualitza cada 15 s.
+          </p>
+          <ul className="prospective-inquiry-panel__godet-list">
+            {GODET_CHECKLIST.map((step) => {
+              const done = Boolean(godetStatus?.checklist?.[step.key])
+              return (
+                <li
+                  key={step.key}
+                  className={`prospective-inquiry-panel__godet-item${done ? ' prospective-inquiry-panel__godet-item--done' : ''}`}
+                >
+                  <span className="prospective-inquiry-panel__godet-label">{step.label}</span>
+                  <span className="prospective-inquiry-panel__godet-state">
+                    {done ? 'completat' : 'pendent'}
+                  </span>
+                  {!done && (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-secondary"
+                      onClick={() => openGodetStep(step.path)}
+                    >
+                      Obrir
+                    </button>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+          {godetStatus?.missing_steps?.length ? (
+            <p className="prospective-inquiry-panel__sub" data-testid="inquiry-godet-missing">
+              Pendents: {godetStatus.missing_steps.join(', ')}
+            </p>
+          ) : null}
+          <div className="prospective-inquiry-panel__godet-actions">
+            {synthTargetId && (
               <button
-                key={i.id}
+                type="button"
+                className={`btn ${canSynthesize ? 'btn-primary' : 'btn-secondary'}`}
+                disabled={synthMutation.isPending || !canSynthesize}
+                onClick={() => synthMutation.mutate(synthTargetId)}
+                data-testid="inquiry-synthesize"
+              >
+                {synthMutation.isPending
+                  ? 'Sintetitzant…'
+                  : canSynthesize
+                    ? `Síntesi inquiry #${synthTargetId}`
+                    : 'Síntesi (espera Godet)'}
+              </button>
+            )}
+            {synthTargetId && (
+              <button
                 type="button"
                 className="btn btn-secondary"
-                disabled={synthMutation.isPending}
-                onClick={() => synthMutation.mutate(i.id)}
+                onClick={() => void openWizard(synthTargetId, godetStatus?.project_id ?? wizardProjectId)}
               >
-                Síntesi inquiry #{i.id}
+                Obrir wizard morph
               </button>
-            ))}
+            )}
+          </div>
         </div>
       )}
 
@@ -571,7 +660,7 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
         </p>
       )}
 
-      {(compareData?.items as InquiryCompareItem[] | undefined)?.length >= 2 && (
+      {((compareData?.items as InquiryCompareItem[] | undefined)?.length ?? 0) >= 2 && (
         <details open className="prospective-inquiry-panel__compare">
           <summary>Comparativa inquiries del cas ({compareData?.count})</summary>
           <InquiryComparePanel

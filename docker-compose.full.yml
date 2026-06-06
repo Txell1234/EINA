@@ -1,21 +1,48 @@
-# Stack complet: Redis + observabilitat + backend amb cache i traces
+# Stack complet staging/producció: PostgreSQL + Redis + observabilitat + traces OTEL
 # Ús: docker compose -f docker-compose.yml -f docker-compose.full.yml --profile full up --build
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: eina-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-eina}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-eina_staging}
+      POSTGRES_DB: ${POSTGRES_DB:-eina}
+    volumes:
+      - eina-pg:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-eina} -d ${POSTGRES_DB:-eina}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles: ["full"]
+
   backend:
     depends_on:
+      postgres:
+        condition: service_healthy
+        required: false
       redis:
         condition: service_started
         required: false
     environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://eina:eina_staging@postgres:5432/eina}
       REDIS_URL: redis://redis:6379/0
       Q2FS_STEP_CACHE_BACKEND: redis
       OTEL_ENABLED: "true"
       OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
       OTEL_TRACES_SAMPLER_RATE: "0.25"
       STRUCTURED_LOGGING: "true"
+      INQUIRY_SCHEDULER_ENABLED: "true"
 
   prometheus:
     depends_on:
       backend:
         condition: service_healthy
+
+volumes:
+  eina-pg:

@@ -274,3 +274,71 @@
 .prospective-inquiry-panel__compare {
   margin-top: 0.5rem;
 }
+
+.prospective-inquiry-panel__godet {
+  margin-top: 0.5rem;
+  padding: var(--spacing-md);
+  background: rgba(255, 193, 7, 0.08);
+  border: 1px solid rgba(255, 193, 7, 0.3);
+  border-radius: var(--radius-sm);
+}
+
+.prospective-inquiry-panel__godet h4 {
+  margin: 0 0 0.35rem;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-gray-800);
+}
+
+.prospective-inquiry-panel__godet-list {
+  margin: 0.5rem 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.prospective-inquiry-panel__godet-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.55rem;
+  background: var(--color-white);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-sm);
+}
+
+.prospective-inquiry-panel__godet-item--done {
+  border-color: rgba(40, 167, 69, 0.35);
+  background: rgba(40, 167, 69, 0.06);
+}
+
+.prospective-inquiry-panel__godet-label {
+  flex: 1;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-primary);
+}
+
+.prospective-inquiry-panel__godet-state {
+  font-size: var(--font-size-xs);
+  padding: 0.1rem 0.45rem;
+  border-radius: var(--radius-full, 999px);
+  background: var(--color-gray-100);
+  color: var(--color-gray-700);
+  text-transform: lowercase;
+}
+
+.prospective-inquiry-panel__godet-item--done .prospective-inquiry-panel__godet-state {
+  background: rgba(40, 167, 69, 0.12);
+  color: var(--color-success-dark);
+}
+
+.prospective-inquiry-panel__godet-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  margin-top: 0.5rem;
+}

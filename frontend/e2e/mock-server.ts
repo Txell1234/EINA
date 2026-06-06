@@ -135,6 +135,35 @@ export function startE2eMockServer(): Promise<() => Promise<void>> {
       return sendJson(res, { items: [] })
     }
 
+    if (
+      method === 'GET' &&
+      (path === `/api/osint/coverage/${MOCK_CASE.id}` ||
+        path === `/api/extract/coverage/${MOCK_CASE.id}`)
+    ) {
+      return sendJson(res, {
+        case_id: MOCK_CASE.id,
+        coverage_percent: 42,
+        articles: {
+          articles_total: 10,
+          extractable: 8,
+          enriched: 5,
+          needs_enrichment: 3,
+          extracted_urls: 4,
+          pending_extraction: 2,
+          pending_thin: 1,
+          top_domains: [{ domain: 'reuters.com', count: 3 }],
+        },
+        statements: { total: 0, by_decision: {} },
+        osint: { orphan_queries_global: 0, error_results: 0 },
+        alerts: { pending_extraction: 0, short_excerpt: 0 },
+        recommendations: [],
+      })
+    }
+
+    if (method === 'GET' && path === `/api/osint/inventory/${MOCK_CASE.id}`) {
+      return sendJson(res, { items: [], total: 0 })
+    }
+
     if (method === 'GET' && path.startsWith(`/api/cases/${MOCK_CASE.id}/`)) {
       if (path.includes('financial-reports')) {
         return sendJson(res, [])
@@ -190,7 +219,62 @@ export function startE2eMockServer(): Promise<() => Promise<void>> {
     }
 
     if (method === 'GET' && path.endsWith('/godet-status')) {
-      return sendJson(res, { godet_ready: false, checklist: [] })
+      return sendJson(res, {
+        found: true,
+        inquiry_id: MOCK_INQUIRY_ID,
+        status: inquiryMode === 'full' ? 'awaiting_godet' : 'completed',
+        project_id: 7,
+        godet_ready: false,
+        can_synthesize: false,
+        checklist: {
+          project: true,
+          variables: false,
+          micmac: false,
+          actors: false,
+          mactor: false,
+          morph: false,
+          smic: false,
+          scenarios: false,
+        },
+        missing_steps: ['variables', 'micmac', 'actors', 'mactor', 'morph', 'smic', 'scenarios'],
+      })
+    }
+
+    if (method === 'GET' && path === '/api/integration/status') {
+      return sendJson(res, {
+        osint_apis: {
+          ensembledata: { configured: true, status: 'configured' },
+          tavily: { configured: true, status: 'configured' },
+        },
+      })
+    }
+
+    if (method === 'POST' && path === '/api/osint/collect') {
+      let body: { query_type?: string } = {}
+      const chunks: Buffer[] = []
+      req.on('data', (c) => chunks.push(c))
+      req.on('end', () => {
+        try {
+          body = JSON.parse(Buffer.concat(chunks).toString('utf8'))
+        } catch {
+          body = {}
+        }
+        sendJson(res, {
+          query_id: 901,
+          result_id: 902,
+          status: 'completed',
+          data: {
+            status: 'success',
+            query_type: body.query_type,
+            data: [{ id: 1, text: 'mock social post' }],
+          },
+        })
+      })
+      return
+    }
+
+    if (method === 'GET' && path === '/api/osint/recent-searches') {
+      return sendJson(res, [])
     }
 
     if (method === 'GET' && path.endsWith('/audit')) {

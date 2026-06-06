@@ -1,0 +1,79 @@
+@import '../../styles/variables.css';
+
+.route-skeleton {
+  padding: var(--spacing-xl);
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.route-skeleton__header {
+  height: 1.75rem;
+  width: 42%;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(
+    90deg,
+    var(--color-gray-100) 0%,
+    var(--color-gray-200) 50%,
+    var(--color-gray-100) 100%
+  );
+  background-size: 200% 100%;
+  animation: route-skeleton-shimmer 1.4s ease-in-out infinite;
+  margin-bottom: var(--spacing-md);
+}
+
+.route-skeleton__line {
+  height: 0.85rem;
+  border-radius: var(--radius-sm);
+  background: var(--color-gray-100);
+  margin-bottom: var(--spacing-sm);
+}
+
+.route-skeleton__line--wide {
+  width: 88%;
+}
+
+.route-skeleton__line--short {
+  width: 55%;
+}
+
+.route-skeleton__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-lg);
+}
+
+.route-skeleton__card {
+  height: 6.5rem;
+  border-radius: var(--radius-md);
+  background: var(--color-gray-50);
+  border: 1px solid var(--color-gray-200);
+}
+
+.route-skeleton__label {
+  display: block;
+  margin-top: var(--spacing-md);
+  font-size: var(--font-size-xs);
+  color: var(--color-gray-500);
+}
+
+@keyframes route-skeleton-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .route-skeleton__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-skeleton__header {
+    animation: none;
+  }
+}
