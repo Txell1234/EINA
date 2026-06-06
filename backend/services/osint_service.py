@@ -333,6 +333,18 @@ class OSINTService:
                         logging.getLogger(__name__).warning(
                             "Scope filter failed for result %s: %s", result.id, e
                         )
+                else:
+                    try:
+                        from services.analysis_scope_service import auto_apply_scope_for_case_result
+
+                        await auto_apply_scope_for_case_result(self.db, result.id, case_id)
+                        await self.db.refresh(result)
+                        if isinstance(result_data, dict):
+                            result_data = result.data
+                    except Exception as e:
+                        logging.getLogger(__name__).warning(
+                            "Auto scope filter failed for result %s: %s", result.id, e
+                        )
 
             if case_id and not has_error:
                 try:

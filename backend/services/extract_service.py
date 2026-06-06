@@ -253,6 +253,7 @@ class ExtractService:
         self.db = db
         self.llm = LLMService(mode="extract")
         self._case_profile: CaseTopicProfile | None = None
+        self._inquiry_scope = None
 
     async def _load_case_profile(self, case_id: int) -> CaseTopicProfile:
         case_r = await self.db.execute(select(Case).where(Case.id == case_id))
@@ -291,11 +292,22 @@ class ExtractService:
         self._case_profile = await self._load_case_profile(case_id)
         min_article_score = float(getattr(settings, "CASE_ARTICLE_RELEVANCE_MIN_SCORE", 0.28))
 
-        if apply_scope and scope is None:
-            from services.analysis_scope_service import load_case_scope_profile
+        from services.analysis_scope_service import load_active_inquiry_scope, resolve_scope_for_case
 
-            prof = await load_case_scope_profile(self.db, case_id)
-            scope = prof.default_scope
+        self._inquiry_scope = await load_active_inquiry_scope(self.db, case_id)
+
+        if apply_scope and scope is None:
+            scope, inq = await resolve_scope_for_case(self.db, case_id)
+            if inq:
+                self._inquiry_scope = inq
+        elif not apply_scope:
+            from services.analysis_scope_service import should_auto_apply_scope
+
+            if await should_auto_apply_scope(self.db, case_id):
+                apply_scope = True
+                scope, inq = await resolve_scope_for_case(self.db, case_id)
+                if inq:
+                    self._inquiry_scope = inq
 
         use_topic_filter = True
         if apply_scope and scope is not None:
@@ -359,8 +371,19 @@ class ExtractService:
                             skipped_scope += 1
                             continue
 
-                    if use_topic_filter and self._case_profile:
-                        if not is_article_on_topic(
+                    if use_topic_filter and (self._case_profile or self._inquiry_scope):
+                        if self._inquiry_scope:
+                            from services.inquiry_scope import is_article_in_inquiry_scope
+
+                            if not is_article_in_inquiry_scope(
+                                body,
+                                title,
+                                inquiry=self._inquiry_scope,
+                                min_score=min_article_score,
+                            ):
+                                skipped_off_topic += 1
+                                continue
+                        elif not is_article_on_topic(
                             body,
                             title,
                             self._case_profile,

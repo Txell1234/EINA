@@ -196,14 +196,19 @@ class IntelligenceService:
                 "steps": [],
             }
 
+        from services.analysis_scope_service import should_auto_apply_scope
+
+        use_scope = apply_scope
+        if not use_scope and await should_auto_apply_scope(self.db, case_id):
+            use_scope = True
+
         steps_log: list[dict[str, Any]] = []
 
         scope = None
-        if apply_scope:
-            from services.analysis_scope_service import load_case_scope_profile
+        if use_scope:
+            from services.analysis_scope_service import resolve_scope_for_case
 
-            prof = await load_case_scope_profile(self.db, case_id)
-            scope = prof.default_scope
+            scope, _ = await resolve_scope_for_case(self.db, case_id)
 
         async def step(name: str, label: str, fn) -> bool:
             try:
@@ -218,7 +223,7 @@ class IntelligenceService:
         await step(
             "extraction",
             "Extracció de declaracions",
-            lambda: self._run_extraction(case_id, apply_scope=apply_scope, scope=scope),
+            lambda: self._run_extraction(case_id, apply_scope=use_scope, scope=scope),
         )
 
         if auto_cleanup:

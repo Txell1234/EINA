@@ -14,7 +14,12 @@ from schemas.analysis_scope import AnalysisScope, CaseScopeProfile
 from services.case_topic_relevance import (
     build_case_topic_profile,
     is_article_on_topic,
-    score_text_relevance,
+)
+from services.inquiry_scope import (
+    InquiryScopeProfile,
+    build_inquiry_scope,
+    is_article_in_inquiry_scope,
+    score_inquiry_relevance,
 )
 from schemas.actor_typology import build_analytical_profile
 from services.osint_data_utils import (
@@ -27,6 +32,61 @@ from services.osint_data_utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+async def load_active_inquiry_scope(db: AsyncSession, case_id: int) -> InquiryScopeProfile | None:
+    """Latest inquiry scope for case (any non-failed status)."""
+    from models.prospective_inquiry import ProspectiveInquiry
+
+    r = await db.execute(
+        select(ProspectiveInquiry)
+        .where(ProspectiveInquiry.case_id == case_id)
+        .where(ProspectiveInquiry.status.notin_(["failed"]))
+        .order_by(ProspectiveInquiry.created_at.desc())
+        .limit(1)
+    )
+    row = r.scalar_one_or_none()
+    if not row or not row.inquiry_scope:
+        return None
+    data = row.inquiry_scope
+    if isinstance(data, dict) and data.get("question"):
+        from services.inquiry_scope import inquiry_scope_from_stored
+
+        return inquiry_scope_from_stored(data)
+    if row.question:
+        return build_inquiry_scope(row.question)
+    return None
+
+
+async def should_auto_apply_scope(db: AsyncSession, case_id: int) -> bool:
+    """True when case has prompt or active inquiry — scope should apply by default."""
+    if await load_active_inquiry_scope(db, case_id):
+        return True
+    prompt_r = await db.execute(
+        select(CasePrompt.id).where(CasePrompt.case_id == case_id).limit(1)
+    )
+    return prompt_r.scalar_one_or_none() is not None
+
+
+async def resolve_scope_for_case(
+    db: AsyncSession,
+    case_id: int,
+    *,
+    override: AnalysisScope | None = None,
+) -> tuple[AnalysisScope, InquiryScopeProfile | None]:
+    """Effective analysis scope; stricter when inquiry active."""
+    inquiry = await load_active_inquiry_scope(db, case_id)
+    if override:
+        return override, inquiry
+    prof = await load_case_scope_profile(db, case_id)
+    scope = prof.default_scope.model_copy()
+    if inquiry:
+        scope.apply_topic_filter = True
+        scope.min_relevance = inquiry.min_relevance
+    elif await should_auto_apply_scope(db, case_id):
+        scope.apply_topic_filter = True
+        scope.min_relevance = max(scope.min_relevance, 0.35)
+    return scope, inquiry
 
 
 async def load_case_scope_profile(db: AsyncSession, case_id: int) -> CaseScopeProfile:
@@ -52,6 +112,8 @@ async def load_case_scope_profile(db: AsyncSession, case_id: int) -> CaseScopePr
     prompt = prompt_r.scalar_one_or_none()
     extra = (prompt.prompt[:800] if prompt and prompt.prompt else "")
 
+    inquiry = await load_active_inquiry_scope(db, case_id)
+
     profile = build_case_topic_profile(case.name or "", case.description or "", extra)
     queries = build_osint_search_queries(
         case.name or "",
@@ -64,6 +126,9 @@ async def load_case_scope_profile(db: AsyncSession, case_id: int) -> CaseScopePr
         case.description or "",
         extra,
     )
+    if inquiry and inquiry.osint_queries:
+        queries = inquiry.osint_queries
+        suggested = inquiry.osint_queries[0]
 
     # Keywords for topic filter: geos + themes + entities (not full token dump)
     from services.case_topic_relevance import _THEMATIC_CLUSTERS
@@ -92,6 +157,8 @@ async def load_case_scope_profile(db: AsyncSession, case_id: int) -> CaseScopePr
     case_type_val = case.case_type.value if case.case_type else "general"
     analytical = build_analytical_profile(case_type=case_type_val, themes=profile.themes)
 
+    min_rel = inquiry.min_relevance if inquiry else 0.28
+
     return CaseScopeProfile(
         case_id=case_id,
         focus_label=profile.focus_label,
@@ -105,7 +172,7 @@ async def load_case_scope_profile(db: AsyncSession, case_id: int) -> CaseScopePr
         default_scope=AnalysisScope(
             period_days=90,
             apply_topic_filter=True,
-            min_relevance=0.28,
+            min_relevance=min_rel,
         ),
     )
 
@@ -172,10 +239,20 @@ def filter_articles_by_scope(
     *,
     case_profile: Any | None,
     scope: AnalysisScope,
-) -> tuple[list[dict[str, Any]], dict[str, int]]:
-    """Filter OSINT articles by date, domain and case topic."""
+    inquiry: InquiryScopeProfile | None = None,
+    audit_sample_limit: int = 8,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Filter OSINT articles by date, domain and case/inquiry topic."""
     kept: list[dict[str, Any]] = []
-    stats = {"input": len(articles), "removed_date": 0, "removed_domain": 0, "removed_topic": 0}
+    stats: dict[str, Any] = {
+        "input": len(articles),
+        "removed_date": 0,
+        "removed_domain": 0,
+        "removed_topic": 0,
+        "removed_must_match": 0,
+        "inquiry_mode": bool(inquiry),
+    }
+    rejected_samples: list[dict[str, Any]] = []
 
     for art in articles:
         if not _article_in_date_range(art, scope):
@@ -184,14 +261,38 @@ def filter_articles_by_scope(
         if not _article_matches_domain(art, scope.domains):
             stats["removed_domain"] += 1
             continue
-        if scope.apply_topic_filter and case_profile:
+        if scope.apply_topic_filter and (case_profile or inquiry):
             text = text_from_osint_item(art)
             title = str(art.get("title") or "")
-            if not is_article_on_topic(text, title, case_profile, min_score=scope.min_relevance):
+            if inquiry:
+                diag = score_inquiry_relevance(
+                    text, title, inquiry=inquiry, min_score=scope.min_relevance
+                )
+                ok = diag["passed"]
+                if not ok and not diag.get("passed_must_match"):
+                    stats["removed_must_match"] += 1
+            else:
+                ok = is_article_on_topic(
+                    text, title, case_profile, min_score=scope.min_relevance
+                )
+                diag = {"score": scope.min_relevance if ok else 0, "reasons": []}
+            if not ok:
                 stats["removed_topic"] += 1
+                if len(rejected_samples) < audit_sample_limit:
+                    rejected_samples.append(
+                        {
+                            "title": title[:120],
+                            "url": art.get("url", ""),
+                            "score": diag.get("score"),
+                            "reasons": diag.get("reasons", [])[:3],
+                            "required_hits": diag.get("required_hits"),
+                        }
+                    )
                 continue
         kept.append(art)
 
+    stats["kept"] = len(kept)
+    stats["rejected_samples"] = rejected_samples
     return kept, stats
 
 
@@ -218,13 +319,19 @@ async def apply_scope_to_osint_result(
         (case.description or "") if case else "",
         (prompt.prompt[:800] if prompt and prompt.prompt else ""),
     )
+    inquiry = await load_active_inquiry_scope(db, case_id)
 
     data = dict(result.data)
     articles = flatten_osint_items(data)
     if not articles:
         return {"filtered": False, "reason": "no_articles"}
 
-    filtered, stats = filter_articles_by_scope(articles, case_profile=case_profile, scope=scope)
+    filtered, stats = filter_articles_by_scope(
+        articles,
+        case_profile=case_profile,
+        scope=scope,
+        inquiry=inquiry,
+    )
 
     if "articles" in data:
         data["articles"] = filtered
@@ -235,12 +342,24 @@ async def apply_scope_to_osint_result(
 
     data["_scope_filter"] = {
         **stats,
-        "kept": len(filtered),
         "scope": scope.model_dump(),
+        "inquiry_question": inquiry.question if inquiry else None,
     }
     result.data = data
     await db.commit()
-    return {"filtered": True, **stats, "kept": len(filtered)}
+    return {"filtered": True, **stats}
+
+
+async def auto_apply_scope_for_case_result(
+    db: AsyncSession,
+    result_id: int,
+    case_id: int,
+) -> dict[str, Any]:
+    """Apply scope after OSINT ingest when case has prompt/inquiry."""
+    if not await should_auto_apply_scope(db, case_id):
+        return {"filtered": False, "reason": "no_auto_scope"}
+    scope, _ = await resolve_scope_for_case(db, case_id)
+    return await apply_scope_to_osint_result(db, result_id, case_id, scope)
 
 
 def merge_scope_into_query_params(

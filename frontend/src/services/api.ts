@@ -186,6 +186,45 @@ export const casesService = {
     const response = await api.get(`/api/cases/${id}/scope-profile`)
     return response.data as import('../types/analysisScope').CaseScopeProfile
   },
+  listFinancialReports: async (caseId: number) => {
+    const response = await api.get(`/api/cases/${caseId}/financial-reports`)
+    return response.data
+  },
+  uploadFinancialReport: async (
+    caseId: number,
+    body: { text: string; source?: string; title?: string; source_url?: string; enrich_llm?: boolean },
+  ) => {
+    const response = await api.post(`/api/cases/${caseId}/financial-reports`, body)
+    return response.data
+  },
+  uploadFinancialReportFile: async (
+    caseId: number,
+    file: File,
+    opts: { source?: string; title?: string; enrich_llm?: boolean } = {},
+  ) => {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('source', opts.source ?? 'custom')
+    form.append('title', opts.title ?? '')
+    form.append('enrich_llm', String(opts.enrich_llm ?? false))
+    const response = await api.post(`/api/cases/${caseId}/financial-reports/upload`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return response.data
+  },
+  runFinancialCrossover: async (
+    caseId: number,
+    body: {
+      report_id?: number
+      text?: string
+      source?: string
+      external_weight?: number
+      enrich_llm?: boolean
+    },
+  ) => {
+    const response = await api.post(`/api/cases/${caseId}/financial-crossover`, body)
+    return response.data
+  },
 }
 
 export const visualizationsService = {
@@ -825,6 +864,76 @@ export const intelligenceService = {
       timeout: 120_000,
     })
     return response.data
+  },
+}
+
+export const prospectiveInquiryService = {
+  listForCase: async (caseId: number) => {
+    const response = await api.get(`/api/prospective/inquiries/case/${caseId}`)
+    return response.data
+  },
+  get: async (inquiryId: number) => {
+    const response = await api.get(`/api/prospective/inquiries/${inquiryId}`)
+    return response.data
+  },
+  create: async (body: {
+    case_id: number
+    question: string
+    mode?: 'full' | 'lite'
+    include_financial?: boolean
+    financial_text?: string
+  }) => {
+    const response = await api.post('/api/prospective/inquiries', body)
+    return response.data as { inquiry_id: number; status: string; parsed_trigger: Record<string, unknown> }
+  },
+  runStream: async (
+    inquiryId: number,
+    onEvent: (event: Record<string, unknown>) => void,
+    options?: { forceRefresh?: boolean },
+  ): Promise<void> => {
+    const token = localStorage.getItem('token')
+    const base = API_BASE_URL.replace(/\/$/, '')
+    const qs = options?.forceRefresh ? '?force_refresh=true' : ''
+    const res = await fetch(`${base}/api/prospective/inquiries/${inquiryId}/run${qs}`, {
+      method: 'POST',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    })
+    if (!res.ok || !res.body) {
+      throw new Error(`Inquiry run failed: ${res.status}`)
+    }
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() ?? ''
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            onEvent(JSON.parse(line.slice(6)) as Record<string, unknown>)
+          } catch {
+            /* ignore partial json */
+          }
+        }
+      }
+    }
+  },
+  synthesize: async (inquiryId: number) => {
+    const response = await api.post(`/api/prospective/inquiries/${inquiryId}/synthesize`)
+    return response.data
+  },
+  morphBootstrap: async (inquiryId: number) => {
+    const response = await api.get(`/api/prospective/inquiries/${inquiryId}/morph-bootstrap`)
+    return response.data
+  },
+  exportHtmlUrl: (inquiryId: number) => {
+    const base = API_BASE_URL.replace(/\/$/, '')
+    return `${base}/api/prospective/inquiries/${inquiryId}/export/html`
   },
 }
 

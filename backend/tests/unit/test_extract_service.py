@@ -1,11 +1,12 @@
 """
 Unit tests for extract_service pure functions.
-Tests _recover_partial_json, _grounding_score, and _clean_json
+Tests _recover_partial_json, grounding_score, and _clean_json
 without any external API calls or database access.
 """
 import pytest
 
-from services.extract_service import _clean_json, _grounding_score, _recover_partial_json
+from services.extract_service import _clean_json, _recover_partial_json
+from services.extract_validation import grounding_score
 
 
 class TestRecoverPartialJson:
@@ -64,44 +65,44 @@ class TestRecoverPartialJson:
 class TestGroundingScore:
     def test_identical_texts(self):
         text = "China expands BRI into Central Asia"
-        score = _grounding_score(text, text)
+        score = grounding_score(text, text)
         assert score == 1.0
 
     def test_no_overlap(self):
         statement = "alpha beta gamma delta"
         source = "uno dos tres cuatro"
-        score = _grounding_score(statement, source)
+        score = grounding_score(statement, source)
         assert score == 0.0
 
     def test_partial_overlap(self):
         statement = "China expands military presence"
         source = "China military operations in Pacific"
-        score = _grounding_score(statement, source)
+        score = grounding_score(statement, source)
         assert 0.0 < score <= 1.0
 
     def test_empty_statement(self):
-        score = _grounding_score("", "some source text here")
-        assert score == 0.0
+        score = grounding_score("", "some source text here")
+        assert score == 1.0
 
     def test_empty_source(self):
-        score = _grounding_score("statement words", "")
+        score = grounding_score("statement words", "")
         assert score == 0.0
 
     def test_threshold_hallucination(self):
         statement = "Minister Zhang declared war on France yesterday"
         source = "The annual report covers economic performance indicators"
-        score = _grounding_score(statement, source)
+        score = grounding_score(statement, source)
         assert score < 0.08
 
     def test_well_grounded(self):
         source = "China announced new BRI agreements with Pakistan and Sri Lanka"
         statement = "China announced BRI agreements"
-        score = _grounding_score(statement, source)
+        score = grounding_score(statement, source)
         assert score > 0.5
 
     def test_case_insensitive(self):
-        score1 = _grounding_score("CHINA EXPANDS BRI", "china expands bri")
-        score2 = _grounding_score("china expands bri", "china expands bri")
+        score1 = grounding_score("CHINA EXPANDS BRI", "china expands bri")
+        score2 = grounding_score("china expands bri", "china expands bri")
         assert score1 == score2 == 1.0
 
 

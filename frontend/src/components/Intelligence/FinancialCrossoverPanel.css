@@ -1,0 +1,203 @@
+.financial-crossover-panel__header {
+  margin-bottom: 1rem;
+}
+
+.financial-crossover-panel__header h3 {
+  margin: 0 0 0.25rem;
+}
+
+.financial-crossover-panel__sub {
+  margin: 0;
+  color: var(--text-muted, #666);
+  font-size: 0.9rem;
+}
+
+.financial-crossover-panel__form textarea {
+  width: 100%;
+  margin: 0.75rem 0;
+  font-family: inherit;
+  padding: 0.5rem;
+}
+
+.financial-crossover-panel__row {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.financial-crossover-panel__row label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+}
+
+.financial-crossover-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.financial-crossover-panel__enrich {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+}
+
+.financial-crossover-panel__weight {
+  display: block;
+  margin-top: 0.75rem;
+  font-size: 0.85rem;
+}
+
+.financial-crossover-panel__weight input[type='range'] {
+  width: 100%;
+  margin-top: 0.25rem;
+}
+
+.financial-crossover-panel__reports ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.financial-crossover-panel__reports li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--border-color, #eee);
+}
+
+.financial-crossover-panel__numbers {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.5rem;
+  margin: 0.5rem 0 1rem;
+}
+
+.financial-crossover-panel__numbers dt {
+  font-size: 0.75rem;
+  text-transform: capitalize;
+  color: var(--text-muted, #666);
+}
+
+.financial-crossover-panel__numbers dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.financial-crossover-panel__align ul,
+.financial-crossover-panel__diverge ul,
+.financial-crossover-panel__conclusions ul {
+  margin: 0.25rem 0 0.75rem;
+  padding-left: 1.25rem;
+}
+
+.financial-crossover-panel__badge {
+  display: inline-block;
+  margin-top: 0.5rem;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.75rem;
+  border-radius: 4px;
+  background: #e8f5e9;
+  color: #2e7d32;
+  border: 1px solid #a5d6a7;
+}
+
+.financial-crossover-panel__method-note {
+  font-size: 0.85rem;
+  color: var(--text-muted, #666);
+  margin: 0 0 1rem;
+  padding: 0.5rem 0.75rem;
+  background: #f5f5f5;
+  border-radius: 4px;
+}
+
+.financial-crossover-panel__evidence {
+  margin-bottom: 1rem;
+}
+
+.financial-crossover-panel__evidence table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  margin-top: 0.5rem;
+}
+
+.financial-crossover-panel__evidence th,
+.financial-crossover-panel__evidence td {
+  border: 1px solid var(--border-color, #eee);
+  padding: 0.35rem 0.5rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.financial-crossover-panel__numbers-block {
+  margin: 1rem 0;
+}
+
+.financial-crossover-panel__number-card {
+  border: 1px solid var(--border-color, #eee);
+  border-radius: 6px;
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.financial-crossover-panel__number-card h5 {
+  margin: 0 0 0.25rem;
+  text-transform: capitalize;
+  font-size: 0.9rem;
+}
+
+.financial-crossover-panel__number-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0 0 0.35rem;
+}
+
+.financial-crossover-panel__because,
+.financial-crossover-panel__because-inline {
+  font-size: 0.85rem;
+  color: var(--text-muted, #444);
+}
+
+.financial-crossover-panel__formula {
+  font-size: 0.8rem;
+  margin: 0.25rem 0;
+}
+
+.financial-crossover-panel__sources {
+  margin: 0.35rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.8rem;
+}
+
+.financial-crossover-panel__judgment {
+  margin-bottom: 0.65rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid var(--border-color, #eee);
+}
+
+.financial-crossover-panel__judgment p {
+  margin: 0.15rem 0;
+}
+
+
+.financial-crossover-panel__align h5 {
+  color: #2e7d32;
+}
+
+.financial-crossover-panel__diverge h5 {
+  color: #c62828;
+}
+
+.financial-crossover-panel__msg--error {
+  color: #c62828;
+}
+
+.financial-crossover-panel__cross-inline {
+  margin-top: 0.5rem;
+}

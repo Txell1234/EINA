@@ -13,6 +13,8 @@ import { useAnalysisScope } from '../../hooks/useAnalysisScope'
 import { useCaseScopeProfile } from '../../hooks/useCaseScopeProfile'
 import ActorNetworkPanel from './ActorNetworkPanel'
 import PolicyIndustryPanel from './PolicyIndustryPanel'
+import FinancialCrossoverPanel from './FinancialCrossoverPanel'
+import ProspectiveInquiryPanel from './ProspectiveInquiryPanel'
 import './IntelligenceCenter.css'
 
 type StepKey = 'osint' | 'extraction' | 'events' | 'risks' | 'actor_impact' | 'investment'
@@ -42,7 +44,7 @@ export default function IntelligenceCenter() {
   const { activeCase, setActiveCase } = useCase()
   const [selectedCaseId, setSelectedCaseId] = useState<number | null>(activeCase?.id ?? null)
   const [pipelineMsg, setPipelineMsg] = useState<string | null>(null)
-  const [pipelineApplyScope, setPipelineApplyScope] = useState(false)
+  const [pipelineApplyScope, setPipelineApplyScope] = useState(true)
   const [pipelineAutoCleanup, setPipelineAutoCleanup] = useState(false)
 
   const { data: cases, isLoading: casesLoading } = useCasesList()
@@ -509,6 +511,8 @@ export default function IntelligenceCenter() {
         <>
           <ActorNetworkPanel caseId={selectedCaseId} />
           <PolicyIndustryPanel caseId={selectedCaseId} />
+          <ProspectiveInquiryPanel caseId={selectedCaseId} />
+          <FinancialCrossoverPanel caseId={selectedCaseId} />
           <VisualizationsDashboard caseId={selectedCaseId} hideScopeBar key={selectedCaseId} />
         </>
       ) : (

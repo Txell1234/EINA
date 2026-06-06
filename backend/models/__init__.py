@@ -31,6 +31,8 @@ from .prospective import (
     AlertMonitor,
     AlertMatch,
 )
+from .external_report import CaseExternalReport
+from .prospective_inquiry import ProspectiveInquiry
 
 __all__ = [
     "Base",
@@ -53,5 +55,7 @@ __all__ = [
     "ProspectiveActor", "MACTORObjective", "MACTORPosture", "MACTORResult",
     "MorphComponent", "ProspectiveScenario", "ScenarioMilestone",
     "MICMACExpertVote", "AlertMonitor", "AlertMatch",
+    "CaseExternalReport",
+    "ProspectiveInquiry",
 ]
 

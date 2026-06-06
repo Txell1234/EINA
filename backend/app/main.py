@@ -66,6 +66,8 @@ from routers import geopolitical
 from routers import extract as extract_router
 from routers import prospective as prospective_router
 from routers import analysis as analysis_router
+from routers import financial_crossover
+from routers import prospective_inquiry
 
 # Create database tables
 def _run_alembic_upgrade() -> None:
@@ -308,6 +310,8 @@ app.include_router(
     prefix="/api/analysis",
     tags=["Direct Analysis"],
 )
+app.include_router(financial_crossover.router)
+app.include_router(prospective_inquiry.router)
 
 @app.get("/")
 async def root():

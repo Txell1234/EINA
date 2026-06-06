@@ -107,7 +107,110 @@ def filter_valid_combinations(
 ) -> list[list[ComboEntry]]:
     incompatibilities = incompatibilities or []
     normalized = normalize_components(components)
+    total = 1
+    for comp in normalized:
+        total *= max(len(comp["configs"]), 1)
+    if total > 500_000:
+        return backtrack_valid_combinations(normalized, incompatibilities)
     return [c for c in build_cartesian(normalized) if is_combo_valid(c, incompatibilities)]
+
+
+def _get_pair_consistency(
+    comp_a: str,
+    cfg_a: str,
+    comp_b: str,
+    cfg_b: str,
+    incompatibilities: list[dict],
+) -> int:
+    """1 consistent, 0 neutral, -1 inconsistent."""
+    if _pair_incompatible(comp_a, cfg_a, comp_b, cfg_b, incompatibilities):
+        return -1
+    return 0
+
+
+def backtrack_valid_combinations(
+    components: list[dict],
+    incompatibilities: list[dict] | None = None,
+    *,
+    max_results: int = 10_000,
+) -> list[list[ComboEntry]]:
+    """Generate valid combos with early pruning (CCA backtracking)."""
+    incompatibilities = incompatibilities or []
+    normalized = normalize_components(components)
+    if not normalized:
+        return []
+
+    option_lists: list[list[ComboEntry]] = []
+    for comp in normalized:
+        option_lists.append(
+            [(comp["code"], comp["name"], label, idx) for idx, label in enumerate(comp["configs"])]
+        )
+
+    result: list[list[ComboEntry]] = []
+
+    def partial_ok(current: list[ComboEntry]) -> bool:
+        for i in range(len(current)):
+            for j in range(i + 1, len(current)):
+                ca, _, cfa, _ = current[i]
+                cb, _, cfb, _ = current[j]
+                if _pair_incompatible(ca, cfa, cb, cfb, incompatibilities):
+                    return False
+        return True
+
+    def dfs(depth: int, current: list[ComboEntry]) -> None:
+        if len(result) >= max_results:
+            return
+        if depth == len(option_lists):
+            result.append(list(current))
+            return
+        for entry in option_lists[depth]:
+            current.append(entry)
+            if partial_ok(current):
+                dfs(depth + 1, current)
+            current.pop()
+
+    dfs(0, [])
+    return result
+
+
+def _hamming_distance(a: list[ComboEntry], b: list[ComboEntry]) -> int:
+    if len(a) != len(b):
+        return max(len(a), len(b))
+    return sum(1 for x, y in zip(a, b) if x[3] != y[3])
+
+
+def reduce_to_godet_four(
+    valid_combos: list[list[ComboEntry]],
+    components: list[dict],
+) -> list[dict[str, Any]]:
+    """Pick 4 diverse valid combos mapped to Godet scenario types."""
+    if not valid_combos:
+        return []
+    normalized = normalize_components(components)
+    config_counts = [len(c["configs"]) for c in normalized]
+    sorted_combos = sorted(valid_combos, key=lambda c: combo_score(c, config_counts))
+    n = len(sorted_combos)
+    picks = [
+        sorted_combos[0],
+        sorted_combos[max(0, int(n * 0.35))],
+        sorted_combos[max(0, int(n * 0.65))],
+        sorted_combos[-1],
+    ]
+    out: list[dict[str, Any]] = []
+    for tpl, combo in zip(SCENARIO_TEMPLATES, picks):
+        poss = assess_scenario_possibility(combo, [], components, tpl["scenario_type"])
+        out.append(
+            {
+                "scenario_type": tpl["scenario_type"],
+                "name": tpl["name"],
+                "config": format_morph_config(combo),
+                "combo": combo,
+                "possibility": poss["possibility"],
+                "possibility_rationale": poss["possibility_rationale"],
+                "diversity_score": combo_score(combo, config_counts),
+            }
+        )
+    return out
 
 
 def combo_score(combo: list[ComboEntry], config_counts: list[int] | None = None) -> float:
