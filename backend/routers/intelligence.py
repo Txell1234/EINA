@@ -57,6 +57,43 @@ async def get_actor_network(
     return await ActorNetworkService(db).build_network(case_id)
 
 
+@router.get("/{case_id}/policy-industry")
+async def get_policy_industry_map(
+    case_id: int,
+    premise: str | None = None,
+    enrich: bool = False,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Map policy themes/premises to companies, contractors and beneficiaries (JP + overseas)."""
+    from services.policy_industry_service import PolicyIndustryService
+
+    result = await PolicyIndustryService(db).build_map(case_id, premise=premise, enrich=enrich)
+    if not result.get("found"):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found")
+    return result
+
+
+@router.post("/{case_id}/policy-industry/analyze")
+async def analyze_policy_industry(
+    case_id: int,
+    body: dict[str, Any],
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Premise-specific industry linkage with optional LLM enrichment (opt-in)."""
+    from services.policy_industry_service import PolicyIndustryService
+
+    premise = (body.get("premise") or body.get("premise_text") or "").strip()
+    if len(premise) < 10:
+        raise HTTPException(status_code=400, detail="premise és obligatori (mín. 10 caràcters)")
+    enrich = bool(body.get("enrich", False))
+    result = await PolicyIndustryService(db).build_map(case_id, premise=premise, enrich=enrich)
+    if not result.get("found"):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found")
+    return result
+
+
 @router.get("/{case_id}/actor-impact")
 async def get_actor_impact(
     case_id: int,

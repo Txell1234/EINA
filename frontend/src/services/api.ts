@@ -792,6 +792,27 @@ export const intelligenceService = {
     const response = await api.get(`/api/intelligence/${caseId}/actor-network`)
     return response.data
   },
+  getPolicyIndustryMap: async (
+    caseId: number,
+    options?: { premise?: string; enrich?: boolean },
+  ) => {
+    const response = await api.get(`/api/intelligence/${caseId}/policy-industry`, {
+      params: {
+        premise: options?.premise,
+        enrich: options?.enrich ?? false,
+      },
+    })
+    return response.data
+  },
+  analyzePolicyIndustry: async (
+    caseId: number,
+    body: { premise: string; enrich?: boolean },
+  ) => {
+    const response = await api.post(`/api/intelligence/${caseId}/policy-industry/analyze`, body, {
+      timeout: 120_000,
+    })
+    return response.data
+  },
   getActorImpact: async (caseId: number, refresh = false) => {
     const response = await api.get(`/api/intelligence/${caseId}/actor-impact`, {
       params: refresh ? { refresh: true } : {},

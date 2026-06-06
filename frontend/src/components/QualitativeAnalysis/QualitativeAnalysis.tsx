@@ -5,6 +5,7 @@ import { Settings2 } from 'lucide-react'
 import { qualitativeService } from '../../services/api'
 import ComplementaryAnalysisForm from '../shared/ComplementaryAnalysisForm'
 import AnalysisResultPanel from '../shared/AnalysisResultPanel'
+import PolicyIndustryPanel from '../Intelligence/PolicyIndustryPanel'
 
 interface FrameworkItem {
   id: number
@@ -17,6 +18,8 @@ export default function QualitativeAnalysis() {
   const [frameworkId, setFrameworkId] = useState<number | ''>('')
   const [result, setResult] = useState<unknown>(null)
   const [error, setError] = useState<string | null>(null)
+  const [lastCaseId, setLastCaseId] = useState<number | null>(null)
+  const [lastPremise, setLastPremise] = useState<string | null>(null)
 
   const { data: frameworks = [] } = useQuery({
     queryKey: ['qualitative-frameworks'],
@@ -100,10 +103,18 @@ export default function QualitativeAnalysis() {
             )}
           </div>
         }
-        onSubmit={(payload) => analyzeMutation.mutate(payload)}
+        onSubmit={(payload) => {
+          setLastCaseId(payload.caseId)
+          setLastPremise(payload.userDirection)
+          analyzeMutation.mutate(payload)
+        }}
       />
 
       <AnalysisResultPanel title="Conclusions qualitatives" data={result} error={error} />
+
+      {lastCaseId && lastPremise ? (
+        <PolicyIndustryPanel caseId={lastCaseId} premise={lastPremise} />
+      ) : null}
     </div>
   )
 }

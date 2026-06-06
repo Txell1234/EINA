@@ -12,6 +12,7 @@ import AnalysisScopeBar from '../shared/AnalysisScopeBar'
 import { useAnalysisScope } from '../../hooks/useAnalysisScope'
 import { useCaseScopeProfile } from '../../hooks/useCaseScopeProfile'
 import ActorNetworkPanel from './ActorNetworkPanel'
+import PolicyIndustryPanel from './PolicyIndustryPanel'
 import './IntelligenceCenter.css'
 
 type StepKey = 'osint' | 'extraction' | 'events' | 'risks' | 'actor_impact' | 'investment'
@@ -507,6 +508,7 @@ export default function IntelligenceCenter() {
       ) : status?.steps?.osint?.ready ? (
         <>
           <ActorNetworkPanel caseId={selectedCaseId} />
+          <PolicyIndustryPanel caseId={selectedCaseId} />
           <VisualizationsDashboard caseId={selectedCaseId} hideScopeBar key={selectedCaseId} />
         </>
       ) : (
