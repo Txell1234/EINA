@@ -14,7 +14,7 @@ from models.prospective_inquiry import ProspectiveInquiry
 from services.analysis_scope_service import merge_scope_into_query_params, resolve_scope_for_case
 from services.actor_impact_service import ActorImpactService
 from services.inquiry_audit_service import InquiryAuditService
-from services.inquiry_compare_service import compare_inquiry_answers
+from services.inquiry_compare_service import compare_inquiry_answers, build_case_inquiry_comparison
 from services.inquiry_financial_service import InquiryFinancialService
 from services.inquiry_monitor_service import InquiryMonitorService
 from services.inquiry_scope import build_inquiry_scope
@@ -728,6 +728,62 @@ class InquiryOrchestratorService:
             "answer_diff": artifacts.get("answer_diff"),
         }
 
+    async def compare_for_case(
+        self,
+        case_id: int,
+        *,
+        inquiry_ids: list[int] | None = None,
+    ) -> dict[str, Any]:
+        r = await self.db.execute(
+            select(ProspectiveInquiry)
+            .where(ProspectiveInquiry.case_id == case_id)
+            .order_by(ProspectiveInquiry.created_at.asc())
+        )
+        rows = list(r.scalars().all())
+        if inquiry_ids:
+            allowed = set(inquiry_ids)
+            rows = [row for row in rows if row.id in allowed]
+        comparison = build_case_inquiry_comparison(rows)
+        return {"found": True, "case_id": case_id, **comparison}
+
+    async def wizard_link(self, inquiry_id: int) -> dict[str, Any]:
+        inquiry = await self._get_inquiry(inquiry_id)
+        if not inquiry:
+            return {"found": False, "error": "Inquiry no trobada"}
+        artifacts = inquiry.artifacts or {}
+        project_id = artifacts.get("wizard_project_id")
+        if not project_id:
+            morph = artifacts.get("morph_bootstrap")
+            if not morph:
+                parsed = inquiry.parsed_trigger or {}
+                morph = MorphBootstrapService().bootstrap(
+                    question=inquiry.question,
+                    event_type=parsed.get("event_type", "geopolitical"),
+                    actors=parsed.get("actors"),
+                )
+            bridge = await InquiryWizardBridgeService(self.db).apply_morph_bootstrap(
+                case_id=inquiry.case_id,
+                question=inquiry.question,
+                morph_bootstrap=morph,
+            )
+            if bridge.get("ok"):
+                project_id = bridge.get("project_id")
+                artifacts = self._artifacts(inquiry)
+                artifacts["wizard_project_id"] = project_id
+                inquiry.artifacts = artifacts
+                await self.db.commit()
+        return {
+            "found": True,
+            "inquiry_id": inquiry.id,
+            "case_id": inquiry.case_id,
+            "project_id": project_id,
+            "wizard_paths": {
+                "morph": f"/prospective/morph?project={project_id}&inquiry={inquiry.id}",
+                "micmac": f"/prospective/micmac?project={project_id}&inquiry={inquiry.id}",
+                "scenarios": f"/prospective-analysis?project={project_id}&inquiry={inquiry.id}",
+            },
+        }
+
     async def list_for_case(self, case_id: int) -> list[dict[str, Any]]:
         r = await self.db.execute(
             select(ProspectiveInquiry)
@@ -746,6 +802,8 @@ class InquiryOrchestratorService:
                 "auto_rerun_enabled": bool(row.auto_rerun_enabled),
                 "next_rerun_at": row.next_rerun_at.isoformat() if row.next_rerun_at else None,
                 "run_count": row.run_count or 0,
+                "wizard_project_id": (row.artifacts or {}).get("wizard_project_id"),
+                "probability_pct": (row.answer or {}).get("probability_pct") if isinstance(row.answer, dict) else None,
             }
             for row in r.scalars().all()
         ]

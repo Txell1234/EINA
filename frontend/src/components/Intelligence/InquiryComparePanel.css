@@ -1,0 +1,34 @@
+.inquiry-compare {
+  font-size: 0.85rem;
+  margin: 0.75rem 0;
+}
+
+.inquiry-compare table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.inquiry-compare th,
+.inquiry-compare td {
+  border: 1px solid var(--border-color, #ddd);
+  padding: 0.35rem 0.5rem;
+  text-align: left;
+}
+
+.inquiry-compare__sparkline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  color: var(--color-primary, #1565c0);
+}
+
+.inquiry-compare__empty {
+  color: var(--text-muted, #666);
+  font-size: 0.85rem;
+}
+
+.inquiry-compare .btn-sm {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.45rem;
+}

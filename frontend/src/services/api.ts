@@ -868,6 +868,29 @@ export const intelligenceService = {
 }
 
 export const prospectiveInquiryService = {
+  compareForCase: async (caseId: number, ids?: number[]) => {
+    const qs = ids?.length ? `?ids=${ids.join(',')}` : ''
+    const response = await api.get(`/api/prospective/inquiries/case/${caseId}/compare${qs}`)
+    return response.data
+  },
+  wizardLink: async (inquiryId: number) => {
+    const response = await api.get(`/api/prospective/inquiries/${inquiryId}/wizard-link`)
+    return response.data as {
+      project_id: number
+      wizard_paths: { morph: string; micmac: string; scenarios: string }
+    }
+  },
+  buildWizardUrl: (projectId: number, inquiryId?: number, step: 'morph' | 'micmac' | 'scenarios' = 'morph') => {
+    const path =
+      step === 'morph'
+        ? '/prospective/morph'
+        : step === 'micmac'
+          ? '/prospective/micmac'
+          : '/prospective-analysis'
+    const params = new URLSearchParams({ project: String(projectId) })
+    if (inquiryId) params.set('inquiry', String(inquiryId))
+    return `${path}?${params.toString()}`
+  },
   listForCase: async (caseId: number) => {
     const response = await api.get(`/api/prospective/inquiries/case/${caseId}`)
     return response.data

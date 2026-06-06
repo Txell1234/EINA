@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useCase, type ActiveCase } from '../../contexts/CaseContext'
 import { useCasesList } from '../../hooks/useCasesList'
-import { extractService, prospectiveService } from '../../services/api'
+import { extractService, prospectiveInquiryService, prospectiveService } from '../../services/api'
 import ExtractStatementsTable from '../shared/ExtractStatementsTable'
 import AnalysisScopeBar from '../shared/AnalysisScopeBar'
 import ExtractionFiltersRow from '../shared/ExtractionFiltersRow'
@@ -196,6 +196,22 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
     if (!pid) return null
     const id = Number(pid)
     return Number.isNaN(id) ? null : id
+  })
+  const inquiryLinkId = searchParams.get('inquiry')
+  const linkedInquiryId =
+    inquiryLinkId && !Number.isNaN(Number(inquiryLinkId)) ? Number(inquiryLinkId) : null
+
+  useEffect(() => {
+    const pid = searchParams.get('project')
+    if (!pid) return
+    const id = Number(pid)
+    if (!Number.isNaN(id)) setProjectId(id)
+  }, [searchParams])
+
+  const { data: linkedInquiry } = useQuery({
+    queryKey: ['prospective-inquiry-wizard-link', linkedInquiryId],
+    queryFn: () => prospectiveInquiryService.get(linkedInquiryId!),
+    enabled: linkedInquiryId !== null,
   })
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [reportLang, setReportLang] = useState<'ca' | 'es' | 'en'>('ca')
@@ -429,6 +445,15 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
       )
     }
   }, [projectDetail])
+
+  useEffect(() => {
+    if (!linkedInquiry || !linkedInquiryId) return
+    const q = String((linkedInquiry as { question?: string }).question ?? '').trim()
+    if (!q) return
+    setHypothesis((prev) => (prev.trim() ? prev : q))
+    const cid = (linkedInquiry as { case_id?: number }).case_id
+    if (cid && !caseIdStr.trim()) setCaseIdStr(String(cid))
+  }, [linkedInquiry, linkedInquiryId, caseIdStr])
 
   const createMutation = useMutation({
     mutationFn: () =>
@@ -887,6 +912,26 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
       />
 
       {errorMsg && <div className="prospective-alert prospective-alert--error">{errorMsg}</div>}
+
+      {linkedInquiryId && linkedInquiry && (
+        <div className="prospective-alert prospective-alert--success">
+          Originat des de inquiry #{linkedInquiryId}
+          {' — '}
+          {(linkedInquiry as { question?: string }).question?.slice(0, 100)}
+          {(linkedInquiry as { question?: string }).question &&
+          ((linkedInquiry as { question?: string }).question?.length ?? 0) > 100
+            ? '…'
+            : ''}
+          {projectId ? (
+            <>
+              {' · '}
+              <Link to={`/intelligence?case=${(linkedInquiry as { case_id?: number }).case_id ?? ''}`}>
+                Tornar al cas
+              </Link>
+            </>
+          ) : null}
+        </div>
+      )}
 
       {step === 0 && (
         <>

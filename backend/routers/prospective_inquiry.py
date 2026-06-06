@@ -39,6 +39,23 @@ class InquiryScheduleIn(BaseModel):
     interval_hours: int = Field(24, ge=1, le=168)
 
 
+@router.get("/case/{case_id}/compare")
+async def compare_inquiries_for_case(
+    case_id: int,
+    ids: str | None = Query(None, description="IDs separats per coma (opcional)"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _ = current_user
+    inquiry_ids = None
+    if ids:
+        inquiry_ids = [int(x.strip()) for x in ids.split(",") if x.strip().isdigit()]
+    result = await InquiryOrchestratorService(db).compare_for_case(case_id, inquiry_ids=inquiry_ids)
+    if not result.get("found"):
+        raise HTTPException(status_code=404, detail="Cas no trobat")
+    return result
+
+
 @router.get("/case/{case_id}")
 async def list_inquiries_for_case(
     case_id: int,
@@ -47,6 +64,19 @@ async def list_inquiries_for_case(
 ):
     _ = current_user
     return await InquiryOrchestratorService(db).list_for_case(case_id)
+
+
+@router.get("/{inquiry_id}/wizard-link")
+async def get_inquiry_wizard_link(
+    inquiry_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _ = current_user
+    result = await InquiryOrchestratorService(db).wizard_link(inquiry_id)
+    if not result.get("found"):
+        raise HTTPException(status_code=404, detail=result.get("error", "Not found"))
+    return result
 
 
 @router.get("/{inquiry_id}")

@@ -38,3 +38,47 @@ def compare_inquiry_answers(
             else None
         ),
     }
+
+
+def build_case_inquiry_comparison(rows: list[Any]) -> dict[str, Any]:
+    """Build chronological comparison table for inquiries on the same case."""
+    sorted_rows = sorted(
+        rows,
+        key=lambda r: (r.created_at.isoformat() if getattr(r, "created_at", None) else ""),
+    )
+    items: list[dict[str, Any]] = []
+    prev_answer: dict[str, Any] | None = None
+    for row in sorted_rows:
+        ans = row.answer if isinstance(getattr(row, "answer", None), dict) else {}
+        artifacts = row.artifacts if isinstance(getattr(row, "artifacts", None), dict) else {}
+        item = {
+            "id": row.id,
+            "question": (row.question or "")[:120],
+            "mode": row.mode,
+            "status": row.status,
+            "run_count": getattr(row, "run_count", 0) or 0,
+            "probability_pct": ans.get("probability_pct"),
+            "possibility": ans.get("possibility"),
+            "confidence": ans.get("confidence"),
+            "financial_mode": ans.get("financial_mode"),
+            "completed_at": row.completed_at.isoformat() if getattr(row, "completed_at", None) else None,
+            "wizard_project_id": artifacts.get("wizard_project_id"),
+            "diff_vs_previous": compare_inquiry_answers(prev_answer, ans) if prev_answer else None,
+        }
+        items.append(item)
+        if ans:
+            prev_answer = ans
+
+    latest_id = sorted_rows[-1].id if sorted_rows else None
+    prob_series = [
+        {"id": i["id"], "probability_pct": i["probability_pct"]}
+        for i in items
+        if i.get("probability_pct") is not None
+    ]
+    return {
+        "methodology": "deterministic_case_comparison",
+        "count": len(items),
+        "latest_id": latest_id,
+        "probability_series": prob_series,
+        "items": items,
+    }

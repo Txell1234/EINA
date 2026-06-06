@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { prospectiveInquiryService } from '../../services/api'
 import CcaHeatmapPanel, { type CcaCell } from './CcaHeatmapPanel'
+import InquiryComparePanel, { type InquiryCompareItem } from './InquiryComparePanel'
 import './ProspectiveInquiryPanel.css'
 
 type ProspectiveInquiryPanelProps = {
@@ -20,6 +22,7 @@ const SAMPLE =
 
 export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPanelProps) {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const [question, setQuestion] = useState('')
   const [mode, setMode] = useState<'full' | 'lite'>('full')
   const [forceRefresh, setForceRefresh] = useState(false)
@@ -42,6 +45,21 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
     queryKey: ['prospective-inquiries', caseId],
     queryFn: () => prospectiveInquiryService.listForCase(caseId),
   })
+
+  const { data: compareData } = useQuery({
+    queryKey: ['prospective-inquiries-compare', caseId],
+    queryFn: () => prospectiveInquiryService.compareForCase(caseId),
+    enabled: (inquiries as unknown[]).length >= 2,
+  })
+
+  const openWizard = async (inquiryId: number, projectId?: number | null) => {
+    if (projectId) {
+      navigate(prospectiveInquiryService.buildWizardUrl(projectId, inquiryId, 'morph'))
+      return
+    }
+    const link = await prospectiveInquiryService.wizardLink(inquiryId)
+    navigate(link.wizard_paths.morph)
+  }
 
   const handleStreamEvent = (event: Record<string, unknown>) => {
     if (event.event === 'step') {
@@ -348,6 +366,13 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
               <button
                 type="button"
                 className="btn btn-secondary"
+                onClick={() => void openWizard(exportId, wizardProjectId)}
+              >
+                Obrir wizard (morph)
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
                 disabled={heatmapMutation.isPending}
                 onClick={() => heatmapMutation.mutate(exportId)}
               >
@@ -436,6 +461,19 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
             Exportar PDF
           </a>
         </p>
+      )}
+
+      {(compareData?.items as InquiryCompareItem[] | undefined)?.length >= 2 && (
+        <details open className="prospective-inquiry-panel__compare">
+          <summary>Comparativa inquiries del cas ({compareData?.count})</summary>
+          <InquiryComparePanel
+            items={(compareData?.items as InquiryCompareItem[]) ?? []}
+            probabilitySeries={
+              (compareData?.probability_series as Array<{ id: number; probability_pct: number }>) ?? []
+            }
+            onOpenWizard={(id, pid) => void openWizard(id, pid)}
+          />
+        </details>
       )}
 
       {inquiries.length > 0 && (
