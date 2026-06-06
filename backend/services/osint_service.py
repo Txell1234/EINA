@@ -19,8 +19,7 @@ from integrations.dns_whois import DNSWhoisService
 # - SherlockWrapper: requereix binari 'sherlock' al PATH (no disponible en prod)
 # - ReconNGWrapper: requereix binari 'recon-ng' (no disponible en prod)
 # - TheHarvesterWrapper: requereix binari 'theHarvester' (no disponible en prod)
-# - EnsembleDataAPIService: endpoints no implementats (TODO pendent)
-# Desactivades fins que s'implementin correctament.
+# - EnsembleData: via integrations/ensembledata_osint.py (requereix ENSEMBLEDATA_API_KEY)
 
 
 def _unavailable(query_type: str, message: str) -> Dict[str, Any]:
@@ -33,7 +32,9 @@ class OSINTService:
         self.sherlock = None  # Not implemented - requires system binary
         self.reconng = None  # Not implemented - requires system binary
         self.theharvester = None  # Not implemented - requires system binary
-        self.ensembledata = None  # Not implemented - API endpoints pending
+        from integrations.ensembledata_api import EnsembleDataAPIService
+
+        self.ensembledata = EnsembleDataAPIService()
         self.news = NewsAPIService()
         self.github = GitHubAPIService()
         self.reddit = RedditAPIService()
@@ -287,10 +288,9 @@ class OSINTService:
                     query_params.get("query", query_params.get("name", "")),
                 )
             elif query_type.startswith("ensembledata_"):
-                result_data = _unavailable(
-                    query_type,
-                    "EnsembleData no implementat. Endpoints pendents de confirmació amb el proveïdor.",
-                )
+                from integrations.ensembledata_osint import execute_ensembledata_query
+
+                result_data = await execute_ensembledata_query(query_type, query_params)
             else:
                 result_data = {"error": f"Unknown query type: {query_type}"}
 

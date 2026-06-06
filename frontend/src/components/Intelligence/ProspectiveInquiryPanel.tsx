@@ -259,8 +259,13 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
     return () => window.clearTimeout(timer)
   }, [question, caseId])
 
+  const isRunning = runMutation.isPending || rerunMutation.isPending
+
   return (
-    <section className="prospective-inquiry-panel card" data-testid="prospective-inquiry-panel">
+    <section
+      className={`prospective-inquiry-panel card${isRunning ? ' prospective-inquiry-panel--running' : ''}`}
+      data-testid="prospective-inquiry-panel"
+    >
       <header>
         <h3>Pregunta analítica (Q2FS)</h3>
         <p className="prospective-inquiry-panel__sub">
@@ -281,14 +286,15 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
       />
 
       {parsePreview?.ok ? (
-        <p className="prospective-inquiry-panel__sub" data-testid="inquiry-parse-preview">
-          Parse: confiança {String(parsePreview.confidence ?? '—')}
-          {parsePreview.llm_used ? ' · LLM' : ' · regles'}
-          {parsePreview.event_type ? ` · ${String(parsePreview.event_type)}` : ''}
+        <p className="prospective-inquiry-panel__parse-preview" data-testid="inquiry-parse-preview">
+          <strong>Parse</strong>
+          <span>confiança {String(parsePreview.confidence ?? '—')}</span>
+          <span>{parsePreview.llm_used ? 'LLM' : 'regles'}</span>
+          {parsePreview.event_type ? <span>{String(parsePreview.event_type)}</span> : null}
         </p>
       ) : null}
 
-      <div className="prospective-inquiry-panel__row">
+      <div className="prospective-inquiry-panel__row prospective-inquiry-panel__actions">
         <label>
           Mode
           <select
@@ -370,13 +376,24 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
         <div className="prospective-inquiry-panel__steps" data-testid="inquiry-steps">
           <h4>Monitor de passos</h4>
           <ul>
-            {steps.map((s) => (
-              <li key={s.step}>
-                <strong>{s.step}</strong>: {s.status}
-                {s.cached ? ' (cache)' : ''}
-                {s.detail ? ` — ${s.detail}` : ''}
-              </li>
-            ))}
+            {steps.map((s) => {
+              const statusKey = (s.cached ? 'cached' : s.status || 'pending')
+                .toLowerCase()
+                .replace(/\s+/g, '_')
+              return (
+                <li
+                  key={s.step}
+                  className={`prospective-inquiry-panel__step prospective-inquiry-panel__step--${statusKey}`}
+                >
+                  <strong>{s.step}</strong>
+                  <span className="prospective-inquiry-panel__step-status">{s.status}</span>
+                  {s.cached ? <span className="prospective-inquiry-panel__step-status">cache</span> : null}
+                  {s.detail ? (
+                    <span className="prospective-inquiry-panel__step-detail">{s.detail}</span>
+                  ) : null}
+                </li>
+              )
+            })}
           </ul>
         </div>
       )}

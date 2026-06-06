@@ -29,7 +29,7 @@ interface OSINTResult {
 interface SourceConfig {
   id: string
   label: string
-  category: 'geopolitica' | 'notícies' | 'infraestructura'
+  category: 'geopolitica' | 'xarxes_socials' | 'notícies' | 'infraestructura'
   description: string
   requiresKey: boolean
   fields: Array<{ name: string; label: string; placeholder?: string; type?: string }>
@@ -420,6 +420,144 @@ const SOURCES: SourceConfig[] = [
     endpoint: 'wayback',
     buildParams: (v, caseId) => ({ url: v.url, case_id: caseId }),
   },
+  {
+    id: 'ed_tiktok_keyword',
+    label: 'TikTok (paraula clau)',
+    category: 'xarxes_socials',
+    description:
+      'Posts TikTok per paraula clau. Ideal per narrativa viral i tendències. Requereix ENSEMBLEDATA_API_KEY.',
+    requiresKey: true,
+    fields: [
+      { name: 'keyword', label: 'Paraula clau', placeholder: 'Ex.: Hormuz blockade' },
+      { name: 'count', label: 'Màx. posts (opcional)', placeholder: '30', type: 'number' },
+    ],
+    endpoint: 'ensembledata_tiktok_keyword_posts',
+    buildParams: (v, caseId) => ({
+      keyword: v.keyword,
+      count: Math.min(parseInt(v.count || '30', 10) || 30, 100),
+      case_id: caseId,
+    }),
+  },
+  {
+    id: 'ed_tiktok_user',
+    label: 'TikTok (usuari)',
+    category: 'xarxes_socials',
+    description: 'Timeline d\'un compte TikTok. Requereix ENSEMBLEDATA_API_KEY.',
+    requiresKey: true,
+    fields: [
+      { name: 'username', label: 'Usuari', placeholder: 'Ex.: reuters' },
+      { name: 'count', label: 'Màx. posts (opcional)', placeholder: '30', type: 'number' },
+    ],
+    endpoint: 'ensembledata_tiktok_user_posts',
+    buildParams: (v, caseId) => ({
+      username: v.username.replace(/^@/, ''),
+      count: Math.min(parseInt(v.count || '30', 10) || 30, 100),
+      case_id: caseId,
+    }),
+  },
+  {
+    id: 'ed_instagram_hashtag',
+    label: 'Instagram (hashtag)',
+    category: 'xarxes_socials',
+    description: 'Posts recents per hashtag. Requereix ENSEMBLEDATA_API_KEY.',
+    requiresKey: true,
+    fields: [
+      { name: 'hashtag', label: 'Hashtag', placeholder: 'Ex.: geopolitics' },
+      { name: 'count', label: 'Màx. posts (opcional)', placeholder: '30', type: 'number' },
+    ],
+    endpoint: 'ensembledata_instagram_hashtag_posts',
+    buildParams: (v, caseId) => ({
+      hashtag: v.hashtag.replace(/^#/, ''),
+      count: Math.min(parseInt(v.count || '30', 10) || 30, 100),
+      case_id: caseId,
+    }),
+  },
+  {
+    id: 'ed_instagram_user',
+    label: 'Instagram (usuari)',
+    category: 'xarxes_socials',
+    description: 'Timeline d\'un compte Instagram. Requereix ENSEMBLEDATA_API_KEY.',
+    requiresKey: true,
+    fields: [
+      { name: 'username', label: 'Usuari', placeholder: 'Ex.: natgeo' },
+      { name: 'count', label: 'Màx. posts (opcional)', placeholder: '30', type: 'number' },
+    ],
+    endpoint: 'ensembledata_instagram_user_posts',
+    buildParams: (v, caseId) => ({
+      username: v.username.replace(/^@/, ''),
+      count: Math.min(parseInt(v.count || '30', 10) || 30, 100),
+      case_id: caseId,
+    }),
+  },
+  {
+    id: 'ed_twitter_user',
+    label: 'Twitter/X (usuari)',
+    category: 'xarxes_socials',
+    description: 'Tweets recents d\'un compte X. Requereix ENSEMBLEDATA_API_KEY.',
+    requiresKey: true,
+    fields: [
+      { name: 'username', label: 'Usuari', placeholder: 'Ex.: Reuters' },
+      { name: 'count', label: 'Màx. tweets (opcional)', placeholder: '20', type: 'number' },
+    ],
+    endpoint: 'ensembledata_twitter_user_tweets',
+    buildParams: (v, caseId) => ({
+      username: v.username.replace(/^@/, ''),
+      count: Math.min(parseInt(v.count || '20', 10) || 20, 100),
+      case_id: caseId,
+    }),
+  },
+  {
+    id: 'ed_youtube_keyword',
+    label: 'YouTube (paraula clau)',
+    category: 'xarxes_socials',
+    description: 'Vídeos per paraula clau. Requereix ENSEMBLEDATA_API_KEY.',
+    requiresKey: true,
+    fields: [
+      { name: 'keyword', label: 'Paraula clau', placeholder: 'Ex.: Taiwan semiconductor' },
+      { name: 'count', label: 'Màx. vídeos (opcional)', placeholder: '30', type: 'number' },
+    ],
+    endpoint: 'ensembledata_youtube_keyword_posts',
+    buildParams: (v, caseId) => ({
+      keyword: v.keyword,
+      count: Math.min(parseInt(v.count || '30', 10) || 30, 100),
+      case_id: caseId,
+    }),
+  },
+  {
+    id: 'ed_threads_keyword',
+    label: 'Threads (paraula clau)',
+    category: 'xarxes_socials',
+    description: 'Posts Threads per paraula clau. Requereix ENSEMBLEDATA_API_KEY.',
+    requiresKey: true,
+    fields: [
+      { name: 'keyword', label: 'Paraula clau', placeholder: 'Ex.: EU defense pact' },
+      { name: 'count', label: 'Màx. posts (opcional)', placeholder: '30', type: 'number' },
+    ],
+    endpoint: 'ensembledata_threads_keyword_posts',
+    buildParams: (v, caseId) => ({
+      keyword: v.keyword,
+      count: Math.min(parseInt(v.count || '30', 10) || 30, 100),
+      case_id: caseId,
+    }),
+  },
+  {
+    id: 'ed_reddit_subreddit',
+    label: 'Reddit (subreddit, EnsembleData)',
+    category: 'xarxes_socials',
+    description:
+      'Posts d\'un subreddit via EnsembleData (més ràpid que l\'API pública). Requereix ENSEMBLEDATA_API_KEY.',
+    requiresKey: true,
+    fields: [
+      { name: 'subreddit', label: 'Subreddit', placeholder: 'Ex.: worldnews' },
+      { name: 'count', label: 'Màx. posts (opcional)', placeholder: '25', type: 'number' },
+    ],
+    endpoint: 'ensembledata_reddit_subreddit_posts',
+    buildParams: (v, caseId) => ({
+      subreddit: v.subreddit.replace(/^r\//, ''),
+      count: Math.min(parseInt(v.count || '25', 10) || 25, 100),
+      case_id: caseId,
+    }),
+  },
 ]
 
 const NIKKEI_MODES = [
@@ -476,9 +614,12 @@ const RSS_SOURCES = [
 
 const CATEGORIES = [
   { id: 'geopolitica', label: '◈ Geopolítica' },
+  { id: 'xarxes_socials', label: '◎ Xarxes socials' },
   { id: 'notícies', label: '○ Notícies' },
   { id: 'infraestructura', label: '⊞ Infraestructura' },
 ] as const
+
+const OPTIONAL_FIELD_NAMES = new Set(['domain', 'instructions', 'count', 'max_results'])
 
 export default function OSINTCollection() {
   const { activeCase, setActiveCase, clearActiveCase } = useCase()
@@ -509,7 +650,12 @@ export default function OSINTCollection() {
     integrationStatus?.osint_apis?.tavily?.configured === true ||
     integrationStatus?.osint_apis?.tavily?.status === 'configured'
 
+  const ensembledataConfigured =
+    integrationStatus?.osint_apis?.ensembledata?.configured === true ||
+    integrationStatus?.osint_apis?.ensembledata?.status === 'configured'
+
   const source = SOURCES.find((s) => s.id === selectedSource) || SOURCES[0]
+  const isEnsembledataSource = source.endpoint.startsWith('ensembledata_')
 
   useEffect(() => {
     userEditedQueryRef.current = false
@@ -574,7 +720,7 @@ export default function OSINTCollection() {
     }
     for (const field of source.fields) {
       if (field.type === 'select') continue
-      if (field.name === 'domain' || field.name === 'instructions') continue
+      if (OPTIONAL_FIELD_NAMES.has(field.name)) continue
       const val = fieldValues[field.name]?.trim()
       if (!val) {
         return `Omple el camp «${field.label}» abans de cercar.`
@@ -588,13 +734,19 @@ export default function OSINTCollection() {
       ? (fieldValues.mode || 'latest') === 'latest' || Boolean(fieldValues.url?.trim())
       : source.fields.every((field) => {
           if (field.type === 'select') return true
-          if (field.name === 'domain' || field.name === 'instructions') return true
+          if (OPTIONAL_FIELD_NAMES.has(field.name)) return true
           return Boolean(fieldValues[field.name]?.trim())
         })
 
   const runSearch = () => {
     if (!activeCase?.id) {
       setResultError('Selecciona un cas actiu abans de cercar — sinó les dades no entraran a l\'extracció.')
+      return
+    }
+    if (isEnsembledataSource && !ensembledataConfigured) {
+      setResultError(
+        'Configura ENSEMBLEDATA_API_KEY al backend per usar fonts de xarxes socials (TikTok, Instagram, X, etc.).',
+      )
       return
     }
     const validationError = validateFields()
@@ -854,6 +1006,7 @@ export default function OSINTCollection() {
             <button
               key={cat.id}
               type="button"
+              data-category={cat.id}
               className={`osint-category-btn ${selectedCategory === cat.id ? 'active' : ''}`}
               onClick={() => {
                 setSelectedCategory(cat.id)
@@ -874,14 +1027,20 @@ export default function OSINTCollection() {
             <button
               key={s.id}
               type="button"
-              className={`osint-source-btn ${selectedSource === s.id ? 'active' : ''}`}
+              className={`osint-source-btn${s.category === 'xarxes_socials' ? ' osint-source-btn--social' : ''}${selectedSource === s.id ? ' active' : ''}`}
               onClick={() => {
                 setSelectedSource(s.id)
                 setFieldValues({})
               }}
             >
               <span className="osint-source-name">{s.label}</span>
-              {s.requiresKey && <span className="osint-key-badge">clau API</span>}
+              {s.requiresKey && (
+                <span
+                  className={`osint-key-badge${s.category === 'xarxes_socials' ? ' osint-key-badge--social' : ''}`}
+                >
+                  clau API
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -891,6 +1050,12 @@ export default function OSINTCollection() {
         <div className="card osint-form-card">
           <h2 className="osint-source-title">{source.label}</h2>
           <p className="osint-source-desc">{source.description}</p>
+
+          {isEnsembledataSource && !ensembledataConfigured && (
+            <p className="osint-api-warning" role="status">
+              ENSEMBLEDATA_API_KEY no configurada. Afegeix la clau al backend i reinicia el servei.
+            </p>
+          )}
 
           {scopeProfile && source.fields.some((f) => f.name === 'query') && (
             <div className="osint-case-concepts">

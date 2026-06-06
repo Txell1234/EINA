@@ -483,10 +483,13 @@ export const osintService = {
     const queryParams = Object.fromEntries(
       Object.entries(rest).filter(([, v]) => v !== null && v !== undefined && v !== ''),
     )
-    const queryType = OSINT_COLLECT_QUERY_TYPES[endpoint]
+    const queryType =
+      OSINT_COLLECT_QUERY_TYPES[endpoint] ??
+      (endpoint.startsWith('ensembledata_') ? endpoint : undefined)
     const isSlowSource =
       options?.tavilyApi ||
       endpoint.includes('rss') ||
+      endpoint.startsWith('ensembledata_') ||
       endpoint === 'gdelt' ||
       endpoint === 'gdelt-gfg' ||
       endpoint === 'nikkei' ||
@@ -496,7 +499,13 @@ export const osintService = {
       endpoint === 'crawl' ||
       endpoint === 'map' ||
       endpoint === 'extract'
-    const timeoutMs = endpoint === 'research' ? 360_000 : isSlowSource ? 180_000 : 30_000
+    const timeoutMs = endpoint === 'research'
+      ? 360_000
+      : endpoint.startsWith('ensembledata_')
+        ? 90_000
+        : isSlowSource
+          ? 180_000
+          : 30_000
 
     if (queryType) {
       const normalized = { ...queryParams }
