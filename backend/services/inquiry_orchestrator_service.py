@@ -9,7 +9,16 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.case import Case, CasePrompt
-from models.prospective import ProspectiveProject, ProspectiveScenario, SMICResult
+from models.prospective import (
+    MACTORResult,
+    MICMACResult,
+    MorphComponent,
+    ProspectiveActor,
+    ProspectiveProject,
+    ProspectiveScenario,
+    ProspectiveVariable,
+    SMICResult,
+)
 from models.prospective_inquiry import ProspectiveInquiry
 from services.analysis_scope_service import merge_scope_into_query_params, resolve_scope_for_case
 from services.actor_impact_service import ActorImpactService
@@ -374,6 +383,8 @@ class InquiryOrchestratorService:
                 analysis_scope, _ = await resolve_scope_for_case(self.db, case_id)
                 osint_svc = OSINTService(self.db)
                 scope_audit: dict[str, Any] = {"queries_run": 0, "articles_total": 0}
+                rejected_samples: list[dict[str, Any]] = []
+                seen_urls: set[str] = set()
                 queries = scope.osint_queries or [inquiry.question[:80]]
                 for q in queries[:3]:
                     for qtype in ("gdelt", "google_news"):
@@ -390,8 +401,21 @@ class InquiryOrchestratorService:
                                 for k in ("removed_topic", "removed_must_match", "kept", "input"):
                                     if k in sf:
                                         scope_audit[k] = scope_audit.get(k, 0) + int(sf.get(k) or 0)
+                                for sample in sf.get("rejected_samples") or []:
+                                    if not isinstance(sample, dict):
+                                        continue
+                                    url = str(sample.get("url") or "")
+                                    if url and url in seen_urls:
+                                        continue
+                                    if url:
+                                        seen_urls.add(url)
+                                    if len(rejected_samples) < 20:
+                                        rejected_samples.append(sample)
                         except Exception as exc:
                             logger.warning("OSINT query failed %s: %s", qtype, exc)
+
+                if rejected_samples:
+                    scope_audit["rejected_samples"] = rejected_samples
 
                 inquiry.scope_audit = scope_audit
                 self._cache_step(artifacts, "osint", {"ok": True, "audit": scope_audit})
@@ -834,4 +858,112 @@ class InquiryOrchestratorService:
             "audit_trail": (inquiry.artifacts or {}).get("audit_trail"),
             "answer_diff": (inquiry.artifacts or {}).get("answer_diff"),
             "answer_history": (inquiry.artifacts or {}).get("answer_history"),
+        }
+
+    async def scope_audit_detail(self, inquiry_id: int) -> dict[str, Any]:
+        inquiry = await self._get_inquiry(inquiry_id)
+        if not inquiry:
+            return {"found": False}
+        scope = inquiry.inquiry_scope if isinstance(inquiry.inquiry_scope, dict) else {}
+        audit = inquiry.scope_audit if isinstance(inquiry.scope_audit, dict) else {}
+        parsed = inquiry.parsed_trigger if isinstance(inquiry.parsed_trigger, dict) else {}
+        return {
+            "found": True,
+            "inquiry_id": inquiry.id,
+            "question": inquiry.question,
+            "required_terms": scope.get("required_terms") or parsed.get("required_terms") or [],
+            "min_required_matches": scope.get("min_required_matches") or parsed.get("min_required_matches"),
+            "negative_terms": (scope.get("negative_terms") or parsed.get("negative_terms") or [])[:12],
+            "osint_queries": scope.get("osint_queries") or parsed.get("osint_queries") or [],
+            "audit": audit,
+            "rejected_samples": audit.get("rejected_samples") or [],
+        }
+
+    async def godet_status(self, inquiry_id: int) -> dict[str, Any]:
+        inquiry = await self._get_inquiry(inquiry_id)
+        if not inquiry:
+            return {"found": False}
+
+        artifacts = inquiry.artifacts or {}
+        project_id = artifacts.get("wizard_project_id")
+        project: ProspectiveProject | None = None
+        if project_id:
+            r = await self.db.execute(
+                select(ProspectiveProject).where(ProspectiveProject.id == project_id)
+            )
+            project = r.scalar_one_or_none()
+        if not project:
+            r = await self.db.execute(
+                select(ProspectiveProject)
+                .where(ProspectiveProject.case_id == inquiry.case_id)
+                .order_by(ProspectiveProject.created_at.desc())
+                .limit(1)
+            )
+            project = r.scalar_one_or_none()
+            if project:
+                project_id = project.id
+
+        checklist: dict[str, bool] = {
+            "project": project is not None,
+            "variables": False,
+            "micmac": False,
+            "actors": False,
+            "mactor": False,
+            "morph": False,
+            "smic": False,
+            "scenarios": False,
+        }
+        scenario_count = 0
+        if project_id:
+            var_r = await self.db.execute(
+                select(ProspectiveVariable.id)
+                .where(ProspectiveVariable.project_id == project_id)
+                .limit(1)
+            )
+            checklist["variables"] = var_r.scalar_one_or_none() is not None
+
+            mic_r = await self.db.execute(
+                select(MICMACResult.id).where(MICMACResult.project_id == project_id).limit(1)
+            )
+            checklist["micmac"] = mic_r.scalar_one_or_none() is not None
+
+            act_r = await self.db.execute(
+                select(ProspectiveActor.id).where(ProspectiveActor.project_id == project_id).limit(1)
+            )
+            checklist["actors"] = act_r.scalar_one_or_none() is not None
+
+            mact_r = await self.db.execute(
+                select(MACTORResult.id).where(MACTORResult.project_id == project_id).limit(1)
+            )
+            checklist["mactor"] = mact_r.scalar_one_or_none() is not None
+
+            morph_r = await self.db.execute(
+                select(MorphComponent.id).where(MorphComponent.project_id == project_id).limit(1)
+            )
+            checklist["morph"] = morph_r.scalar_one_or_none() is not None
+
+            smic_r = await self.db.execute(
+                select(SMICResult.id).where(SMICResult.project_id == project_id).limit(1)
+            )
+            checklist["smic"] = smic_r.scalar_one_or_none() is not None
+
+            sc_r = await self.db.execute(
+                select(ProspectiveScenario).where(ProspectiveScenario.project_id == project_id)
+            )
+            scenario_count = len(list(sc_r.scalars().all()))
+            checklist["scenarios"] = scenario_count >= 1
+
+        godet_ready, _ = await self._godet_ready(inquiry.case_id)
+        missing = [k for k, ok in checklist.items() if not ok]
+
+        return {
+            "found": True,
+            "inquiry_id": inquiry.id,
+            "status": inquiry.status,
+            "project_id": project_id,
+            "godet_ready": godet_ready,
+            "scenario_count": scenario_count,
+            "checklist": checklist,
+            "missing_steps": missing,
+            "can_synthesize": godet_ready or inquiry.mode == "lite",
         }

@@ -982,6 +982,14 @@ export const prospectiveInquiryService = {
     const response = await api.get(`/api/prospective/inquiries/${inquiryId}/audit`)
     return response.data
   },
+  getScopeAudit: async (inquiryId: number) => {
+    const response = await api.get(`/api/prospective/inquiries/${inquiryId}/scope-audit`)
+    return response.data
+  },
+  getGodetStatus: async (inquiryId: number) => {
+    const response = await api.get(`/api/prospective/inquiries/${inquiryId}/godet-status`)
+    return response.data
+  },
   synthesize: async (inquiryId: number) => {
     const response = await api.post(`/api/prospective/inquiries/${inquiryId}/synthesize`)
     return response.data

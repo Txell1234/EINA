@@ -168,6 +168,32 @@ async def set_inquiry_schedule(
     return result
 
 
+@router.get("/{inquiry_id}/scope-audit")
+async def get_inquiry_scope_audit(
+    inquiry_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _ = current_user
+    result = await InquiryOrchestratorService(db).scope_audit_detail(inquiry_id)
+    if not result.get("found"):
+        raise HTTPException(status_code=404, detail="Inquiry no trobada")
+    return result
+
+
+@router.get("/{inquiry_id}/godet-status")
+async def get_inquiry_godet_status(
+    inquiry_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _ = current_user
+    result = await InquiryOrchestratorService(db).godet_status(inquiry_id)
+    if not result.get("found"):
+        raise HTTPException(status_code=404, detail="Inquiry no trobada")
+    return result
+
+
 @router.get("/{inquiry_id}/audit")
 async def get_inquiry_audit(
     inquiry_id: int,

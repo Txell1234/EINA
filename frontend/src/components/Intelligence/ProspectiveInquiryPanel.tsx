@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { prospectiveInquiryService } from '../../services/api'
 import CcaHeatmapPanel, { type CcaCell } from './CcaHeatmapPanel'
 import InquiryComparePanel, { type InquiryCompareItem } from './InquiryComparePanel'
+import InquiryTracePanel, { type ScopeAuditData, type AuditTrailEntry } from './InquiryTracePanel'
 import './ProspectiveInquiryPanel.css'
 
 type ProspectiveInquiryPanelProps = {
@@ -40,10 +41,40 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
   const [ccaParameters, setCcaParameters] = useState<
     Array<{ code: string; name: string; states: string[] }>
   >([])
+  const [scopeAuditLive, setScopeAuditLive] = useState<ScopeAuditData | null>(null)
 
   const { data: inquiries = [] } = useQuery({
     queryKey: ['prospective-inquiries', caseId],
     queryFn: () => prospectiveInquiryService.listForCase(caseId),
+  })
+
+  const traceInquiryId =
+    lastInquiryId ??
+    (inquiries as Array<{ id: number; status: string }>).find(
+      (i) =>
+        i.status === 'completed' ||
+        i.status === 'awaiting_godet' ||
+        i.status === 'failed',
+    )?.id ??
+    null
+
+  const { data: scopeAuditData } = useQuery({
+    queryKey: ['prospective-inquiry-scope-audit', traceInquiryId],
+    queryFn: () => prospectiveInquiryService.getScopeAudit(traceInquiryId!),
+    enabled: traceInquiryId !== null,
+  })
+
+  const { data: auditData } = useQuery({
+    queryKey: ['prospective-inquiry-audit', traceInquiryId],
+    queryFn: () => prospectiveInquiryService.getAudit(traceInquiryId!),
+    enabled: traceInquiryId !== null,
+  })
+
+  const { data: godetStatusData } = useQuery({
+    queryKey: ['prospective-inquiry-godet-status', traceInquiryId],
+    queryFn: () => prospectiveInquiryService.getGodetStatus(traceInquiryId!),
+    enabled: traceInquiryId !== null,
+    refetchInterval: awaitingGodet ? 15000 : false,
   })
 
   const { data: compareData } = useQuery({
@@ -94,6 +125,9 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
       if (event.step === 'monitors' && Array.isArray(event.suggested_monitors)) {
         setMonitorSuggestions(event.suggested_monitors as Array<Record<string, unknown>>)
       }
+      if (event.step === 'osint' && event.audit && typeof event.audit === 'object') {
+        setScopeAuditLive({ audit: event.audit as Record<string, number | string> })
+      }
     }
     if (event.event === 'awaiting_godet') {
       setAwaitingGodet(true)
@@ -117,6 +151,7 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
     setMonitorSuggestions([])
     setCcaCells([])
     setCcaParameters([])
+    setScopeAuditLive(null)
   }
 
   const runMutation = useMutation({
@@ -169,6 +204,8 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
       setAwaitingGodet(false)
       setLastInquiryId(data.inquiry_id as number)
       void queryClient.invalidateQueries({ queryKey: ['prospective-inquiries', caseId] })
+      void queryClient.invalidateQueries({ queryKey: ['prospective-inquiry-godet-status'] })
+      void queryClient.invalidateQueries({ queryKey: ['prospective-inquiry-audit'] })
     },
   })
 
@@ -197,7 +234,8 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
     },
   })
 
-  const reasoning = (answer?.reasoning as Array<{ conclusion?: string; because?: string }>) ?? []
+  const reasoning = (answer?.reasoning as Array<{ conclusion?: string; because?: string; sources?: Array<{ origin?: string; field?: string }> }>) ?? []
+  const evidence = (answer?.evidence as Array<Record<string, unknown>>) ?? []
   const conclusions = (answer?.conclusions as string[]) ?? []
   const exportId =
     lastInquiryId ??
@@ -441,6 +479,29 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
             </div>
           )}
         </div>
+      )}
+
+      {traceInquiryId && (
+        <details open className="prospective-inquiry-panel__trace">
+          <summary>Traçabilitat inquiry #{traceInquiryId}</summary>
+          <InquiryTracePanel
+            scopeAudit={(scopeAuditData as ScopeAuditData | undefined) ?? scopeAuditLive ?? undefined}
+            auditTrail={(auditData?.audit_trail as AuditTrailEntry[]) ?? []}
+            evidence={evidence}
+            reasoning={reasoning}
+            godetStatus={
+              (godetStatusData as {
+                godet_ready?: boolean
+                project_id?: number | null
+                checklist?: Record<string, boolean>
+                missing_steps?: string[]
+                can_synthesize?: boolean
+              }) ?? null
+            }
+            onSynthesize={() => synthMutation.mutate(traceInquiryId)}
+            synthesizePending={synthMutation.isPending}
+          />
+        </details>
       )}
 
       {exportId && (

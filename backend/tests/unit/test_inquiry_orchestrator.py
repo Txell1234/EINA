@@ -156,3 +156,58 @@ async def test_wizard_link_creates_project_when_missing(db_session, sample_case)
     assert link["project_id"] > 0
     assert f"inquiry={inquiry.id}" in link["wizard_paths"]["morph"]
 
+
+@pytest.mark.unit
+async def test_scope_audit_detail(db_session, sample_case):
+    from models.prospective_inquiry import ProspectiveInquiry
+
+    inquiry = ProspectiveInquiry(
+        case_id=sample_case.id,
+        question="Trump announces US blockade of Hormuz lifted by December 2026?",
+        mode="lite",
+        status="completed",
+        inquiry_scope={
+            "question": "Trump announces US blockade of Hormuz lifted by December 2026?",
+            "required_terms": ["trump", "hormuz", "blockade"],
+            "min_required_matches": 2,
+        },
+        scope_audit={
+            "input": 40,
+            "kept": 12,
+            "removed_topic": 28,
+            "rejected_samples": [
+                {"title": "Irrelevant Japan article", "url": "https://example.com/jp", "score": 0.1}
+            ],
+        },
+    )
+    db_session.add(inquiry)
+    await db_session.commit()
+    await db_session.refresh(inquiry)
+
+    detail = await InquiryOrchestratorService(db_session).scope_audit_detail(inquiry.id)
+    assert detail["found"] is True
+    assert detail["required_terms"] == ["trump", "hormuz", "blockade"]
+    assert len(detail["rejected_samples"]) == 1
+    assert detail["audit"]["kept"] == 12
+
+
+@pytest.mark.unit
+async def test_godet_status_checklist(db_session, sample_case):
+    from models.prospective_inquiry import ProspectiveInquiry
+
+    inquiry = ProspectiveInquiry(
+        case_id=sample_case.id,
+        question="Trump announces US blockade of Hormuz lifted by December 2026?",
+        mode="full",
+        status="awaiting_godet",
+    )
+    db_session.add(inquiry)
+    await db_session.commit()
+    await db_session.refresh(inquiry)
+
+    status = await InquiryOrchestratorService(db_session).godet_status(inquiry.id)
+    assert status["found"] is True
+    assert status["godet_ready"] is False
+    assert status["checklist"]["project"] is False
+    assert "project" in status["missing_steps"]
+

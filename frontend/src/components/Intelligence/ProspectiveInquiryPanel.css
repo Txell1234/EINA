@@ -90,3 +90,11 @@
   font-size: 0.9rem;
   color: var(--color-primary, #1565c0);
 }
+
+.prospective-inquiry-panel__trace {
+  margin-top: 0.75rem;
+}
+
+.prospective-inquiry-panel__compare {
+  margin-top: 0.75rem;
+}
