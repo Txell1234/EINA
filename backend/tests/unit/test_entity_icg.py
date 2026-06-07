@@ -98,6 +98,42 @@ def test_ice_differs_for_shipping_vs_defense():
     assert maersk_ice["index"] != kawasaki_ice["index"]
     assert maersk_ice["index"] < kawasaki_ice["index"]
     assert maersk_ice["delta_vs_case"] != kawasaki_ice["delta_vs_case"]
+    assert maersk_ice["delta_vs_case"] < kawasaki_ice["delta_vs_case"]
+
+
+@pytest.mark.unit
+def test_hormuz_ice_calibration_ranges():
+    """Hormuz-style spread: shipping well below case, defense closer to case."""
+    impact = _hormuz_impact()
+    case = build_case_icg_bundle(impact, policy_rows=[])
+    case_icg = float(case["index"])
+
+    maersk = build_entity_icg_bundle(
+        impact,
+        focus_company="Maersk",
+        case_icg=case,
+        entity_focus_match={"name": "Maersk"},
+        registry_row={"name": "Maersk", "sectors": ["shipping"], "region": "overseas"},
+        external_metrics={
+            "investwatch_summary": {"avg_return_score": 3.0, "avg_risk_score": 6.0},
+            "recommendation": "HOLD",
+        },
+        sanction_entity_impacts=[{"entity": "Maersk", "score": 55, "because": "blockade"}],
+    )
+    kawasaki = build_entity_icg_bundle(
+        impact,
+        focus_company="Kawasaki",
+        case_icg=case,
+        entity_focus_match={"name": "Kawasaki Heavy Industries"},
+        registry_row={"name": "Kawasaki Heavy Industries", "sectors": ["defense"], "region": "overseas"},
+        sanction_entity_impacts=[{"entity": "Kawasaki", "score": 30, "because": "export"}],
+    )
+
+    assert maersk is not None and kawasaki is not None
+    assert 38.0 <= maersk["index"] <= 46.0
+    assert 52.0 <= kawasaki["index"] <= 59.0
+    assert maersk["index"] - case_icg <= -5.0
+    assert kawasaki["index"] - maersk["index"] >= 10.0
 
 
 @pytest.mark.unit

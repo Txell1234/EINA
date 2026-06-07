@@ -38,6 +38,70 @@ function scoreFromBlend(blended?: number, explicit?: number): number | null {
   return Math.round((blended / 10) * 10) / 10
 }
 
+function clampPct(value: number): number {
+  return Math.max(0, Math.min(100, value))
+}
+
+function IcgDualBars({
+  caseIcg,
+  entityIce,
+  entityLabel,
+  delta,
+}: {
+  caseIcg: number
+  entityIce: number
+  entityLabel?: string | null
+  delta?: number | null
+}) {
+  return (
+    <div className="crossover-hero__icg-bars" data-testid="icg-dual-bars">
+      <div className="crossover-hero__icg-bar crossover-hero__icg-bar--case">
+        <div className="crossover-hero__icg-bar-head">
+          <span className="crossover-hero__icg-bar-label">ICG cas · context geopolític compartit</span>
+          <strong>{caseIcg}%</strong>
+        </div>
+        <div
+          className="crossover-hero__icg-bar-track"
+          role="progressbar"
+          aria-valuenow={clampPct(caseIcg)}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label={`ICG cas ${caseIcg} per cent`}
+        >
+          <div className="crossover-hero__icg-bar-fill" style={{ width: `${clampPct(caseIcg)}%` }} />
+        </div>
+      </div>
+      <div className="crossover-hero__icg-bar crossover-hero__icg-bar--entity">
+        <div className="crossover-hero__icg-bar-head">
+          <span className="crossover-hero__icg-bar-label">
+            ICE entitat{entityLabel ? ` · ${entityLabel}` : ''}
+          </span>
+          <strong>
+            {entityIce}%
+            {delta != null ? (
+              <span className="crossover-hero__delta">
+                {' '}
+                ({delta >= 0 ? '+' : ''}
+                {delta} pp)
+              </span>
+            ) : null}
+          </strong>
+        </div>
+        <div
+          className="crossover-hero__icg-bar-track"
+          role="progressbar"
+          aria-valuenow={clampPct(entityIce)}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label={`ICE entitat ${entityIce} per cent`}
+        >
+          <div className="crossover-hero__icg-bar-fill" style={{ width: `${clampPct(entityIce)}%` }} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function FinancialCrossoverHero({
   entity,
   externalSignal,
@@ -72,6 +136,12 @@ export function FinancialCrossoverHero({
     geopoliticalConfidenceIndex ??
     fn.geopolitical_confidence_index
   const deltaDisplay = entityIcgDelta ?? fn.entity_icg_delta
+  const showDualIcgBars =
+    caseIcgDisplay != null &&
+    iceDisplay != null &&
+    (entityGeopoliticalConfidenceIndex != null ||
+      fn.entity_geopolitical_confidence_index != null ||
+      Boolean(entity))
 
   return (
     <article className="crossover-hero" data-testid="crossover-hero">
@@ -137,7 +207,7 @@ export function FinancialCrossoverHero({
               <strong>{fn.blended_risk_index}</strong>
             </div>
           ) : null}
-          {iceDisplay != null ? (
+          {!showDualIcgBars && iceDisplay != null ? (
             <div className="crossover-hero__kpi crossover-hero__kpi--eina">
               <span className="crossover-hero__kpi-label">
                 {entityGeopoliticalConfidenceIndex != null || fn.entity_geopolitical_confidence_index != null
@@ -155,13 +225,14 @@ export function FinancialCrossoverHero({
                 ) : null}
               </strong>
             </div>
-          ) : confidenceSource === 'missing' ? (
+          ) : !showDualIcgBars && confidenceSource === 'missing' ? (
             <div className="crossover-hero__kpi crossover-hero__kpi--eina">
               <span className="crossover-hero__kpi-label">Confiança geo</span>
               <strong>Pendent</strong>
             </div>
           ) : null}
-          {caseIcgDisplay != null &&
+          {!showDualIcgBars &&
+          caseIcgDisplay != null &&
           (entityGeopoliticalConfidenceIndex != null || fn.entity_geopolitical_confidence_index != null) ? (
             <div className="crossover-hero__kpi">
               <span className="crossover-hero__kpi-label">ICG cas</span>
@@ -170,6 +241,15 @@ export function FinancialCrossoverHero({
           ) : null}
         </div>
       </div>
+
+      {showDualIcgBars ? (
+        <IcgDualBars
+          caseIcg={caseIcgDisplay!}
+          entityIce={iceDisplay!}
+          entityLabel={entity}
+          delta={deltaDisplay}
+        />
+      ) : null}
 
       {confidenceSource === 'default_fallback' || investmentPostureSource === 'default_fallback' ? (
         <p className="crossover-hero__confidence-warn">

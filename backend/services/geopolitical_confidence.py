@@ -53,6 +53,16 @@ _ENTITY_ICE_BASE_WEIGHTS: dict[str, float] = {
     "entity_scenario_fit": 0.15,
 }
 
+# Two-stage ICE: 60% ICG_cas anchor + 40% entity-specific layer (v3 calibration)
+ICE_CASE_BLEND = 0.55
+ICE_ENTITY_LAYER_BLEND = 0.45
+_ENTITY_LAYER_WEIGHTS: dict[str, float] = {
+    "focus_exposure": 0.40,
+    "entity_sanction_exposure": 0.30,
+    "entity_financial_signal": 0.20,
+    "entity_scenario_fit": 0.10,
+}
+
 _SHIPPING_SECTORS = frozenset({"shipping", "naval", "maritime", "logistics"})
 _DEFENSE_SECTORS = frozenset({"defense", "defence", "aerospace"})
 _ENERGY_SECTORS = frozenset({"energy", "oil", "gas", "petroleum"})
@@ -519,17 +529,17 @@ def _compute_entity_policy_exposure(
     roles = {str(r).lower() for r in (registry_row or {}).get("roles") or []}
     region = (registry_row or {}).get("region") or ""
     if entity_focus_match:
-        score += 22.0
+        score += 18.0
     if registry_row and registry_row.get("beneficiary_rationale"):
         score += 8.0
     if registry_row and registry_row.get("confidence") == "high":
         score += 5.0
     if sectors & _SHIPPING_SECTORS:
-        score -= 20.0
+        score -= 38.0
     elif sectors & _ENERGY_SECTORS:
-        score -= 14.0
+        score -= 16.0
     elif sectors & _DEFENSE_SECTORS:
-        score -= 8.0
+        score -= 6.0
     if "market_opportunity" in roles:
         score += 10.0
     if region == "overseas":
@@ -595,6 +605,7 @@ def _compute_entity_sanction_exposure(
     *,
     focus_company: str,
     entity_impacts: list[dict[str, Any]],
+    registry_row: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     key = _entity_key(focus_company)
     matched: dict[str, Any] | None = None
@@ -613,12 +624,18 @@ def _compute_entity_sanction_exposure(
         }
     sanction_score = float(matched.get("score") or 0)
     value = round(max(5.0, min(95.0, 100.0 - sanction_score)), 1)
+    sectors = {str(s).lower() for s in (registry_row or {}).get("sectors") or []}
+    if sectors & _SHIPPING_SECTORS and sanction_score >= 45:
+        value = round(max(5.0, value - 10.0), 1)
     return {
         "name": "entity_sanction_exposure",
         "label": f"Sancions ({focus_company})",
         "value": value,
         "base_weight": _ENTITY_ICE_BASE_WEIGHTS["entity_sanction_exposure"],
-        "because": matched.get("because") or f"Score sanció entitat {sanction_score:.0f}/100",
+        "because": (
+            (matched.get("because") or f"Score sanció entitat {sanction_score:.0f}/100")
+            + (" · malus shipping/blockade" if sectors & _SHIPPING_SECTORS and sanction_score >= 45 else "")
+        ),
     }
 
 
@@ -637,6 +654,8 @@ def _compute_entity_financial_signal(
         scores.append((float(ret) / 7.0) * 100.0)
     if risk is not None:
         scores.append((1.0 - float(risk) / 7.0) * 100.0)
+    if ret is not None and risk is not None and float(risk) >= 5.5 and float(ret) <= 3.5:
+        scores.append(28.0)
     rec = (external_metrics.get("recommendation") or "").upper()
     if rec == "BUY":
         scores.append(78.0)
@@ -686,11 +705,11 @@ def _compute_entity_scenario_fit(
         st = (j.get("scenario_type") or "").lower()
         name = (j.get("scenario_name") or "").lower()
         if sectors & _SHIPPING_SECTORS and stability < 0.7:
-            stability *= 0.55
+            stability *= 0.32
         elif sectors & _DEFENSE_SECTORS and ("tens" in st or "tens" in name):
-            stability = min(1.0, stability * 1.15)
+            stability = min(1.0, stability * 1.0)
         elif sectors & _ENERGY_SECTORS and ("conflict" in st or "conflicte" in name):
-            stability *= 0.65
+            stability *= 0.60
         weighted_sum += p * stability
         prob_sum += p
         if j.get("scenario_name"):
@@ -703,7 +722,7 @@ def _compute_entity_scenario_fit(
             p = float(prob) if not isinstance(prob, str) else float(prob.replace("%", ""))
             stability = _stability_factor(sc.get("type"), sc.get("name"))
             if sectors & _SHIPPING_SECTORS and stability < 0.7:
-                stability *= 0.55
+                stability *= 0.32
             weighted_sum += p * stability
             prob_sum += p
     if prob_sum <= 0:
@@ -718,6 +737,82 @@ def _compute_entity_scenario_fit(
     }
 
 
+def _merge_focus_exposure(
+    policy_comp: dict[str, Any],
+    osint_comp: dict[str, Any] | None,
+    *,
+    focus_company: str,
+    registry_row: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Policy×Indústria + claims OSINT → single focus_exposure bucket (40% of entity layer)."""
+    scores = [float(policy_comp["value"])]
+    because_parts = [policy_comp.get("because") or ""]
+    if osint_comp:
+        scores.append(float(osint_comp["value"]))
+        if osint_comp.get("because"):
+            because_parts.append(osint_comp["because"])
+    value = round(sum(scores) / len(scores), 1)
+    sectors = {str(s).lower() for s in (registry_row or {}).get("sectors") or []}
+    if sectors & _SHIPPING_SECTORS:
+        value = round(max(5.0, value - 15.0), 1)
+        because_parts.append("Malus sector shipping (exposició Hormuz/logística)")
+    return {
+        "name": "focus_exposure",
+        "label": f"Exposició entitat ({focus_company})",
+        "value": value,
+        "base_weight": _ENTITY_LAYER_WEIGHTS["focus_exposure"],
+        "because": " · ".join(p for p in because_parts if p),
+    }
+
+
+def _build_entity_layer_components(
+    impact: dict[str, Any],
+    *,
+    focus_company: str,
+    entity_focus_match: dict[str, Any] | None,
+    registry_row: dict[str, Any] | None,
+    external_metrics: dict[str, Any] | None,
+    sanction_entity_impacts: list[dict[str, Any]] | None,
+    scenarios: list[dict[str, Any]] | None,
+) -> list[dict[str, Any]]:
+    policy_comp = _compute_entity_policy_exposure(
+        focus_company=focus_company,
+        registry_row=registry_row,
+        entity_focus_match=entity_focus_match,
+    )
+    osint_comp = _compute_entity_osint_exposure(impact, focus_company=focus_company)
+    layer: list[dict[str, Any]] = [
+        _merge_focus_exposure(
+            policy_comp, osint_comp, focus_company=focus_company, registry_row=registry_row
+        ),
+    ]
+    sanction_comp = _compute_entity_sanction_exposure(
+        focus_company=focus_company,
+        entity_impacts=sanction_entity_impacts or [],
+        registry_row=registry_row,
+    )
+    if sanction_comp:
+        sanction_comp = dict(sanction_comp)
+        sanction_comp["base_weight"] = _ENTITY_LAYER_WEIGHTS["entity_sanction_exposure"]
+        layer.append(sanction_comp)
+    fin_comp = _compute_entity_financial_signal(external_metrics, focus_company=focus_company)
+    if fin_comp:
+        fin_comp = dict(fin_comp)
+        fin_comp["base_weight"] = _ENTITY_LAYER_WEIGHTS["entity_financial_signal"]
+        layer.append(fin_comp)
+    scen_comp = _compute_entity_scenario_fit(
+        impact,
+        focus_company=focus_company,
+        registry_row=registry_row,
+        scenarios=scenarios,
+    )
+    if scen_comp:
+        scen_comp = dict(scen_comp)
+        scen_comp["base_weight"] = _ENTITY_LAYER_WEIGHTS["entity_scenario_fit"]
+        layer.append(scen_comp)
+    return _normalize_entity_weights(layer)
+
+
 def build_entity_icg_bundle(
     impact: dict[str, Any],
     *,
@@ -729,57 +824,61 @@ def build_entity_icg_bundle(
     sanction_entity_impacts: list[dict[str, Any]] | None = None,
     scenarios: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any] | None:
-    """ICE_entitat — entity-specific confidence anchored to ICG_cas."""
+    """ICE_entitat — 60% ICG_cas + 40% entity layer (policy/OSINT, SIS, finances, sector)."""
     case_index = case_icg.get("index")
     if case_index is None:
         return None
-    raw: list[dict[str, Any]] = [
+
+    entity_layer = _build_entity_layer_components(
+        impact,
+        focus_company=focus_company,
+        entity_focus_match=entity_focus_match,
+        registry_row=registry_row,
+        external_metrics=external_metrics,
+        sanction_entity_impacts=sanction_entity_impacts,
+        scenarios=scenarios,
+    )
+    entity_layer_score = _weighted_index(entity_layer)
+    if entity_layer_score is None:
+        return None
+
+    ice = round(
+        ICE_CASE_BLEND * float(case_index) + ICE_ENTITY_LAYER_BLEND * float(entity_layer_score),
+        1,
+    )
+    delta = round(ice - float(case_index), 1)
+
+    components: list[dict[str, Any]] = [
         {
             "name": "case_baseline",
             "label": "Baseline ICG cas",
             "value": float(case_index),
-            "base_weight": _ENTITY_ICE_BASE_WEIGHTS["case_baseline"],
-            "because": f"Marc geopolític compartit del cas ({case_index}%).",
+            "weight": ICE_CASE_BLEND,
+            "because": f"Marc geopolític compartit ({case_index}%) × {ICE_CASE_BLEND:.0%}.",
         },
-        _compute_entity_policy_exposure(
-            focus_company=focus_company,
-            registry_row=registry_row,
-            entity_focus_match=entity_focus_match,
-        ),
     ]
-    osint_comp = _compute_entity_osint_exposure(impact, focus_company=focus_company)
-    if osint_comp:
-        raw.append(osint_comp)
-    sanction_comp = _compute_entity_sanction_exposure(
-        focus_company=focus_company,
-        entity_impacts=sanction_entity_impacts or [],
-    )
-    if sanction_comp:
-        raw.append(sanction_comp)
-    fin_comp = _compute_entity_financial_signal(external_metrics, focus_company=focus_company)
-    if fin_comp:
-        raw.append(fin_comp)
-    scen_comp = _compute_entity_scenario_fit(
-        impact,
-        focus_company=focus_company,
-        registry_row=registry_row,
-        scenarios=scenarios,
-    )
-    if scen_comp:
-        raw.append(scen_comp)
-    components = _normalize_entity_weights(raw)
-    ice = _weighted_index(components)
-    if ice is None:
-        return None
-    delta = round(ice - float(case_index), 1)
+    for comp in entity_layer:
+        components.append(
+            {
+                **comp,
+                "weight": round(ICE_ENTITY_LAYER_BLEND * float(comp["weight"]), 4),
+                "because": (comp.get("because") or "") + f" (×{ICE_ENTITY_LAYER_BLEND:.0%} capa entitat)",
+            }
+        )
+
     source, detail = _icg_detail(components, label="ICE", avg_gpr=case_icg.get("gpr_case_level"))
     return {
         "index": ice,
+        "entity_layer_score": entity_layer_score,
         "focus_company": focus_company,
         "confidence_source": source,
         "confidence_detail": detail,
         "components": components,
-        "formula": "ICE = Σ(value×weight)/Σ(weight); baseline cas + exposició entitat",
+        "entity_layer_components": entity_layer,
+        "formula": (
+            f"ICE = {ICE_CASE_BLEND:.0%}×ICG_cas + {ICE_ENTITY_LAYER_BLEND:.0%}×"
+            f"(focus 40% + SIS 30% + finances 20% + sector 10%)"
+        ),
         "delta_vs_case": delta,
     }
 
