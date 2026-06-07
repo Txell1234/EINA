@@ -1,0 +1,70 @@
+.morph-explorer {
+  margin-top: var(--spacing-md, 1rem);
+  padding: var(--spacing-md, 1rem);
+}
+
+.morph-explorer__header h3 {
+  margin: 0 0 0.25rem;
+  color: var(--color-primary);
+  font-size: var(--font-size-md, 1rem);
+}
+
+.morph-explorer__lead {
+  margin: 0 0 0.75rem;
+  font-size: var(--font-size-sm, 0.85rem);
+  color: var(--color-gray-600, #64748b);
+}
+
+.morph-explorer__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  margin-bottom: 0.75rem;
+  font-size: var(--font-size-sm, 0.85rem);
+}
+
+.morph-explorer__filter {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+  font-size: var(--font-size-sm, 0.85rem);
+}
+
+.morph-explorer__filter input {
+  max-width: 420px;
+  padding: 0.35rem 0.5rem;
+}
+
+.morph-explorer__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 6px;
+}
+
+.morph-explorer__item {
+  padding: 0.35rem 0.55rem;
+  border-bottom: 1px solid var(--border-color, #eee);
+  font-size: 0.8rem;
+  font-family: var(--font-mono, ui-monospace, monospace);
+}
+
+.morph-explorer__item:last-child {
+  border-bottom: none;
+}
+
+.morph-explorer__empty,
+.morph-explorer__more {
+  color: var(--text-muted, #666);
+  font-size: 0.85rem;
+}
+
+@media (max-width: 640px) {
+  .morph-explorer__filter input {
+    max-width: 100%;
+  }
+}

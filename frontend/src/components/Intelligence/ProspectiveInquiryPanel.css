@@ -275,6 +275,13 @@
   margin-top: 0.5rem;
 }
 
+.prospective-inquiry-panel__compare-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
 .prospective-inquiry-panel__godet {
   margin-top: 0.5rem;
   padding: var(--spacing-md);

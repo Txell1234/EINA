@@ -97,3 +97,46 @@ def test_build_crossover_blend():
     assert len(out["external_evidence"]) >= 2
     assert out["final_numbers_explanations"]["blended_return_index"]["because"]
     assert "×" in out["final_numbers_explanations"]["blended_return_index"]["because"]
+
+
+def test_build_crossover_smic_list_probs():
+    svc = FinancialCrossoverService(None)  # type: ignore[arg-type]
+    external = {"metrics": {"percentages": [{"label": "return", "value_pct": 50}]}}
+    eina = {
+        "scenarios": [],
+        "investment_recommendations": [],
+        "smic": {"initial_probs": [0.2, 0.35, 0.3, 0.15]},
+        "policy_companies": [],
+    }
+    out = svc._build_crossover(external, eina, external_weight=0.35)
+    assert out["final_numbers"]["smic_probability_sum"] == 1.0
+
+
+@pytest.mark.unit
+def test_build_crossover_uses_icg_not_hold_default():
+    """HOLD 50% default must not contaminate blend when ICG is available."""
+    svc = FinancialCrossoverService(None)  # type: ignore[arg-type]
+    parsed = parse_financial_document(PRAAMS_SAMPLE, source="praams")
+    external = {"metrics": parsed["metrics"]}
+    eina = {
+        "scenarios": [{"name": "Tensió", "type": "tension", "probability": 40}],
+        "investment_recommendations": [{"type": "HOLD", "confidence_pct": 50.0, "rationale": "default"}],
+        "smic": None,
+        "policy_companies": [],
+        "computed_confidence": {
+            "geopolitical_confidence_index": 72.5,
+            "confidence_source": "computed",
+            "investment_posture": {"source": "default_fallback", "recommendation": "HOLD", "confidence_pct": 50.0},
+            "components": [
+                {"name": "osint_traceability", "label": "Traçabilitat OSINT", "value": 78.0, "weight": 0.25},
+            ],
+        },
+    }
+    out = svc._build_crossover(external, eina, external_weight=0.35)
+    nums = out["final_numbers"]
+    assert nums["geopolitical_confidence_index"] == 72.5
+    assert nums["eina_investment_confidence_avg"] == 72.5
+    assert nums["eina_investment_confidence_avg"] != 50.0
+    summary = out["eina_case_summary"]
+    assert summary["investment_posture_source"] == "default_fallback"
+    assert summary["geopolitical_confidence_index"] == 72.5

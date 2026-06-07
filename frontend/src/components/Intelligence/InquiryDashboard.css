@@ -1,5 +1,5 @@
 .inquiry-dashboard {
-  max-width: 1100px;
+  max-width: 1200px;
 }
 
 .inquiry-dashboard__header {
@@ -43,19 +43,74 @@
   font-size: 0.85rem;
 }
 
+.inquiry-dashboard__banner--ok {
+  background: #e8f5e9;
+  border-color: #81c784;
+}
+
+.inquiry-dashboard__banner--warn {
+  background: #fff3e0;
+  border-color: #ffb74d;
+}
+
+.inquiry-dashboard__progress {
+  position: relative;
+  height: 1.25rem;
+  margin-bottom: 0.75rem;
+  background: #eee;
+  border-radius: 4px;
+  overflow: hidden;
+  font-size: 0.75rem;
+}
+
+.inquiry-dashboard__progress-bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--color-primary, #1565c0);
+  opacity: 0.35;
+  transition: width 0.3s ease;
+}
+
+.inquiry-dashboard__progress span {
+  position: relative;
+  z-index: 1;
+  padding: 0 0.5rem;
+  line-height: 1.25rem;
+}
+
 .inquiry-dashboard__filters {
   display: flex;
   flex-wrap: wrap;
-  gap: 1rem;
+  gap: 0.75rem 1rem;
   align-items: flex-end;
   margin-bottom: 1rem;
 }
 
+.inquiry-dashboard__filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.8rem;
+}
+
+.inquiry-dashboard__filters input[type='search'],
+.inquiry-dashboard__filters input[type='number'] {
+  min-width: 7rem;
+  padding: 0.25rem 0.4rem;
+  font-size: 0.85rem;
+}
+
 .inquiry-dashboard__check {
   display: flex;
+  flex-direction: row !important;
   align-items: center;
   gap: 0.35rem;
   font-size: 0.85rem;
+  padding-bottom: 0.25rem;
+}
+
+.inquiry-dashboard__table-wrap {
+  overflow-x: auto;
 }
 
 .inquiry-dashboard__table {
@@ -83,4 +138,62 @@
 
 .inquiry-dashboard__empty {
   color: var(--text-muted, #666);
+}
+
+.inquiry-dashboard__badge {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0 0.3rem;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  background: #eceff1;
+  border-radius: 3px;
+  color: #546e7a;
+}
+
+.inquiry-dashboard__question {
+  max-width: 220px;
+}
+
+.inquiry-dashboard__sparkline {
+  min-width: 72px;
+  height: 28px;
+}
+
+.inquiry-dashboard__delta {
+  margin-left: 0.25rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.inquiry-dashboard__delta--up {
+  color: #2e7d32;
+}
+
+.inquiry-dashboard__delta--down {
+  color: #c62828;
+}
+
+.inquiry-dashboard__actions {
+  white-space: nowrap;
+}
+
+.inquiry-dashboard__actions a,
+.inquiry-dashboard__link-btn {
+  margin-right: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.inquiry-dashboard__link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--color-primary, #1565c0);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.inquiry-dashboard__link-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }

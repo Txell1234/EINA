@@ -96,7 +96,7 @@ def _statement_to_company(stmt: ExtractedStatement, ref_index: dict[str, dict[st
         "country": country,
         "region": _region_from_country(country) if country != "XX" else "unknown",
         "roles": list(ref.get("roles") or ["beneficiary"]) if ref else ["beneficiary"],
-        "sectors": list(ref.get("sectors") or []),
+        "sectors": list(ref.get("sectors") or []) if ref else [],
         "beneficiary_rationale": ref.get("beneficiary_rationale") if ref else (
             f"Mencionada en declaracions OSINT sobre {stmt.topic or 'política/defensa'}."
         ),
@@ -104,7 +104,7 @@ def _statement_to_company(stmt: ExtractedStatement, ref_index: dict[str, dict[st
         "contractor_relationships": list(ref.get("contractor_relationships") or []) if ref else [],
         "confidence": "high" if ref else "medium",
         "source": "osint",
-        "matched_themes": list(ref.get("matched_themes") or []),
+        "matched_themes": list(ref.get("matched_themes") or []) if ref else [],
         "evidence": [
             {
                 "statement_id": stmt.id,

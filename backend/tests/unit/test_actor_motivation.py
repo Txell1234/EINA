@@ -20,6 +20,32 @@ def test_ensure_four_scenarios_fills_missing():
     assert len(out) == 4
 
 
+def test_build_actor_motivation_uses_monitor_indicator_field():
+    class Monitor:
+        indicator = "Augment tensions al estret"
+
+    class Match:
+        id = 99
+        monitor_id = 7
+        scenario_id = None
+        extracted_statement_id = None
+        title = "Xina desplega vaixells"
+        excerpt = "Activitat naval al estret"
+        analysis_summary = ""
+        matched_keywords = ["naval"]
+        source_type = "gdelt"
+        url = "https://example.com/naval"
+
+    mot = build_actor_motivation(
+        "Xina",
+        statements=[],
+        alert_matches=[Match()],
+        monitors={7: Monitor()},
+        scenarios_by_id={},
+    )
+    assert "Augment tensions" in mot["text"]
+
+
 def test_build_actor_motivation_from_extraction():
     class Stmt:
         actor = "Xina"

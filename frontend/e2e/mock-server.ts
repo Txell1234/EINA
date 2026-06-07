@@ -58,25 +58,40 @@ export function startE2eMockServer(): Promise<() => Promise<void>> {
     }
 
     if (method === 'GET' && path === '/api/prospective/inquiries/dashboard') {
-      const items = [
-        {
-          id: MOCK_INQUIRY_ID,
-          case_id: MOCK_CASE.id,
-          case_name: MOCK_CASE.name,
-          question: SAMPLE_QUESTION,
-          mode: 'lite',
-          status: 'completed',
-          run_count: 1,
-          probability_pct: 38,
-          wizard_project_id: 7,
-          auto_rerun_enabled: false,
-        },
-      ]
+      const url = new URL(req.url ?? '/', 'http://127.0.0.1')
+      const q = (url.searchParams.get('q') || '').toLowerCase()
+      const caseFilter = url.searchParams.get('case_id')
+      const baseItem = {
+        id: MOCK_INQUIRY_ID,
+        case_id: MOCK_CASE.id,
+        case_name: MOCK_CASE.name,
+        question: SAMPLE_QUESTION,
+        mode: 'lite',
+        status: 'completed',
+        run_count: 2,
+        probability_pct: 38,
+        probability_delta: 3,
+        probability_history: [
+          { probability_pct: 35, run_number: 1 },
+          { probability_pct: 38, run_number: 2 },
+        ],
+        wizard_project_id: 7,
+        auto_rerun_enabled: false,
+        parse_confidence: 0.91,
+        llm_used: false,
+      }
+      let items = [baseItem]
+      if (q && !SAMPLE_QUESTION.toLowerCase().includes(q)) {
+        items = []
+      }
+      if (caseFilter && Number(caseFilter) !== MOCK_CASE.id) {
+        items = []
+      }
       return sendJson(res, {
         items,
         stats: {
           total: items.length,
-          completed: 1,
+          completed: items.length ? 1 : 0,
           awaiting_godet: 0,
           scheduled_active: 0,
           scheduled_due: 0,
@@ -207,6 +222,68 @@ export function startE2eMockServer(): Promise<() => Promise<void>> {
       return sendJson(res, {
         wizard_paths: { morph: '/prospective/morph?project=7&inquiry=42' },
         project_id: 7,
+      })
+    }
+
+    if (method === 'PATCH' && path === '/api/prospective/inquiries/batch-schedule') {
+      let body = ''
+      req.on('data', (chunk) => {
+        body += chunk
+      })
+      req.on('end', () => {
+        try {
+          const parsed = JSON.parse(body)
+          const ids = parsed.ids || []
+          sendJson(res, {
+            ok_count: ids.length,
+            failed_count: 0,
+            processed: ids.length,
+            interval_hours: parsed.interval_hours ?? 24,
+          })
+        } catch {
+          sendJson(res, { ok_count: 0, failed_count: 1, processed: 0 }, 400)
+        }
+      })
+      return
+    }
+
+    if (method === 'GET' && path === '/api/prospective/inquiries/export/executive') {
+      res.writeHead(200, {
+        'Content-Type': 'text/html',
+        'Content-Disposition': 'attachment; filename="executive.html"',
+        'Access-Control-Allow-Origin': '*',
+      })
+      res.end('<html><body>E2E executive report</body></html>')
+      return
+    }
+
+    if (method === 'GET' && path === '/health') {
+      return sendJson(res, {
+        services: { export: { weasyprint: { available: false } } },
+      })
+    }
+
+    if (method === 'GET' && path === '/api/prospective/projects/7/morph-space') {
+      return sendJson(res, {
+        valid_combinations: 3,
+        total_combinations: 4,
+        filtered_out: 1,
+      })
+    }
+
+    if (method === 'GET' && path === '/api/prospective/projects/7/compatibilities') {
+      return sendJson(res, [
+        { component_a: 'C1', config_a: 'Opció A', component_b: 'C2', config_b: 'Opció B' },
+      ])
+    }
+
+    if (method === 'GET' && path.startsWith('/api/prospective/projects/7/cca-suggestions')) {
+      return sendJson(res, { found: true, rules: [], existing_incompatibilities: [] })
+    }
+
+    if (method === 'POST' && path === '/api/prospective/projects/7/cca-suggestions/preview') {
+      return sendJson(res, {
+        after: { valid_combinations: 3, total_combinations: 4, filtered_out: 1 },
       })
     }
 

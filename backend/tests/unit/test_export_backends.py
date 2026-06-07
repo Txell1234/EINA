@@ -7,7 +7,10 @@ import pytest
 
 from services.export_backends import (
     probe_openpyxl,
+    probe_pdf_renderers,
+    probe_playwright,
     probe_weasyprint,
+    render_pdf_from_html,
     write_case_report_excel,
 )
 
@@ -35,6 +38,27 @@ class TestExportBackends:
         status = probe_weasyprint(smoke_test=False)
         assert "available" in status
         assert isinstance(status["available"], bool)
+
+    def test_probe_playwright_returns_dict(self):
+        status = probe_playwright(smoke_test=False)
+        assert "available" in status
+        assert isinstance(status["available"], bool)
+
+    def test_probe_pdf_renderers_aggregate(self):
+        status = probe_pdf_renderers(smoke_test=False)
+        assert "available" in status
+        assert "weasyprint" in status
+        assert "playwright" in status
+
+    @pytest.mark.slow
+    def test_render_pdf_playwright_if_available(self, tmp_path: Path):
+        pw = probe_playwright(smoke_test=False)
+        if not pw.get("available"):
+            pytest.skip("Playwright no disponible")
+        out = tmp_path / "probe.pdf"
+        render_pdf_from_html("<html><body><h1>EINA</h1></body></html>", out)
+        assert out.exists()
+        assert out.stat().st_size > 500
 
     def test_write_case_report_excel_creates_workbook(self, tmp_path: Path):
         out = tmp_path / "report_1.xlsx"

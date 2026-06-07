@@ -4,7 +4,7 @@ from __future__ import annotations
 import pytest
 
 from observability.correlation import correlation_log_extra, get_correlation_ids
-from observability.metrics import record_cache_operation
+from observability.metrics import record_cache_operation, record_inquiry_job_operation
 from observability.step_cache import MemoryStepCache, StepCacheBackend
 
 
@@ -52,3 +52,9 @@ def test_semantic_key_stable():
 def test_record_cache_operation_no_crash():
     record_cache_operation(hit=True)
     record_cache_operation(hit=False, operation="set")
+
+
+@pytest.mark.unit
+def test_record_inquiry_job_operation_no_crash():
+    record_inquiry_job_operation("enqueue", "scheduled_rerun", status="ok")
+    record_inquiry_job_operation("complete", "manual_rerun", status="failed")

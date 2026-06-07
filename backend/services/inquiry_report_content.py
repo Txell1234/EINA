@@ -5,6 +5,7 @@ import html
 from typing import Any
 
 from services.report_i18n import ReportLang, get_report_strings, normalize_lang
+from services.report_markdown import format_report_line_html
 
 
 def _esc(s: Any) -> str:
@@ -40,7 +41,7 @@ def build_inquiry_executive_summary(detail: dict[str, Any], lang: str | None = N
             f"<strong>{_esc(s.possibility)}:</strong> {_esc(answer.get('possibility'))}</p>"
         )
         if answer.get("possibility_rationale"):
-            parts.append(f"<p>{_esc(answer.get('possibility_rationale'))}</p>")
+            parts.append(f"<p>{format_report_line_html(answer.get('possibility_rationale'))}</p>")
 
     if scope:
         kept = scope.get("kept")
@@ -69,7 +70,7 @@ def build_inquiry_executive_summary(detail: dict[str, Any], lang: str | None = N
     if conclusions:
         parts.append(f"<p><strong>{_esc(s.es_conclusions)}:</strong></p><ul>")
         for c in conclusions[:6]:
-            parts.append(f"<li>{_esc(c)}</li>")
+            parts.append(f"<li>{format_report_line_html(c)}</li>")
         parts.append("</ul>")
 
     if reasoning:

@@ -52,6 +52,33 @@ class ReportStrings:
     probability: str
     most_likely: str
     traceability_warning: str
+    outlook_what_to_watch: str
+    outlook_key_risks: str
+    outlook_key_opportunities: str
+    outlook_scenarios: str
+    outlook_dominant_scenario: str
+    outlook_motricity: str
+    outlook_high_dependence: str
+    outlook_risk: str
+    outlook_risk_default: str
+    outlook_confidence: str
+    outlook_opportunity: str
+    outlook_scenario_window: str
+    report_variant_full: str
+    report_variant_analytical: str
+    outlook_source_note: str
+    actor_map_title: str
+    actor_map_lead: str
+    actor_map_posture_worse: str
+    actor_map_posture_better: str
+    actor_map_geo_risk: str
+    actor_map_no_detail: str
+    actor_map_source_note: str
+    actor_map_case_focus: str
+    actor_map_statements: str
+    actor_map_mactor: str
+    actor_map_force: str
+    actor_map_no_geo: str
 
 
 _STRINGS: dict[str, ReportStrings] = {
@@ -99,6 +126,33 @@ _STRINGS: dict[str, ReportStrings] = {
         probability="Probabilitat",
         most_likely="Escenari més probable",
         traceability_warning="Avís: algunes conclusions manquen citació verificable.",
+        outlook_what_to_watch="Què cal vigilar",
+        outlook_key_risks="Riscos clau",
+        outlook_key_opportunities="Oportunitats clau",
+        outlook_scenarios="Escenaris amb probabilitat",
+        outlook_dominant_scenario="Escenari dominant",
+        outlook_motricity="motricitat",
+        outlook_high_dependence="alta dependència sistèmica",
+        outlook_risk="Risc",
+        outlook_risk_default="Riscos derivats de la incertesa del sistema i la traçabilitat OSINT",
+        outlook_confidence="confiança global",
+        outlook_opportunity="Oportunitat",
+        outlook_scenario_window="Finestra d'escenari plausible:",
+        report_variant_full="Informe complet (metodologia + annexos)",
+        report_variant_analytical="Informe analític (estil outlook EIU)",
+        outlook_source_note="Font: síntesi Godet · OSINT · Policy×Indústria",
+        actor_map_title="Mapa d'actors principals",
+        actor_map_lead="Actors del projecte Godet d'aquest cas, amb el que sabem d'OSINT i MACTOR.",
+        actor_map_posture_worse="Postura OSINT empitjorant en declaracions recents del cas.",
+        actor_map_posture_better="Postura OSINT millorant en declaracions recents del cas.",
+        actor_map_geo_risk="Risc geo",
+        actor_map_no_detail="Actor definit al Godet del cas; encara sense traçabilitat OSINT detallada.",
+        actor_map_source_note="Font: actors del projecte · impacte OSINT · MACTOR",
+        actor_map_case_focus="Focus del cas",
+        actor_map_statements="declaracions al cas",
+        actor_map_mactor="Mobilització MACTOR",
+        actor_map_force="Força estratègica",
+        actor_map_no_geo="Sense ubicació geogràfica al mapa (actor institucional o multilateral).",
     ),
     "es": ReportStrings(
         report_title="Informe prospectivo · EINA",
@@ -144,6 +198,33 @@ _STRINGS: dict[str, ReportStrings] = {
         probability="Probabilidad",
         most_likely="Escenario más probable",
         traceability_warning="Aviso: algunas conclusiones carecen de cita verificable.",
+        outlook_what_to_watch="Qué vigilar",
+        outlook_key_risks="Riesgos clave",
+        outlook_key_opportunities="Oportunidades clave",
+        outlook_scenarios="Escenarios con probabilidad",
+        outlook_dominant_scenario="Escenario dominante",
+        outlook_motricity="motricidad",
+        outlook_high_dependence="alta dependencia sistémica",
+        outlook_risk="Riesgo",
+        outlook_risk_default="Riesgos derivados de la incertidumbre del sistema y la trazabilidad OSINT",
+        outlook_confidence="confianza global",
+        outlook_opportunity="Oportunidad",
+        outlook_scenario_window="Ventana de escenario plausible:",
+        report_variant_full="Informe completo (metodología + anexos)",
+        report_variant_analytical="Informe analítico (estilo outlook EIU)",
+        outlook_source_note="Fuente: síntesis Godet · OSINT · Policy×Industria",
+        actor_map_title="Mapa de actores principales",
+        actor_map_lead="Actores del proyecto Godet de este caso, con lo que sabemos de OSINT y MACTOR.",
+        actor_map_posture_worse="Postura OSINT empeorando en declaraciones recientes del caso.",
+        actor_map_posture_better="Postura OSINT mejorando en declaraciones recientes del caso.",
+        actor_map_geo_risk="Riesgo geo",
+        actor_map_no_detail="Actor definido en el Godet del caso; aún sin trazabilidad OSINT detallada.",
+        actor_map_source_note="Fuente: actores del proyecto · impacto OSINT · MACTOR",
+        actor_map_case_focus="Foco del caso",
+        actor_map_statements="declaraciones en el caso",
+        actor_map_mactor="Movilización MACTOR",
+        actor_map_force="Fuerza estratégica",
+        actor_map_no_geo="Sin ubicación geográfica en el mapa (actor institucional o multilateral).",
     ),
     "en": ReportStrings(
         report_title="Prospective Report · EINA",
@@ -189,6 +270,33 @@ _STRINGS: dict[str, ReportStrings] = {
         probability="Probability",
         most_likely="Most likely scenario",
         traceability_warning="Warning: some conclusions lack verifiable citations.",
+        outlook_what_to_watch="What to watch",
+        outlook_key_risks="Key risks",
+        outlook_key_opportunities="Key opportunities",
+        outlook_scenarios="Scenarios with likelihood",
+        outlook_dominant_scenario="Dominant scenario",
+        outlook_motricity="motricity",
+        outlook_high_dependence="high systemic dependence",
+        outlook_risk="Risk",
+        outlook_risk_default="Risks from system uncertainty and OSINT traceability",
+        outlook_confidence="overall confidence",
+        outlook_opportunity="Opportunity",
+        outlook_scenario_window="Plausible scenario window:",
+        report_variant_full="Full report (methodology + annexes)",
+        report_variant_analytical="Analytical report (EIU outlook style)",
+        outlook_source_note="Source: Godet synthesis · OSINT · Policy×Industry",
+        actor_map_title="Map of key actors",
+        actor_map_lead="Actors from this case's Godet project, with OSINT and MACTOR findings.",
+        actor_map_posture_worse="OSINT posture deteriorating in recent case statements.",
+        actor_map_posture_better="OSINT posture improving in recent case statements.",
+        actor_map_geo_risk="Geo risk",
+        actor_map_no_detail="Actor defined in this case's Godet; no detailed OSINT traceability yet.",
+        actor_map_source_note="Source: project actors · OSINT impact · MACTOR",
+        actor_map_case_focus="Case focus",
+        actor_map_statements="statements in case",
+        actor_map_mactor="MACTOR mobilisation",
+        actor_map_force="Strategic force",
+        actor_map_no_geo="No geographic placement on map (institutional or multilateral actor).",
     ),
 }
 

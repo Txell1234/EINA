@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.investments import InvestmentRecommendation
 from services.financial_crossover_service import FinancialCrossoverService
+from services.geo_intelligence_service import GeoIntelligenceService
 from services.policy_industry_service import PolicyIndustryService
 
 
@@ -55,33 +56,58 @@ class InquiryFinancialService:
         avg_conf = round(sum(confs) / len(confs), 1) if confs else None
         companies = policy.get("companies") or []
 
+        geo_svc = GeoIntelligenceService(self.db)
+        geo_bundle = await geo_svc.build_bundle_for_case(case_id)
+        eina_summary = geo_svc.eina_case_summary_from_bundle(geo_bundle)
+        icg = geo_bundle.get("geopolitical_confidence_index")
+        posture = geo_bundle.get("investment_posture") or {}
+        posture_src = posture.get("source")
+        blend_value = icg if icg is not None else avg_conf
+        blend_source = "geopolitical_confidence_index" if icg is not None else "investment_avg"
+
         crossover = {
-            "methodology": "lite_policy_investment",
+            "methodology": "lite_policy_investment_icg",
             "llm_used_in_conclusions": False,
             "alignments": [],
             "divergences": [],
             "final_numbers": {
-                "eina_investment_confidence_avg": avg_conf,
+                "eina_investment_confidence_avg": icg if icg is not None else avg_conf,
+                "geopolitical_confidence_index": icg,
+                "investment_posture_confidence": avg_conf,
                 "policy_companies_mapped": len(companies),
-                "blended_return_index": avg_conf,
+                "blended_return_index": blend_value,
             },
             "final_numbers_explanations": {},
             "conclusions": [],
             "reasoning": [],
+            "eina_case_summary": eina_summary,
         }
 
-        if avg_conf is not None:
+        if icg is not None:
+            crossover["final_numbers_explanations"]["blended_return_index"] = {
+                "value": icg,
+                "because": geo_bundle.get("confidence_detail") or f"ICG {icg}% (lite inquiry, sense informe extern).",
+                "formula": geo_bundle.get("geopolitical_confidence_formula")
+                or "ICG = Σ(value×weight)/Σ(weight)",
+                "sources": [{"origin": "eina_geopolitical_confidence", "field": "geopolitical_confidence_index"}],
+            }
+            crossover["conclusions"].append(f"Confiança geo-estratègica (ICG): {icg}% — mode lite sense informe extern.")
+            if posture_src == "default_fallback" and avg_conf is not None:
+                crossover["conclusions"].append(
+                    f"Postura inversió per defecte: HOLD {avg_conf}% (separada de l'ICG)."
+                )
+        elif avg_conf is not None:
             crossover["final_numbers_explanations"]["blended_return_index"] = {
                 "value": avg_conf,
                 "because": (
                     f"Lite crossover: mitjana confiança {len(confs)} recomanacions d'inversió EINA "
-                    f"({', '.join(str(c) for c in confs)})."
+                    f"({', '.join(str(c) for c in confs)}). ICG no disponible — executa intel·ligència."
                 ),
                 "formula": "mean(investment.confidence_pct)",
                 "sources": [{"origin": "eina_investments", "field": "confidence_pct"}],
             }
             crossover["conclusions"].append(
-                f"Confiança mitjana inversions EINA: {avg_conf}% (sense informe extern)."
+                f"Confiança mitjana inversions EINA: {avg_conf}% (ICG pendent — sense dades OSINT)."
             )
 
         if companies:
@@ -99,5 +125,7 @@ class InquiryFinancialService:
             "mode": "lite",
             "policy_industry": policy,
             "investments": investments,
+            "geopolitical_confidence": geo_bundle,
             "crossover": crossover,
+            "blend_source": blend_source,
         }

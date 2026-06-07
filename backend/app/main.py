@@ -163,6 +163,10 @@ _monitor_batch_running = False
 _inquiry_batch_running = False
 
 
+def _inquiry_worker_is_standalone() -> bool:
+    return (settings.INQUIRY_WORKER_MODE or "embedded").strip().lower() == "standalone"
+
+
 async def _run_monitor_batch() -> None:
     """Run OSINT monitor checks without blocking the HTTP event loop."""
     global _monitor_batch_running
@@ -209,15 +213,22 @@ async def _run_inquiry_batch() -> None:
     _inquiry_batch_running = True
     try:
         from app.database import AsyncSessionLocal
+        from observability.inquiry_job_queue import is_inquiry_job_queue_enabled
         from services.inquiry_scheduler_service import InquirySchedulerService
 
         async with AsyncSessionLocal() as db:
-            summary = await InquirySchedulerService(db).run_due_batch(limit=5)
-        if summary.get("due"):
+            svc = InquirySchedulerService(db)
+            if is_inquiry_job_queue_enabled() and _inquiry_worker_is_standalone():
+                summary = await svc.enqueue_due_batch(limit=max(settings.INQUIRY_WORKER_BATCH_SIZE * 2, 10))
+            else:
+                summary = await svc.run_due_batch(limit=settings.INQUIRY_WORKER_BATCH_SIZE)
+        if summary.get("due") or summary.get("processed") or summary.get("enqueued"):
             logger.info(
-                "Inquiry scheduler: %d due, %d processed",
-                summary["due"],
+                "Inquiry scheduler: due=%s enqueued=%s processed=%s mode=%s",
+                summary.get("due", 0),
+                summary.get("enqueued", 0),
                 summary.get("processed", 0),
+                summary.get("mode", "standalone_enqueue" if _inquiry_worker_is_standalone() else "inline"),
             )
     except asyncio.CancelledError:
         raise
@@ -429,6 +440,27 @@ async def health_check():
             "Q2FS_STEP_CACHE_BACKEND=redis però Redis no respon — revisa REDIS_URL o usa memory"
         )
 
+    from observability.inquiry_job_queue import (
+        get_inquiry_job_queue_stats,
+        is_inquiry_job_queue_enabled,
+        resolve_inquiry_job_queue_backend,
+    )
+
+    job_queue_stats = await get_inquiry_job_queue_stats()
+    job_queue_backend = resolve_inquiry_job_queue_backend()
+    if (
+        is_inquiry_job_queue_enabled()
+        and job_queue_backend == "redis"
+        and redis_status.get("status") != "available"
+    ):
+        recommendations.append(
+            "INQUIRY_JOB_QUEUE_BACKEND=redis però Redis no respon — cau a memory o usa inline"
+        )
+    if job_queue_stats.get("queued", 0) > 50:
+        recommendations.append(
+            "Cua d'inquiry jobs elevada (>50) — considera worker standalone o augmentar batch size"
+        )
+
     return JSONResponse({
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
@@ -451,6 +483,12 @@ async def health_check():
             "inquiry_scheduler": {
                 "enabled": settings.INQUIRY_SCHEDULER_ENABLED,
                 "interval_hours": settings.INQUIRY_SCHEDULER_INTERVAL_HOURS,
+                "worker_mode": settings.INQUIRY_WORKER_MODE,
+                "batch_size": settings.INQUIRY_WORKER_BATCH_SIZE,
+            },
+            "inquiry_job_queue": {
+                "backend": job_queue_backend,
+                **job_queue_stats,
             },
         },
         "recommendations": recommendations,

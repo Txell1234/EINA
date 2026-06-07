@@ -7,6 +7,7 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 import RouteSkeleton from './components/shared/RouteSkeleton'
 import { AuthProvider, ProtectedRoute } from './contexts/AuthContext'
 import { CaseProvider } from './contexts/CaseContext'
+import { ProjectProvider } from './contexts/ProjectContext'
 import { I18nProvider } from './contexts/I18nContext'
 
 const OSINTIntelligenceDashboard = lazy(
@@ -37,7 +38,7 @@ const ProspectiveAnalysis = lazy(
 )
 const DirectAnalysis = lazy(() => import('./components/DirectAnalysis/DirectAnalysis'))
 const IntelligenceCenter = lazy(() => import('./components/Intelligence/IntelligenceCenter'))
-const InquiryDashboard = lazy(() => import('./components/Intelligence/InquiryDashboard'))
+const Q2fsWorkspace = lazy(() => import('./components/Intelligence/Q2fsWorkspace'))
 
 function AppRoutes() {
   return (
@@ -61,7 +62,7 @@ function AppRoutes() {
           <Route path="data-synchronization" element={<ProspectiveAnalysis entryStep={0} />} />
           <Route path="direct-analysis" element={<DirectAnalysis />} />
           <Route path="intelligence" element={<IntelligenceCenter />} />
-          <Route path="prospective/inquiries" element={<InquiryDashboard />} />
+          <Route path="prospective/inquiries" element={<Q2fsWorkspace />} />
           <Route path="admin" element={<AdminPanel />} />
           <Route path="reputation" element={<ReputationDashboard />} />
           <Route path="public-affairs" element={<PublicAffairsDashboard />} />
@@ -95,9 +96,11 @@ function App() {
       <ErrorBoundary>
         <I18nProvider>
           <CaseProvider>
-            <AuthProvider>
-              <AppRoutes />
-            </AuthProvider>
+            <ProjectProvider>
+              <AuthProvider>
+                <AppRoutes />
+              </AuthProvider>
+            </ProjectProvider>
           </CaseProvider>
         </I18nProvider>
       </ErrorBoundary>

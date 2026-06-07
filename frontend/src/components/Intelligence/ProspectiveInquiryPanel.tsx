@@ -7,10 +7,18 @@ import { prospectiveInquiryService } from '../../services/api'
 import CcaHeatmapPanel, { type CcaCell } from './CcaHeatmapPanel'
 import InquiryComparePanel, { type InquiryCompareItem } from './InquiryComparePanel'
 import InquiryTracePanel, { type ScopeAuditData, type AuditTrailEntry } from './InquiryTracePanel'
+import StepProgress from '../shared/StepProgress'
 import './ProspectiveInquiryPanel.css'
+import './q2fs-tokens.css'
 
 type ProspectiveInquiryPanelProps = {
   caseId: number
+  defaultExportTemplate?: string
+  showSaveControls?: boolean
+  /** Hide question input when GodetLaunchPanel handles it */
+  compact?: boolean
+  /** Inquiry ID launched externally (GodetLaunchPanel) */
+  activeInquiryId?: number | null
 }
 
 type StepState = {
@@ -35,7 +43,13 @@ const GODET_CHECKLIST: Array<{
   { key: 'scenarios', labelKey: 'inquiry.panel.godet.scenarios', path: '/prospective-analysis' },
 ]
 
-export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPanelProps) {
+export default function ProspectiveInquiryPanel({
+  caseId,
+  defaultExportTemplate = 'eina',
+  showSaveControls = false,
+  compact = false,
+  activeInquiryId = null,
+}: ProspectiveInquiryPanelProps) {
   const { t } = useI18n()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
@@ -58,6 +72,17 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
   >([])
   const [scopeAuditLive, setScopeAuditLive] = useState<ScopeAuditData | null>(null)
   const [parsePreview, setParsePreview] = useState<Record<string, unknown> | null>(null)
+  const [exportTemplate, setExportTemplate] = useState(defaultExportTemplate)
+  const [reportTitle, setReportTitle] = useState('')
+  const [isSaved, setIsSaved] = useState(false)
+
+  useEffect(() => {
+    setExportTemplate(defaultExportTemplate)
+  }, [defaultExportTemplate])
+
+  useEffect(() => {
+    if (activeInquiryId) setLastInquiryId(activeInquiryId)
+  }, [activeInquiryId])
 
   const { data: inquiries = [] } = useQuery({
     queryKey: ['prospective-inquiries', caseId],
@@ -313,12 +338,15 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
       className={`prospective-inquiry-panel card${isRunning ? ' prospective-inquiry-panel--running' : ''}`}
       data-testid="prospective-inquiry-panel"
     >
-      <header>
-        <h3>{t('inquiry.panel.title')}</h3>
-        <p className="prospective-inquiry-panel__sub">{t('inquiry.panel.subtitle')}</p>
-        <span className="prospective-inquiry-panel__badge">{t('inquiry.panel.badge')}</span>
-      </header>
+      {!compact && (
+        <header>
+          <h3>{t('inquiry.panel.title')}</h3>
+          <p className="prospective-inquiry-panel__sub">{t('inquiry.panel.subtitle')}</p>
+          <span className="prospective-inquiry-panel__badge">{t('inquiry.panel.badge')}</span>
+        </header>
+      )}
 
+      {!compact && (
       <textarea
         rows={3}
         value={question}
@@ -326,8 +354,9 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
         placeholder={t('inquiry.panel.questionPlaceholder')}
         data-testid="inquiry-question"
       />
+      )}
 
-      {parsePreview?.ok ? (
+      {!compact && parsePreview?.ok ? (
         <p className="prospective-inquiry-panel__parse-preview" data-testid="inquiry-parse-preview">
           <strong>{t('inquiry.panel.parse.label')}</strong>
           <span>{t('inquiry.panel.parse.confidence', { value: String(parsePreview.confidence ?? '—') })}</span>
@@ -336,6 +365,7 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
         </p>
       ) : null}
 
+      {!compact && (
       <div className="prospective-inquiry-panel__row prospective-inquiry-panel__actions">
         <label>
           {t('inquiry.panel.mode.label')}
@@ -384,6 +414,16 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
           {runMutation.isPending ? t('inquiry.panel.launch.running') : t('inquiry.panel.launch')}
         </button>
       </div>
+      )}
+
+      {compact && (
+        <header>
+          <h3>Resultats, traçabilitat i exportació</h3>
+          <p className="prospective-inquiry-panel__sub">
+            Després d&apos;activar Godet, revisa la síntesi, completa el checklist i exporta l&apos;informe.
+          </p>
+        </header>
+      )}
 
       {exportId && (
         <div className="prospective-inquiry-panel__row">
@@ -417,31 +457,18 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
       )}
 
       {steps.length > 0 && (
-        <div className="prospective-inquiry-panel__steps" data-testid="inquiry-steps">
-          <h4>{t('inquiry.panel.steps.title')}</h4>
-          <ul>
-            {steps.map((s) => {
-              const statusKey = (s.cached ? 'cached' : s.status || 'pending')
-                .toLowerCase()
-                .replace(/\s+/g, '_')
-              return (
-                <li
-                  key={s.step}
-                  className={`prospective-inquiry-panel__step prospective-inquiry-panel__step--${statusKey}`}
-                >
-                  <strong>{s.step}</strong>
-                  <span className="prospective-inquiry-panel__step-status">{s.status}</span>
-                  {s.cached ? (
-                    <span className="prospective-inquiry-panel__step-status">{t('inquiry.panel.steps.cached')}</span>
-                  ) : null}
-                  {s.detail ? (
-                    <span className="prospective-inquiry-panel__step-detail">{s.detail}</span>
-                  ) : null}
-                </li>
-              )
-            })}
-          </ul>
-        </div>
+        <StepProgress
+          title={t('inquiry.panel.steps.title')}
+          cachedLabel={t('inquiry.panel.steps.cached')}
+          testId="inquiry-steps"
+          steps={steps.map((s) => ({
+            id: s.step,
+            label: s.step,
+            status: s.status,
+            cached: s.cached,
+            detail: s.detail,
+          }))}
+        />
       )}
 
       {showGodetGuide && (
@@ -644,27 +671,89 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
       )}
 
       {exportId && (
-        <p className="prospective-inquiry-panel__export">
-          <a
-            href={prospectiveInquiryService.exportHtmlUrl(exportId)}
-            target="_blank"
-            rel="noreferrer"
-          >
-            {t('inquiry.panel.export.html', { id: exportId })}
-          </a>
-          {' · '}
-          <a
-            href={prospectiveInquiryService.exportPdfUrl(exportId)}
-            target="_blank"
-            rel="noreferrer"
-          >
-            {t('inquiry.panel.export.pdf')}
-          </a>
-        </p>
+        <div className="prospective-inquiry-panel__export-block">
+          <div className="prospective-inquiry-panel__row">
+            <label>
+              Estil informe
+              <select
+                value={exportTemplate}
+                onChange={(e) => setExportTemplate(e.target.value)}
+                data-testid="inquiry-export-template"
+              >
+                <option value="eina">EINA Intelligence</option>
+                <option value="intelligence">Intelligence Unit Brief</option>
+                <option value="economist">The Economist Style</option>
+                <option value="graphics">Graphics &amp; Data</option>
+              </select>
+            </label>
+            {showSaveControls && (
+              <>
+                <label>
+                  Títol informe
+                  <input
+                    type="text"
+                    value={reportTitle}
+                    onChange={(e) => setReportTitle(e.target.value)}
+                    placeholder={`Inquiry #${exportId}`}
+                    maxLength={200}
+                  />
+                </label>
+                <label className="prospective-inquiry-panel__check">
+                  <input
+                    type="checkbox"
+                    checked={isSaved}
+                    onChange={(e) => setIsSaved(e.target.checked)}
+                  />
+                  Conservar a biblioteca
+                </label>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() =>
+                    void prospectiveInquiryService
+                      .updateReportMeta(exportId, {
+                        is_saved: isSaved,
+                        report_title: reportTitle || `Inquiry #${exportId}`,
+                        export_template: exportTemplate,
+                      })
+                      .then(() => alert('Informe desat a la biblioteca Q2FS.'))
+                  }
+                >
+                  Desar configuració
+                </button>
+              </>
+            )}
+          </div>
+          <p className="prospective-inquiry-panel__export">
+            <a
+              href={prospectiveInquiryService.exportHtmlUrl(exportId, exportTemplate)}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {t('inquiry.panel.export.html', { id: exportId })}
+            </a>
+            {' · '}
+            <a
+              href={prospectiveInquiryService.exportPdfUrl(exportId, exportTemplate)}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {t('inquiry.panel.export.pdf')}
+            </a>
+            {' · '}
+            <a
+              href={prospectiveInquiryService.exportDocxUrl(exportId, exportTemplate)}
+              target="_blank"
+              rel="noreferrer"
+            >
+              DOCX (Word)
+            </a>
+          </p>
+        </div>
       )}
 
       {((compareData?.items as InquiryCompareItem[] | undefined)?.length ?? 0) >= 2 && (
-        <details open className="prospective-inquiry-panel__compare">
+        <details open className="prospective-inquiry-panel__compare" id="inquiry-compare">
           <summary>{t('inquiry.panel.compare.title', { count: compareData?.count ?? 0 })}</summary>
           <InquiryComparePanel
             items={(compareData?.items as InquiryCompareItem[]) ?? []}
@@ -673,6 +762,22 @@ export default function ProspectiveInquiryPanel({ caseId }: ProspectiveInquiryPa
             }
             onOpenWizard={(id, pid) => void openWizard(id, pid)}
           />
+          <div className="prospective-inquiry-panel__compare-actions">
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => void prospectiveInquiryService.exportExecutive({ caseId, output: 'html' })}
+            >
+              {t('inquiry.exportExecutive')}
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => void prospectiveInquiryService.exportExecutive({ caseId, output: 'pdf' })}
+            >
+              {t('inquiry.exportExecutivePdf')}
+            </button>
+          </div>
         </details>
       )}
 

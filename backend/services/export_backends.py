@@ -29,6 +29,11 @@ WEASYPRINT_INSTALL_HINT = (
     "Windows: https://doc.courtbouillon.org/weasyprint/stable/first_steps.html"
 )
 
+PLAYWRIGHT_INSTALL_HINT = (
+    "pip install playwright && python -m playwright install chromium "
+    "(fallback PDF quan WeasyPrint no està disponible, p.ex. Windows local)"
+)
+
 
 class ExportBackendError(Exception):
     """Raised when an export backend is unavailable or fails."""
@@ -89,6 +94,86 @@ def probe_weasyprint(*, smoke_test: bool = False) -> dict[str, Any]:
         }
 
 
+def probe_playwright(*, smoke_test: bool = False) -> dict[str, Any]:
+    """Chromium headless PDF via Playwright (works on Windows without GTK/Cairo)."""
+    try:
+        from playwright.sync_api import sync_playwright
+
+        version = getattr(sync_playwright, "__version__", "unknown")
+        if smoke_test:
+            buf = io.BytesIO()
+            with sync_playwright() as p:
+                browser = p.chromium.launch()
+                page = browser.new_page()
+                page.set_content("<html><body><p>EINA</p></body></html>", wait_until="networkidle")
+                data = page.pdf(format="A4", print_background=True)
+                browser.close()
+            buf.write(data)
+            if len(buf.getvalue()) < 100:
+                return {
+                    "available": False,
+                    "version": version,
+                    "error": "smoke_test_failed",
+                    "message": "PDF generat buit",
+                    "install_hint": PLAYWRIGHT_INSTALL_HINT,
+                }
+        return {
+            "available": True,
+            "version": version,
+            "install_hint": PLAYWRIGHT_INSTALL_HINT,
+        }
+    except ImportError as exc:
+        return {
+            "available": False,
+            "error": "import",
+            "message": str(exc),
+            "install_hint": PLAYWRIGHT_INSTALL_HINT,
+        }
+    except Exception as exc:
+        return {
+            "available": False,
+            "error": "runtime",
+            "message": str(exc),
+            "install_hint": PLAYWRIGHT_INSTALL_HINT,
+        }
+
+
+def probe_pdf_renderers(*, smoke_test: bool = False) -> dict[str, Any]:
+    """Aggregate PDF backend availability (WeasyPrint preferred, Playwright fallback)."""
+    weasy = probe_weasyprint(smoke_test=smoke_test)
+    playwright = probe_playwright(smoke_test=smoke_test)
+    preferred = None
+    if weasy.get("available"):
+        preferred = "weasyprint"
+    elif playwright.get("available"):
+        preferred = "playwright"
+    return {
+        "available": bool(preferred),
+        "preferred": preferred,
+        "weasyprint": weasy,
+        "playwright": playwright,
+    }
+
+
+def _render_pdf_weasyprint(html: str, path: Path, *, base_url: str | None = None) -> None:
+    from weasyprint import HTML
+
+    base = base_url or str(path.parent.resolve())
+    HTML(string=html, base_url=base).write_pdf(str(path))
+
+
+def _render_pdf_playwright(html: str, path: Path) -> None:
+    from playwright.sync_api import sync_playwright
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.set_content(html, wait_until="networkidle")
+        page.pdf(path=str(path), format="A4", print_background=True, margin={"top": "12mm", "bottom": "12mm"})
+        browser.close()
+
+
 def probe_openpyxl() -> dict[str, Any]:
     try:
         import openpyxl
@@ -107,18 +192,36 @@ def probe_openpyxl() -> dict[str, Any]:
 
 
 def render_pdf_from_html(html: str, path: Path, *, base_url: str | None = None) -> None:
-    """Write PDF to path; raises ExportBackendError if WeasyPrint is unavailable."""
-    status = probe_weasyprint(smoke_test=False)
-    if not status.get("available"):
-        raise ExportBackendError(
-            "weasyprint",
-            status.get("message", "no disponible"),
-            hint=status.get("install_hint"),
-        )
-    from weasyprint import HTML
+    """Write PDF to path using WeasyPrint or Playwright fallback."""
+    weasy = probe_weasyprint(smoke_test=False)
+    if weasy.get("available"):
+        try:
+            _render_pdf_weasyprint(html, path, base_url=base_url)
+            return
+        except Exception as exc:
+            logger.warning("WeasyPrint PDF failed, trying Playwright: %s", exc)
 
-    base = base_url or str(path.parent.resolve())
-    HTML(string=html, base_url=base).write_pdf(str(path))
+    playwright = probe_playwright(smoke_test=False)
+    if playwright.get("available"):
+        try:
+            _render_pdf_playwright(html, path)
+            return
+        except Exception as exc:
+            raise ExportBackendError(
+                "playwright",
+                str(exc),
+                hint=playwright.get("install_hint"),
+            ) from exc
+
+    hint = (
+        f"{weasy.get('install_hint', WEASYPRINT_INSTALL_HINT)} · "
+        f"Alternativa: {PLAYWRIGHT_INSTALL_HINT}"
+    )
+    raise ExportBackendError(
+        "pdf",
+        weasy.get("message") or playwright.get("message") or "Cap motor PDF disponible",
+        hint=hint,
+    )
 
 
 def _sheet_title(name: str) -> str:

@@ -31,6 +31,7 @@ import {
 import type { LucideIcon } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useCase } from '../contexts/CaseContext'
+import { useProject, withActiveProject } from '../contexts/ProjectContext'
 import { useCasesList } from '../hooks/useCasesList'
 import { briefCaseDescription, countPromptLines, toActiveCase } from '../utils/caseUtils'
 import { useI18n } from '../contexts/I18nContext'
@@ -168,7 +169,8 @@ export default function Layout() {
   const location = useLocation()
   const navigate = useNavigate()
   const { activeCase, setActiveCase, clearActiveCase } = useCase()
-  const { logout } = useAuth()
+  const { activeProject, clearActiveProject } = useProject()
+  const { logout, isAuthenticated } = useAuth()
   const { t, locale, setLocale } = useI18n()
   const [collapsed, setCollapsed] = useState(readSidebarCollapsed)
 
@@ -187,7 +189,7 @@ export default function Layout() {
   const { data: monitorSummary } = useQuery({
     queryKey: ['monitor-summary', activeCase?.id],
     queryFn: () => prospectiveService.getMonitorSummary(activeCase?.id),
-    enabled: Boolean(activeCase?.id),
+    enabled: Boolean(activeCase?.id && isAuthenticated),
     retry: 1,
     retryDelay: 10_000,
     refetchOnWindowFocus: false,
@@ -228,7 +230,27 @@ export default function Layout() {
   const handleLogout = () => {
     logout()
     clearActiveCase()
+    clearActiveProject()
     navigate('/login')
+  }
+
+  const PROSPECTIVE_NAV_PREFIXES = [
+    '/prospective/project',
+    '/prospective/retrospective',
+    '/prospective/variables',
+    '/prospective/micmac',
+    '/prospective/actors',
+    '/prospective/mactor',
+    '/prospective/morph',
+    '/prospective-analysis',
+    '/data-synchronization',
+  ]
+
+  const navTo = (path: string) => {
+    if (activeProject && PROSPECTIVE_NAV_PREFIXES.some((p) => path === p || path.startsWith(`${p}?`))) {
+      return withActiveProject(path, activeProject.id)
+    }
+    return path
   }
 
   return (
@@ -278,6 +300,14 @@ export default function Layout() {
                 {activeCase.extraction_count ? ` · ${activeCase.extraction_count} decl.` : ''}
               </div>
             )}
+            {!collapsed && activeProject ? (
+              <div className="active-case-meta active-project-meta">
+                <Link to="/intelligence" className="active-project-link">
+                  Projecte #{activeProject.id}: {activeProject.title.slice(0, 40)}
+                  {activeProject.title.length > 40 ? '…' : ''}
+                </Link>
+              </div>
+            ) : null}
           </div>
         ) : (
           !collapsed && <div className="sidebar-no-case">{t('layout.noCase')}</div>
@@ -294,7 +324,7 @@ export default function Layout() {
                 return (
                   <Link
                     key={item.path}
-                    to={item.path}
+                    to={navTo(item.path)}
                     className={`nav-item ${active ? 'active' : ''}`}
                     title={collapsed ? t(item.labelKey) : undefined}
                   >

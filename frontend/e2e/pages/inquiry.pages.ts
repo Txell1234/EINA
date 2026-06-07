@@ -8,8 +8,9 @@ export class InquiryDashboardPage {
   constructor(readonly page: Page) {}
 
   async goto() {
-    await this.page.goto('/prospective/inquiries')
-    await expect(this.page.getByText(`Total: 1`)).toBeVisible({ timeout: 20_000 })
+    await this.page.goto('/prospective/inquiries?tab=all')
+    await expect(this.root).toBeVisible({ timeout: 20_000 })
+    await expect(this.page.getByText(/Total:/)).toBeVisible()
   }
 
   get root() {
@@ -20,8 +21,24 @@ export class InquiryDashboardPage {
     return this.page.getByTestId('inquiry-dashboard-export')
   }
 
+  get scheduleEnableButton() {
+    return this.page.getByTestId('inquiry-dashboard-schedule-enable')
+  }
+
+  get scheduleInterval() {
+    return this.page.getByTestId('inquiry-dashboard-schedule-interval')
+  }
+
+  get executiveButton() {
+    return this.page.getByTestId('inquiry-dashboard-executive')
+  }
+
+  get searchInput() {
+    return this.page.getByTestId('inquiry-dashboard-search')
+  }
+
   get heading() {
-    return this.page.getByRole('heading', { name: 'Inquiries Q2FS' })
+    return this.page.getByTestId('inquiry-dashboard-heading')
   }
 
   rowCheckbox(index = 0) {
@@ -30,6 +47,29 @@ export class InquiryDashboardPage {
 
   wizardLink() {
     return this.page.getByRole('link', { name: 'Wizard' })
+  }
+}
+
+export class MorphExplorerPage {
+  constructor(readonly page: Page) {}
+
+  async goto(projectId = 7, inquiryId?: number) {
+    const qs = new URLSearchParams({ project: String(projectId) })
+    if (inquiryId) qs.set('inquiry', String(inquiryId))
+    await this.page.goto(`/prospective/morph?${qs.toString()}`)
+    await expect(this.page.getByTestId('morph-box')).toBeVisible({ timeout: 20_000 })
+  }
+
+  get explorer() {
+    return this.page.getByTestId('morph-explorer')
+  }
+
+  get filter() {
+    return this.page.getByTestId('morph-explorer-filter')
+  }
+
+  get validCount() {
+    return this.page.getByTestId('morph-explorer-valid-count')
   }
 }
 

@@ -2,10 +2,17 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useCase, type ActiveCase } from '../../contexts/CaseContext'
+import { useProject } from '../../contexts/ProjectContext'
 import { useI18n } from '../../contexts/I18nContext'
 import type { PanelTranslationKey } from '../../i18n/panelBundles'
 import { useCasesList } from '../../hooks/useCasesList'
-import { extractService, prospectiveInquiryService, prospectiveService } from '../../services/api'
+import {
+  extractService,
+  healthService,
+  parseExportError,
+  prospectiveInquiryService,
+  prospectiveService,
+} from '../../services/api'
 import MorphBox from './MorphBox'
 import ExtractStatementsTable from '../shared/ExtractStatementsTable'
 import AnalysisScopeBar from '../shared/AnalysisScopeBar'
@@ -19,6 +26,7 @@ import MethodologyHint from './MethodologyHint'
 import MicmacScatterChart from './MicmacScatterChart'
 import MactorSociogram from './MactorSociogram'
 import RetroStep from './RetroStep'
+import FormattedNarrative from './FormattedNarrative'
 import './ProspectiveAnalysis.css'
 
 const STEP_LABEL_KEYS: PanelTranslationKey[] = [
@@ -189,6 +197,7 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
   const stepLabels = useMemo(() => STEP_LABEL_KEYS.map((key) => t(key)), [t])
   const queryClient = useQueryClient()
   const { activeCase, setActiveCase } = useCase()
+  const { activeProject, setActiveProject } = useProject()
   const [searchParams] = useSearchParams()
   const [step, setStep] = useState(entryStep)
 
@@ -198,9 +207,11 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
 
   const [projectId, setProjectId] = useState<number | null>(() => {
     const pid = searchParams.get('project')
-    if (!pid) return null
-    const id = Number(pid)
-    return Number.isNaN(id) ? null : id
+    if (pid) {
+      const id = Number(pid)
+      if (!Number.isNaN(id)) return id
+    }
+    return activeProject?.id ?? null
   })
   const inquiryLinkId = searchParams.get('inquiry')
   const linkedInquiryId =
@@ -208,10 +219,13 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
 
   useEffect(() => {
     const pid = searchParams.get('project')
-    if (!pid) return
-    const id = Number(pid)
-    if (!Number.isNaN(id)) setProjectId(id)
-  }, [searchParams])
+    if (pid) {
+      const id = Number(pid)
+      if (!Number.isNaN(id)) setProjectId(id)
+      return
+    }
+    if (activeProject?.id) setProjectId(activeProject.id)
+  }, [searchParams, activeProject?.id])
 
   const { data: linkedInquiry } = useQuery({
     queryKey: ['prospective-inquiry-wizard-link', linkedInquiryId],
@@ -221,6 +235,67 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [reportLang, setReportLang] = useState<'ca' | 'es' | 'en'>('ca')
   const [includeDecisionAnnex, setIncludeDecisionAnnex] = useState(false)
+  const [exportingFormat, setExportingFormat] = useState<'pdf' | 'docx' | 'html' | null>(null)
+  const [pdfExportAvailable, setPdfExportAvailable] = useState<boolean | null>(null)
+  const [reportExportTemplate, setReportExportTemplate] = useState('eina')
+  const [reportVariant, setReportVariant] = useState<'full' | 'analytical'>('analytical')
+
+  useEffect(() => {
+    let cancelled = false
+    healthService
+      .getStatus()
+      .then((status) => {
+        if (!cancelled) {
+          setPdfExportAvailable(status.services?.export?.weasyprint?.available === true)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setPdfExportAvailable(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const handleReportExport = async (format: 'pdf' | 'docx' | 'html') => {
+    if (projectId === null || exportingFormat !== null) return
+    if (format === 'pdf' && pdfExportAvailable === false) {
+      alert('PDF natiu no disponible en aquest entorn (WeasyPrint). Usa HTML o DOCX.')
+      return
+    }
+    setExportingFormat(format)
+    try {
+      if (format === 'pdf') {
+        await prospectiveService.exportPdf(
+          projectId,
+          reportLang,
+          includeDecisionAnnex,
+          reportExportTemplate,
+          reportVariant,
+        )
+      } else if (format === 'docx') {
+        await prospectiveService.exportDocx(
+          projectId,
+          reportLang,
+          includeDecisionAnnex,
+          reportExportTemplate,
+          reportVariant,
+        )
+      } else {
+        await prospectiveService.exportHtml(
+          projectId,
+          reportLang,
+          includeDecisionAnnex,
+          reportExportTemplate,
+          reportVariant,
+        )
+      }
+    } catch (err: unknown) {
+      alert(await parseExportError(err))
+    } finally {
+      setExportingFormat(null)
+    }
+  }
 
   const [title, setTitle] = useState('')
   const [hypothesis, setHypothesis] = useState('')
@@ -381,6 +456,7 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
   useEffect(() => {
     if (!projectDetail) return
     const pd = projectDetail as {
+      id?: number
       title?: string
       hypothesis?: string
       context?: string
@@ -449,7 +525,14 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
         })),
       )
     }
-  }, [projectDetail])
+    if (projectId && pd.title) {
+      setActiveProject({
+        id: projectId,
+        title: pd.title,
+        case_id: pd.case_id ?? activeCase?.id ?? 0,
+      })
+    }
+  }, [projectDetail, projectId, setActiveProject, activeCase?.id])
 
   useEffect(() => {
     if (!linkedInquiry || !linkedInquiryId) return
@@ -470,6 +553,11 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
       }),
     onSuccess: (data: { id: number }) => {
       setProjectId(data.id)
+      setActiveProject({
+        id: data.id,
+        title: title.trim() || 'Projecte sense títol',
+        case_id: caseIdStr ? Number(caseIdStr) : activeCase?.id ?? 0,
+      })
       setErrorMsg(null)
       void queryClient.invalidateQueries({ queryKey: ['prospective-projects'] })
       const cid = caseIdStr.trim() ? Number(caseIdStr) : NaN
@@ -2347,7 +2435,7 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
           {[0, 1, 2, 3].map((idx) => (
             <div key={idx} className="prospective-stream-panel">
               <h3>{streamMeta[idx] ?? `Escenari ${idx + 1}`}</h3>
-              <div className="prospective-narrative">{streamTexts[idx] ?? ''}</div>
+              <FormattedNarrative text={streamTexts[idx] ?? ''} className="prospective-narrative" />
             </div>
           ))}
 
@@ -2612,7 +2700,9 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
                   alignSelf: 'center',
                 }}
               >
-                Descarregar informe complet (resum executiu + variables motivades):
+                Descarregar informe Godet (
+                {reportVariant === 'analytical' ? 'analític · outlook' : 'complet · metodologia'}
+                ):
               </span>
               <label style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-gray-600)', display: 'flex', alignItems: 'center', gap: 6 }}>
                 Idioma
@@ -2625,6 +2715,32 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
                   <option value="ca">Català</option>
                   <option value="es">Castellà</option>
                   <option value="en">English</option>
+                </select>
+              </label>
+              <label style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-gray-600)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                Tipus informe
+                <select
+                  className="prospective-select"
+                  value={reportVariant}
+                  onChange={(e) => setReportVariant(e.target.value as 'full' | 'analytical')}
+                  style={{ width: 'auto', padding: '4px 8px', fontSize: 'var(--font-size-xs)' }}
+                >
+                  <option value="analytical">Analític (outlook EIU)</option>
+                  <option value="full">Complet (Godet + annexos)</option>
+                </select>
+              </label>
+              <label style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-gray-600)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                Estil
+                <select
+                  className="prospective-select"
+                  value={reportExportTemplate}
+                  onChange={(e) => setReportExportTemplate(e.target.value)}
+                  style={{ width: 'auto', padding: '4px 8px', fontSize: 'var(--font-size-xs)' }}
+                >
+                  <option value="eina">EINA Intelligence</option>
+                  <option value="intelligence">Intelligence Unit</option>
+                  <option value="economist">Economist</option>
+                  <option value="graphics">Graphics &amp; Data</option>
                 </select>
               </label>
               <label
@@ -2644,49 +2760,36 @@ export default function ProspectiveAnalysis({ entryStep = 0 }: ProspectiveAnalys
                 />
                 Annex de decisió
               </label>
+              {pdfExportAvailable === false && (
+                <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-gray-500)' }}>
+                  PDF natiu no disponible aquí — usa HTML o DOCX.
+                </span>
+              )}
               <button
                 type="button"
                 className="btn btn-accent"
                 title="Requereix WeasyPrint (Linux). A Windows usa HTML o DOCX."
-                onClick={async () => {
-                  try {
-                    await prospectiveService.exportPdf(projectId, reportLang, includeDecisionAnnex)
-                  } catch (err: unknown) {
-                    const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-                    alert(typeof detail === 'string' ? detail : 'No s\'ha pogut exportar el PDF.')
-                  }
-                }}
+                disabled={exportingFormat !== null || pdfExportAvailable === false}
+                onClick={() => void handleReportExport('pdf')}
               >
-                PDF
+                {exportingFormat === 'pdf' ? 'Generant PDF…' : 'PDF'}
               </button>
               <button
                 type="button"
                 className="btn btn-primary"
-                onClick={async () => {
-                  try {
-                    await prospectiveService.exportDocx(projectId, reportLang, includeDecisionAnnex)
-                  } catch (err: unknown) {
-                    const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-                    alert(typeof detail === 'string' ? detail : 'No s\'ha pogut exportar el DOCX.')
-                  }
-                }}
+                disabled={exportingFormat !== null}
+                onClick={() => void handleReportExport('docx')}
               >
-                DOCX (Word)
+                {exportingFormat === 'docx' ? 'Generant DOCX…' : 'DOCX (Word)'}
               </button>
               <button
                 type="button"
                 className="btn btn-secondary"
                 title="Obre l'informe complet en HTML; des del navegador pots imprimir com a PDF"
-                onClick={async () => {
-                  try {
-                    await prospectiveService.exportHtml(projectId, reportLang, includeDecisionAnnex)
-                  } catch (err: unknown) {
-                    const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-                    alert(typeof detail === 'string' ? detail : 'No s\'ha pogut exportar l\'HTML.')
-                  }
-                }}
+                disabled={exportingFormat !== null}
+                onClick={() => void handleReportExport('html')}
               >
-                HTML / Imprimir PDF
+                {exportingFormat === 'html' ? 'Generant HTML…' : 'HTML / Imprimir PDF'}
               </button>
             </div>
           )}

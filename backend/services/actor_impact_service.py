@@ -23,6 +23,7 @@ from models.prospective import (
     ProspectiveScenario,
 )
 from services.actor_impact_utils import (
+    coerce_evidence_text,
     build_osint_signals,
     canonical_actor,
     ensure_four_scenarios,
@@ -224,7 +225,9 @@ class ActorImpactService:
                     rec["countries"].add(str(country))
                     rec["evidence"].append(
                         {
-                            "source_url": (ev.source_references or [""])[0] if ev.source_references else "",
+                            "source_url": coerce_evidence_text(
+                                (ev.source_references or [None])[0] if ev.source_references else None
+                            ),
                             "source_date": ev.event_date.isoformat() if ev.event_date else "",
                             "excerpt": (ev.title or "")[:200],
                             "grounding_score": None,

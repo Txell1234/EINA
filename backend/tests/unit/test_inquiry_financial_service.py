@@ -16,6 +16,9 @@ async def test_inquiry_financial_lite(db_session, sample_case):
     assert "crossover" in result
     assert result["crossover"]["llm_used_in_conclusions"] is False
     assert "policy_industry" in result
+    assert "geopolitical_confidence" in result
+    assert "eina_case_summary" in result["crossover"]
+    assert result["crossover"]["methodology"] == "lite_policy_investment_icg"
 
 
 @pytest.mark.unit

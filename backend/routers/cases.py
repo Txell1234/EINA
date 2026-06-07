@@ -643,6 +643,24 @@ async def get_full_case(
         **bundle,
     }
 
+
+@router.get("/{case_id}/workspace", response_model=dict)
+async def get_case_workspace(
+    case_id: int,
+    project_id: int | None = Query(None, description="Active Godet project for company registry"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Hub payload: projects, inquiries, company registry, PRAAMS reports, pipeline status."""
+    _ = current_user
+    from services.case_workspace_service import load_case_workspace
+
+    workspace = await load_case_workspace(db, case_id, project_id=project_id)
+    if not workspace.get("found"):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found")
+    return workspace
+
+
 @router.get("/{case_id}/context")
 async def get_case_context(
     case_id: int,

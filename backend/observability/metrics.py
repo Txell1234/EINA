@@ -94,6 +94,29 @@ PARSE_FALLBACK_TOTAL = Counter(
     ["reason"],
 )
 
+INQUIRY_JOBS_TOTAL = Counter(
+    "q2fs_inquiry_jobs_total",
+    "Inquiry scheduler job queue operations",
+    ["operation", "job_type", "status"],
+)
+
+INQUIRY_JOBS_QUEUE_DEPTH = Gauge(
+    "q2fs_inquiry_jobs_queue_depth",
+    "Inquiry rerun jobs waiting in queue",
+)
+
+INQUIRY_JOBS_PENDING = Gauge(
+    "q2fs_inquiry_jobs_pending",
+    "Inquiry IDs with a pending rerun job (dedupe set)",
+)
+
+INQUIRY_JOB_DURATION_SECONDS = Histogram(
+    "q2fs_inquiry_job_duration_seconds",
+    "Inquiry scheduler job processing latency",
+    ["job_type"],
+    buckets=[1, 5, 10, 30, 60, 120, 300, 600],
+)
+
 
 def expose_metrics_app():
     return make_asgi_app()
@@ -102,3 +125,17 @@ def expose_metrics_app():
 def record_cache_operation(*, hit: bool, operation: str = "get") -> None:
     CACHE_OPERATIONS_TOTAL.labels(operation=operation, hit="true" if hit else "false").inc()
     CACHE_HIT_RATE.set(1.0 if hit else 0.0)
+
+
+def record_inquiry_job_operation(
+    operation: str,
+    job_type: str,
+    *,
+    status: str = "ok",
+) -> None:
+    INQUIRY_JOBS_TOTAL.labels(operation=operation, job_type=job_type, status=status).inc()
+
+
+def set_inquiry_job_queue_depth(queued: int, pending: int) -> None:
+    INQUIRY_JOBS_QUEUE_DEPTH.set(max(0, queued))
+    INQUIRY_JOBS_PENDING.set(max(0, pending))

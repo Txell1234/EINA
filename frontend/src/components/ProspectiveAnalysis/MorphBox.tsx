@@ -1,7 +1,9 @@
 import { useEffect } from 'react'
+import { useI18n } from '../../contexts/I18nContext'
 import { prospectiveService } from '../../services/api'
 import CcaSuggestionsPanel from '../Intelligence/CcaSuggestionsPanel'
 import MethodologyHint from './MethodologyHint'
+import MorphExplorer from './MorphExplorer'
 import {
   type IncompatRow,
   type MorphRow,
@@ -50,6 +52,7 @@ export default function MorphBox({
   onSave,
   saving = false,
 }: MorphBoxProps) {
+  const { t } = useI18n()
   const total = liveMorphTotal(morphRows)
 
   const toggleCompatibility = (
@@ -90,7 +93,7 @@ export default function MorphBox({
             config_a: inc.config_a,
             component_b: inc.component_b,
             config_b: inc.config_b,
-            consistency: 1,
+            consistency: -1,
             selected: true,
           }))
           const preview = await prospectiveService.previewCcaSuggestions(projectId, rules)
@@ -120,12 +123,9 @@ export default function MorphBox({
 
   return (
     <div className="morph-box" data-testid="morph-box">
-      <h2 style={{ color: 'var(--color-primary)' }}>Components morfològics</h2>
-      <MethodologyHint title="Metodologia Godet — Pas 6: Anàlisi morfològic (Zwicky)" defaultOpen={false}>
-        <p>
-          Explora sistemàticament tots els futurs <strong>possibles</strong> (viabilitat lògica Zwicky).
-          Cada <strong>component</strong> és una dimensió d&apos;evolució del sistema.
-        </p>
+      <h2 style={{ color: 'var(--color-primary)' }}>{t('morph.box.title')}</h2>
+      <MethodologyHint title={t('morph.box.methodologyTitle')} defaultOpen={false}>
+        <p>{t('morph.box.methodologyBody')}</p>
       </MethodologyHint>
 
       <CcaSuggestionsPanel
@@ -134,7 +134,9 @@ export default function MorphBox({
         onApplied={async (result) => {
           const stats = result.morph_stats as MorphSpaceStats
           if (stats) setMorphSpaceStats(stats)
-          const rows = await prospectiveService.getCompatibilities(projectId)
+          const rows =
+            (result.incompatibilities as IncompatRow[] | undefined) ??
+            (await prospectiveService.getCompatibilities(projectId))
           setIncompatibilities(rows)
         }}
       />
@@ -142,7 +144,7 @@ export default function MorphBox({
       {morphRows.map((m, idx) => (
         <div key={idx} className="card morph-box__component">
           <div className="prospective-field">
-            <label>Codi</label>
+            <label>{t('morph.box.code')}</label>
             <input
               value={m.id}
               onChange={(e) =>
@@ -151,7 +153,7 @@ export default function MorphBox({
             />
           </div>
           <div className="prospective-field">
-            <label>Nom del component</label>
+            <label>{t('morph.box.componentName')}</label>
             <input
               value={m.name}
               onChange={(e) =>
@@ -160,7 +162,7 @@ export default function MorphBox({
             />
           </div>
           <div className="prospective-field">
-            <label>Configuracions (una per línia)</label>
+            <label>{t('morph.box.configs')}</label>
             <textarea
               rows={4}
               value={m.configsText}
@@ -176,7 +178,7 @@ export default function MorphBox({
             className="btn btn-danger"
             onClick={() => setMorphRows((x) => x.filter((_, i) => i !== idx))}
           >
-            Eliminar
+            {t('morph.box.remove')}
           </button>
         </div>
       ))}
@@ -188,19 +190,25 @@ export default function MorphBox({
           setMorphRows((x) => [...x, { id: `C${x.length + 1}`, name: '', configsText: 'Estat A\nEstat B' }])
         }
       >
-        Afegir component
+        {t('morph.box.addComponent')}
       </button>
 
+      <MorphExplorer
+        morphRows={morphRows}
+        incompatibilities={incompatibilities}
+        serverValid={morphSpaceStats?.valid_combinations ?? null}
+      />
+
       <div className="card morph-box__matrix">
-        <h3>Matriu de compatibilitat Zwicky</h3>
+        <h3>{t('morph.box.matrixTitle')}</h3>
         <p className="morph-box__stats">
-          Combinacions totals: <strong>{total}</strong>
+          {t('morph.box.totalCombinations')}: <strong>{total}</strong>
           {morphSpaceStats && (
             <>
               {' · '}
-              Vàlides: <strong>{morphSpaceStats.valid_combinations}</strong>
+              {t('morph.box.validCombinations')}: <strong>{morphSpaceStats.valid_combinations}</strong>
               {morphSpaceStats.filtered_out != null && morphSpaceStats.filtered_out > 0 && (
-                <span> ({morphSpaceStats.filtered_out} excloses)</span>
+                <span> ({morphSpaceStats.filtered_out} {t('morph.box.excluded')})</span>
               )}
             </>
           )}
@@ -261,7 +269,7 @@ export default function MorphBox({
         )}
         {morphSpaceStats?.scenario_configs && (
           <div className="morph-box__scenarios">
-            <h4>Configuracions d&apos;escenari seleccionades</h4>
+            <h4>{t('morph.box.scenarioConfigs')}</h4>
             <ul>
               {morphSpaceStats.scenario_configs.map((s) => (
                 <li key={s.scenario_type}>
@@ -275,10 +283,10 @@ export default function MorphBox({
 
       <div className="prospective-actions">
         <button type="button" className="btn" onClick={onBack}>
-          Enrere
+          {t('morph.box.back')}
         </button>
         <button type="button" className="btn btn-accent" disabled={saving} onClick={onSave}>
-          Guardar i escenaris
+          {t('morph.box.save')}
         </button>
       </div>
     </div>

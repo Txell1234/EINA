@@ -66,6 +66,12 @@ class IncompatibilitiesRequest(BaseModel):
 
 class ApplyCcaRulesRequest(BaseModel):
     rules: List[dict]
+    include_existing: bool = True
+
+
+class ImportCcaRulesRequest(BaseModel):
+    rules: List[dict]
+    merge: bool = True
 
 
 class SMICRequest(BaseModel):
@@ -443,7 +449,9 @@ async def preview_cca_suggestions(
     _ = current_user
     from services.inquiry_cca_service import InquiryCcaService
 
-    result = await InquiryCcaService(db).preview_cca_impact(project_id, data.rules)
+    result = await InquiryCcaService(db).preview_cca_impact(
+        project_id, data.rules, include_existing=data.include_existing
+    )
     if not result.get("found"):
         raise HTTPException(status_code=404, detail=result.get("error", "Not found"))
     return result
@@ -461,6 +469,56 @@ async def apply_cca_suggestions(
 
     result = await InquiryCcaService(db).apply_selected_rules(project_id, data.rules)
     return result
+
+
+@router.get("/projects/{project_id}/cca-rules/export")
+async def export_cca_rules(
+    project_id: int,
+    inquiry_id: int | None = Query(None),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _ = current_user
+    from services.inquiry_cca_service import InquiryCcaService
+
+    bundle = await InquiryCcaService(db).suggest_for_project(project_id, inquiry_id=inquiry_id)
+    if not bundle.get("found"):
+        raise HTTPException(status_code=404, detail=bundle.get("error", "Not found"))
+    return {
+        "project_id": project_id,
+        "exported_at": bundle.get("question"),
+        "rules": bundle.get("rules") or [],
+        "existing_incompatibilities": bundle.get("existing_incompatibilities") or [],
+    }
+
+
+@router.post("/projects/{project_id}/cca-rules/import")
+async def import_cca_rules(
+    project_id: int,
+    data: ImportCcaRulesRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _ = current_user
+    from services.inquiry_cca_service import InquiryCcaService
+
+    normalized = [
+        {
+            "component_a": r.get("component_a"),
+            "config_a": r.get("config_a"),
+            "component_b": r.get("component_b"),
+            "config_b": r.get("config_b"),
+            "consistency": -1,
+            "selected": True,
+            "justification": r.get("justification", ""),
+            "source": r.get("source", "import"),
+        }
+        for r in data.rules
+    ]
+    if data.merge:
+        return await InquiryCcaService(db).apply_selected_rules(project_id, normalized)
+    stats = await ProspectiveService(db).save_incompatibilities(project_id, normalized)
+    return {"ok": True, "total_incompatibilities": len(normalized), "morph_stats": stats}
 
 
 @router.get("/projects/{project_id}/smic")
@@ -591,7 +649,9 @@ async def apply_consensus(project_id: int, current_user: User = Depends(get_curr
 async def export_project_pdf(
     project_id: int,
     lang: str = Query("ca", pattern="^(ca|es|en)$"),
+    template: str = Query("eina", pattern="^(eina|intelligence|economist|graphics)$"),
     include_decision_annex: bool = Query(False),
+    report_variant: str = Query("full", pattern="^(full|analytical)$"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -604,7 +664,12 @@ async def export_project_pdf(
         from services.report_export_service import export_pdf as _pdf
 
         meta = await _pdf(
-            db, project_id, lang=lang, include_decision_annex=include_decision_annex
+            db,
+            project_id,
+            lang=lang,
+            include_decision_annex=include_decision_annex,
+            template=template,
+            report_variant=report_variant,
         )
         data = Path(meta["file_path"]).read_bytes()
     except ValueError as e:
@@ -624,7 +689,9 @@ async def export_project_pdf(
 async def export_project_docx(
     project_id: int,
     lang: str = Query("ca", pattern="^(ca|es|en)$"),
+    template: str = Query("eina", pattern="^(eina|intelligence|economist|graphics)$"),
     include_decision_annex: bool = Query(False),
+    report_variant: str = Query("full", pattern="^(full|analytical)$"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -637,7 +704,12 @@ async def export_project_docx(
         from services.report_export_service import export_docx as _docx
 
         meta = await _docx(
-            db, project_id, lang=lang, include_decision_annex=include_decision_annex
+            db,
+            project_id,
+            lang=lang,
+            include_decision_annex=include_decision_annex,
+            template=template,
+            report_variant=report_variant,
         )
         data = Path(meta["file_path"]).read_bytes()
     except ValueError as e:
@@ -657,7 +729,9 @@ async def export_project_docx(
 async def export_project_html(
     project_id: int,
     lang: str = Query("ca", pattern="^(ca|es|en)$"),
+    template: str = Query("eina", pattern="^(eina|intelligence|economist|graphics)$"),
     include_decision_annex: bool = Query(False),
+    report_variant: str = Query("full", pattern="^(full|analytical)$"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -670,7 +744,12 @@ async def export_project_html(
         from services.report_export_service import export_html as _html
 
         meta = await _html(
-            db, project_id, lang=lang, include_decision_annex=include_decision_annex
+            db,
+            project_id,
+            lang=lang,
+            include_decision_annex=include_decision_annex,
+            template=template,
+            report_variant=report_variant,
         )
         data = Path(meta["file_path"]).read_bytes()
     except ValueError as e:

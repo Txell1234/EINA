@@ -112,11 +112,42 @@ type CoreTranslationKeys =
   | 'inquiry.filter.status'
   | 'inquiry.filter.all'
   | 'inquiry.filter.scheduledOnly'
+  | 'inquiry.filter.search'
+  | 'inquiry.filter.searchPlaceholder'
+  | 'inquiry.filter.caseId'
+  | 'inquiry.filter.mode'
+  | 'inquiry.filter.minConfidence'
+  | 'inquiry.filter.llmOnly'
   | 'inquiry.exportZip'
+  | 'inquiry.exportExecutive'
+  | 'inquiry.exportExecutivePdf'
+  | 'inquiry.exportingExecutive'
+  | 'inquiry.filter.reportLang'
+  | 'inquiry.filter.scheduleInterval'
   | 'inquiry.exporting'
   | 'inquiry.rerunBatch'
   | 'inquiry.rerunning'
   | 'inquiry.rerunDue'
+  | 'inquiry.confirmRerun'
+  | 'inquiry.confirmRerunOne'
+  | 'inquiry.batchRerunResult'
+  | 'inquiry.batchScheduleResult'
+  | 'inquiry.scheduleEnable'
+  | 'inquiry.scheduleDisable'
+  | 'inquiry.schedulerActive'
+  | 'inquiry.schedulerDue'
+  | 'inquiry.selectAll'
+  | 'inquiry.col.case'
+  | 'inquiry.col.status'
+  | 'inquiry.col.prob'
+  | 'inquiry.col.trend'
+  | 'inquiry.col.parse'
+  | 'inquiry.col.runs'
+  | 'inquiry.col.scheduler'
+  | 'inquiry.col.question'
+  | 'inquiry.col.actions'
+  | 'inquiry.action.openInquiry'
+  | 'inquiry.action.rerun'
   | 'inquiry.empty'
   | 'inquiry.wizard'
 
@@ -200,7 +231,7 @@ const translations: Record<SupportedLocale, Translations> = {
     'nav.mactor': '5. MACTOR',
     'nav.morph': '6. Morphological',
     'nav.scenarios': '7. Scenarios & export',
-    'nav.inquiries': 'Q2FS Inquiries',
+    'nav.inquiries': 'Q2FS · Godet',
     'nav.intelligence': 'Intelligence Unit',
     'nav.reputation': 'Reputation',
     'nav.publicAffairs': 'Public affairs',
@@ -235,11 +266,42 @@ const translations: Record<SupportedLocale, Translations> = {
     'inquiry.filter.status': 'Status',
     'inquiry.filter.all': 'All',
     'inquiry.filter.scheduledOnly': 'Scheduler only',
+    'inquiry.filter.search': 'Search',
+    'inquiry.filter.searchPlaceholder': 'Question text…',
+    'inquiry.filter.caseId': 'Case ID',
+    'inquiry.filter.mode': 'Mode',
+    'inquiry.filter.minConfidence': 'Min. confidence',
+    'inquiry.filter.llmOnly': 'LLM parse only',
     'inquiry.exportZip': 'Export ZIP',
+    'inquiry.exportExecutive': 'Executive report',
+    'inquiry.exportExecutivePdf': 'Executive PDF',
+    'inquiry.exportingExecutive': 'Generating report…',
+    'inquiry.filter.reportLang': 'Report lang',
+    'inquiry.filter.scheduleInterval': 'Scheduler interval',
     'inquiry.exporting': 'Exporting…',
     'inquiry.rerunBatch': 'Re-run selected',
     'inquiry.rerunning': 'Re-running…',
     'inquiry.rerunDue': 'Re-run due',
+    'inquiry.confirmRerun': 'Re-run {count} inquiry(s)? This may take several minutes.',
+    'inquiry.confirmRerunOne': 'Re-run inquiry #{id}?',
+    'inquiry.batchRerunResult': 'Batch re-run: {ok} OK, {failed} failed.',
+    'inquiry.batchScheduleResult': 'Batch schedule: {ok} updated, {failed} failed.',
+    'inquiry.scheduleEnable': 'Enable scheduler',
+    'inquiry.scheduleDisable': 'Disable scheduler',
+    'inquiry.schedulerActive': 'active',
+    'inquiry.schedulerDue': 'due',
+    'inquiry.selectAll': 'Select all',
+    'inquiry.col.case': 'Case',
+    'inquiry.col.status': 'Status',
+    'inquiry.col.prob': 'Prob.',
+    'inquiry.col.trend': 'Trend',
+    'inquiry.col.parse': 'Parse',
+    'inquiry.col.runs': 'Runs',
+    'inquiry.col.scheduler': 'Scheduler',
+    'inquiry.col.question': 'Question',
+    'inquiry.col.actions': 'Actions',
+    'inquiry.action.openInquiry': 'Open in Q2FS workspace',
+    'inquiry.action.rerun': 'Re-run',
     'inquiry.empty': 'No inquiries yet. Create one in the Intelligence Center.',
     'inquiry.wizard': 'Wizard',
   },
@@ -318,7 +380,7 @@ const translations: Record<SupportedLocale, Translations> = {
     'nav.mactor': '5. MACTOR',
     'nav.morph': '6. Morfológico',
     'nav.scenarios': '7. Escenarios y exportación',
-    'nav.inquiries': 'Inquiries Q2FS',
+    'nav.inquiries': 'Q2FS · Godet',
     'nav.intelligence': 'Unidad de Inteligencia',
     'nav.reputation': 'Reputación',
     'nav.publicAffairs': 'Asuntos públicos',
@@ -353,11 +415,42 @@ const translations: Record<SupportedLocale, Translations> = {
     'inquiry.filter.status': 'Estado',
     'inquiry.filter.all': 'Todos',
     'inquiry.filter.scheduledOnly': 'Solo con scheduler',
+    'inquiry.filter.search': 'Buscar',
+    'inquiry.filter.searchPlaceholder': 'Texto de la pregunta…',
+    'inquiry.filter.caseId': 'ID caso',
+    'inquiry.filter.mode': 'Modo',
+    'inquiry.filter.minConfidence': 'Conf. mínima',
+    'inquiry.filter.llmOnly': 'Solo parse LLM',
     'inquiry.exportZip': 'Exportar ZIP',
+    'inquiry.exportExecutive': 'Informe ejecutivo',
+    'inquiry.exportExecutivePdf': 'PDF ejecutivo',
+    'inquiry.exportingExecutive': 'Generando informe…',
+    'inquiry.filter.reportLang': 'Idioma informe',
+    'inquiry.filter.scheduleInterval': 'Intervalo scheduler',
     'inquiry.exporting': 'Exportando…',
     'inquiry.rerunBatch': 'Re-ejecutar seleccionadas',
     'inquiry.rerunning': 'Re-ejecutando…',
     'inquiry.rerunDue': 'Re-run vencidos',
+    'inquiry.confirmRerun': '¿Re-ejecutar {count} inquiry(s)? Puede tardar varios minutos.',
+    'inquiry.confirmRerunOne': '¿Re-ejecutar inquiry #{id}?',
+    'inquiry.batchRerunResult': 'Re-run batch: {ok} OK, {failed} fallidas.',
+    'inquiry.batchScheduleResult': 'Scheduler batch: {ok} actualizadas, {failed} fallidas.',
+    'inquiry.scheduleEnable': 'Activar scheduler',
+    'inquiry.scheduleDisable': 'Desactivar scheduler',
+    'inquiry.schedulerActive': 'activo',
+    'inquiry.schedulerDue': 'vencido',
+    'inquiry.selectAll': 'Seleccionar todo',
+    'inquiry.col.case': 'Caso',
+    'inquiry.col.status': 'Estado',
+    'inquiry.col.prob': 'Prob.',
+    'inquiry.col.trend': 'Tendencia',
+    'inquiry.col.parse': 'Parse',
+    'inquiry.col.runs': 'Runs',
+    'inquiry.col.scheduler': 'Scheduler',
+    'inquiry.col.question': 'Pregunta',
+    'inquiry.col.actions': 'Acciones',
+    'inquiry.action.openInquiry': 'Abrir en Q2FS',
+    'inquiry.action.rerun': 'Re-ejecutar',
     'inquiry.empty': 'Sin inquiries aún. Crea una en el Centro de Inteligencia.',
     'inquiry.wizard': 'Wizard',
   },
@@ -436,7 +529,7 @@ const translations: Record<SupportedLocale, Translations> = {
     'nav.mactor': '5. MACTOR',
     'nav.morph': '6. Morfològic',
     'nav.scenarios': '7. Escenaris i exportació',
-    'nav.inquiries': 'Inquiries Q2FS',
+    'nav.inquiries': 'Q2FS · Godet',
     'nav.intelligence': 'Intelligence Unit',
     'nav.reputation': 'Reputació',
     'nav.publicAffairs': 'Assumptes públics',
@@ -459,8 +552,8 @@ const translations: Record<SupportedLocale, Translations> = {
     'alerts.triggered': 'Disparat',
     'alerts.monitoring': 'Monitoritzant',
     'alerts.selectProject': 'Selecciona projecte',
-    'inquiry.title': 'Inquiries Q2FS',
-    'inquiry.subtitle': 'Vista global de preguntes analítiques, re-runs programats i export batch.',
+    'inquiry.title': 'Q2FS — Pregunta → Godet',
+    'inquiry.subtitle': 'Escriu preguntes, activa prospectiva completa i gestiona informes amb plantilles EINA.',
     'inquiry.refresh': 'Actualitzar',
     'inquiry.stats.total': 'Total',
     'inquiry.stats.completed': 'Completades',
@@ -471,11 +564,42 @@ const translations: Record<SupportedLocale, Translations> = {
     'inquiry.filter.status': 'Estat',
     'inquiry.filter.all': 'Tots',
     'inquiry.filter.scheduledOnly': 'Només amb scheduler',
+    'inquiry.filter.search': 'Cerca',
+    'inquiry.filter.searchPlaceholder': 'Text de la pregunta…',
+    'inquiry.filter.caseId': 'ID cas',
+    'inquiry.filter.mode': 'Mode',
+    'inquiry.filter.minConfidence': 'Conf. mínima',
+    'inquiry.filter.llmOnly': 'Només parse LLM',
     'inquiry.exportZip': 'Export ZIP',
+    'inquiry.exportExecutive': 'Informe executiu',
+    'inquiry.exportExecutivePdf': 'PDF executiu',
+    'inquiry.exportingExecutive': 'Generant informe…',
+    'inquiry.filter.reportLang': 'Idioma informe',
+    'inquiry.filter.scheduleInterval': 'Interval scheduler',
     'inquiry.exporting': 'Exportant…',
     'inquiry.rerunBatch': 'Re-run seleccionades',
     'inquiry.rerunning': 'Re-run en curs…',
     'inquiry.rerunDue': 'Re-run vençuts',
+    'inquiry.confirmRerun': 'Re-run {count} inquiry(s)? Pot trigar diversos minuts.',
+    'inquiry.confirmRerunOne': 'Re-run inquiry #{id}?',
+    'inquiry.batchRerunResult': 'Re-run batch: {ok} OK, {failed} fallides.',
+    'inquiry.batchScheduleResult': 'Scheduler batch: {ok} actualitzades, {failed} fallides.',
+    'inquiry.scheduleEnable': 'Activar scheduler',
+    'inquiry.scheduleDisable': 'Desactivar scheduler',
+    'inquiry.schedulerActive': 'actiu',
+    'inquiry.schedulerDue': 'vençut',
+    'inquiry.selectAll': 'Seleccionar tot',
+    'inquiry.col.case': 'Cas',
+    'inquiry.col.status': 'Estat',
+    'inquiry.col.prob': 'Prob.',
+    'inquiry.col.trend': 'Tendència',
+    'inquiry.col.parse': 'Parse',
+    'inquiry.col.runs': 'Runs',
+    'inquiry.col.scheduler': 'Scheduler',
+    'inquiry.col.question': 'Pregunta',
+    'inquiry.col.actions': 'Accions',
+    'inquiry.action.openInquiry': 'Obrir a Q2FS',
+    'inquiry.action.rerun': 'Re-run',
     'inquiry.empty': 'Cap inquiry encara. Crea-ne una al Centre d\'Intel·ligència.',
     'inquiry.wizard': 'Wizard',
   },
@@ -554,7 +678,7 @@ const translations: Record<SupportedLocale, Translations> = {
     'nav.mactor': '5. MACTOR',
     'nav.morph': '6. Morphologique',
     'nav.scenarios': '7. Scénarios et export',
-    'nav.inquiries': 'Inquiries Q2FS',
+    'nav.inquiries': 'Q2FS · Godet',
     'nav.intelligence': 'Unité de renseignement',
     'nav.reputation': 'Réputation',
     'nav.publicAffairs': 'Affaires publiques',
@@ -589,11 +713,42 @@ const translations: Record<SupportedLocale, Translations> = {
     'inquiry.filter.status': 'Statut',
     'inquiry.filter.all': 'Tous',
     'inquiry.filter.scheduledOnly': 'Planificateur uniquement',
+    'inquiry.filter.search': 'Rechercher',
+    'inquiry.filter.searchPlaceholder': 'Texte de la question…',
+    'inquiry.filter.caseId': 'ID dossier',
+    'inquiry.filter.mode': 'Mode',
+    'inquiry.filter.minConfidence': 'Conf. min.',
+    'inquiry.filter.llmOnly': 'Parse LLM uniquement',
     'inquiry.exportZip': 'Export ZIP',
+    'inquiry.exportExecutive': 'Rapport exécutif',
+    'inquiry.exportExecutivePdf': 'PDF exécutif',
+    'inquiry.exportingExecutive': 'Génération du rapport…',
+    'inquiry.filter.reportLang': 'Langue rapport',
+    'inquiry.filter.scheduleInterval': 'Intervalle planificateur',
     'inquiry.exporting': 'Export…',
     'inquiry.rerunBatch': 'Relancer la sélection',
     'inquiry.rerunning': 'Relance…',
     'inquiry.rerunDue': 'Relancer les échus',
+    'inquiry.confirmRerun': 'Relancer {count} inquiry(s) ? Cela peut prendre plusieurs minutes.',
+    'inquiry.confirmRerunOne': 'Relancer l\'inquiry #{id} ?',
+    'inquiry.batchRerunResult': 'Relance batch : {ok} OK, {failed} échecs.',
+    'inquiry.batchScheduleResult': 'Planificateur batch : {ok} mises à jour, {failed} échecs.',
+    'inquiry.scheduleEnable': 'Activer le planificateur',
+    'inquiry.scheduleDisable': 'Désactiver le planificateur',
+    'inquiry.schedulerActive': 'actif',
+    'inquiry.schedulerDue': 'échu',
+    'inquiry.selectAll': 'Tout sélectionner',
+    'inquiry.col.case': 'Dossier',
+    'inquiry.col.status': 'Statut',
+    'inquiry.col.prob': 'Prob.',
+    'inquiry.col.trend': 'Tendance',
+    'inquiry.col.parse': 'Parse',
+    'inquiry.col.runs': 'Runs',
+    'inquiry.col.scheduler': 'Planificateur',
+    'inquiry.col.question': 'Question',
+    'inquiry.col.actions': 'Actions',
+    'inquiry.action.openInquiry': 'Ouvrir dans Q2FS',
+    'inquiry.action.rerun': 'Relancer',
     'inquiry.empty': 'Aucune inquiry. Créez-en une dans le Centre d\'intelligence.',
     'inquiry.wizard': 'Wizard',
   },

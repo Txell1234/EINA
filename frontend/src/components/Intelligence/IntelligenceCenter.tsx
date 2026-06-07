@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, Brain, CheckCircle2, Circle, RefreshCw, Search, Zap } from 'lucide-react'
 import { useCase, type ActiveCase } from '../../contexts/CaseContext'
+import { useProject } from '../../contexts/ProjectContext'
 import { useI18n } from '../../contexts/I18nContext'
 import { useCasesList } from '../../hooks/useCasesList'
 import { countPromptLines, toActiveCase } from '../../utils/caseUtils'
@@ -15,6 +16,12 @@ import { useCaseScopeProfile } from '../../hooks/useCaseScopeProfile'
 import ActorNetworkPanel from './ActorNetworkPanel'
 import PolicyIndustryPanel from './PolicyIndustryPanel'
 import FinancialCrossoverPanel from './FinancialCrossoverPanel'
+import { AnalyticsLabPanel } from './AnalyticsLabPanel'
+import { GeopoliticalConfidencePanel } from './GeopoliticalConfidencePanel'
+import { mapGeoBundleToSummary } from './geoConfidenceMapper'
+import type { RegistryCompany } from './CaseCompaniesPanel'
+import InvestigationHubPanel from './InvestigationHubPanel'
+import './InvestigationHubPanel.css'
 import ProspectiveInquiryPanel from './ProspectiveInquiryPanel'
 import './IntelligenceCenter.css'
 
@@ -43,13 +50,33 @@ const STEP_ORDER: StepKey[] = ['osint', 'extraction', 'events', 'risks', 'actor_
 export default function IntelligenceCenter() {
   const { t } = useI18n()
   const queryClient = useQueryClient()
+  const [searchParams] = useSearchParams()
   const { activeCase, setActiveCase } = useCase()
+  const { activeProject, clearActiveProject } = useProject()
   const [selectedCaseId, setSelectedCaseId] = useState<number | null>(activeCase?.id ?? null)
   const [pipelineMsg, setPipelineMsg] = useState<string | null>(null)
   const [pipelineApplyScope, setPipelineApplyScope] = useState(true)
   const [pipelineAutoCleanup, setPipelineAutoCleanup] = useState(false)
+  const [selectedCompany, setSelectedCompany] = useState<string | null>(null)
+  const financialPanelRef = useRef<HTMLElement>(null)
+
+  const scrollToFinancial = () => {
+    financialPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   const { data: cases, isLoading: casesLoading } = useCasesList()
+
+  useEffect(() => {
+    const caseParam = searchParams.get('case')
+    if (!caseParam || !cases?.length) return
+    const id = Number(caseParam)
+    if (Number.isNaN(id)) return
+    const match = cases.find((c) => c.id === id)
+    if (match) {
+      setSelectedCaseId(id)
+      setActiveCase(toActiveCase(match))
+    }
+  }, [searchParams, cases, setActiveCase])
 
   useEffect(() => {
     if (activeCase?.id) {
@@ -57,10 +84,31 @@ export default function IntelligenceCenter() {
     }
   }, [activeCase?.id])
 
+  useEffect(() => {
+    setSelectedCompany(null)
+  }, [selectedCaseId])
+
   const selectedCase = cases?.find((c) => c.id === selectedCaseId) ?? null
 
   const { scope, setScope, setPeriodPreset, timeRange } = useAnalysisScope(selectedCaseId)
   const { data: scopeProfile } = useCaseScopeProfile(selectedCaseId)
+
+  const { data: workspace } = useQuery({
+    queryKey: ['case-workspace', selectedCaseId, activeProject?.id],
+    queryFn: () =>
+      casesService.getCaseWorkspace(
+        selectedCaseId!,
+        activeProject?.case_id === selectedCaseId ? activeProject.id : undefined,
+      ),
+    enabled: selectedCaseId != null,
+  })
+
+  const focusTicker = useMemo(() => {
+    if (!selectedCompany) return null
+    const companies = workspace?.company_registry?.companies as Array<{ name?: string; ticker?: string }> | undefined
+    const row = companies?.find((c) => c.name === selectedCompany)
+    return row?.ticker?.trim() || null
+  }, [selectedCompany, workspace])
 
   const { data: intelStatus, isLoading: statusLoading, refetch: refetchStatus } = useQuery({
     queryKey: ['intel-status', selectedCaseId],
@@ -74,6 +122,17 @@ export default function IntelligenceCenter() {
     queryFn: () => dashboardService.getMetrics(30, selectedCaseId),
     enabled: selectedCaseId !== null,
   })
+
+  const { data: geoConfidenceRaw } = useQuery({
+    queryKey: ['geo-confidence', selectedCaseId, selectedCompany],
+    queryFn: () =>
+      intelligenceService.getGeopoliticalConfidence(selectedCaseId!, selectedCompany ?? undefined),
+    enabled: selectedCaseId != null,
+  })
+  const geoConfidenceSummary = useMemo(
+    () => mapGeoBundleToSummary(geoConfidenceRaw as Record<string, unknown> | undefined),
+    [geoConfidenceRaw],
+  )
 
   const { data: alertMatches } = useQuery({
     queryKey: ['case-alert-matches', selectedCaseId, timeRange?.start, timeRange?.end],
@@ -103,6 +162,9 @@ export default function IntelligenceCenter() {
   const handleCaseChange = (caseId: number | null) => {
     setSelectedCaseId(caseId)
     if (!caseId) return
+    if (activeProject && activeProject.case_id !== caseId) {
+      clearActiveProject()
+    }
     const c = cases?.find((x) => x.id === caseId)
     if (c) setActiveCase(toActiveCase(c))
   }
@@ -507,24 +569,63 @@ export default function IntelligenceCenter() {
             </Link>
           </div>
         </div>
-      ) : status?.steps?.osint?.ready ? (
-        <div data-testid="intel-panels-ready">
-          <ActorNetworkPanel caseId={selectedCaseId} />
-          <PolicyIndustryPanel caseId={selectedCaseId} />
-          <ProspectiveInquiryPanel caseId={selectedCaseId} />
-          <FinancialCrossoverPanel caseId={selectedCaseId} />
-          <VisualizationsDashboard caseId={selectedCaseId} hideScopeBar key={selectedCaseId} />
-        </div>
       ) : (
-        <div className="card intel-empty-panel">
-          <Brain size={32} className="intel-empty-icon" />
-          <h2 className="intel-empty-title">{t('intel.empty.pipelinePending.title')}</h2>
-          <p className="intel-empty-desc">{t('intel.empty.pipelinePending.desc')}</p>
-          <div className="intel-empty-actions">
-            <Link to="/osint-collection" className="btn btn-primary">
-              <Search size={14} /> {t('intel.osintCollection')}
-            </Link>
-          </div>
+        <div data-testid="intel-panels-ready">
+          {!status?.steps?.osint?.ready && (
+            <div className="card" style={{ marginBottom: 'var(--spacing-md)', padding: 'var(--spacing-md)', borderLeft: '4px solid var(--color-warning, #856404)' }}>
+              <p style={{ margin: 0, fontSize: 'var(--font-size-sm)' }}>
+                Pipeline OSINT encara en preparació — pots escriure preguntes Q2FS igualment (mode lite recomanat)
+                o completar la recollida OSINT primer.
+              </p>
+              <Link to="/osint-collection" className="btn btn-secondary" style={{ marginTop: 8 }}>
+                <Search size={14} /> {t('intel.osintCollection')}
+              </Link>
+              <Link to="/prospective/inquiries" className="btn btn-primary" style={{ marginTop: 8, marginLeft: 8 }}>
+                Q2FS: Pregunta → Godet →
+              </Link>
+            </div>
+          )}
+
+          <InvestigationHubPanel
+            caseId={selectedCaseId}
+            onScrollToFinancial={scrollToFinancial}
+            selectedCompany={selectedCompany}
+            onSelectCompany={setSelectedCompany}
+          />
+
+          {geoConfidenceSummary ? (
+            <GeopoliticalConfidencePanel summary={geoConfidenceSummary} />
+          ) : null}
+
+          <ProspectiveInquiryPanel caseId={selectedCaseId} showSaveControls />
+
+          <section ref={financialPanelRef} id="financial-crossover-panel">
+            <FinancialCrossoverPanel
+              caseId={selectedCaseId}
+              focusCompany={selectedCompany}
+              focusTicker={focusTicker}
+              registryCompanies={
+                (workspace?.company_registry?.companies as RegistryCompany[] | undefined) ?? []
+              }
+              projectId={
+                activeProject?.case_id === selectedCaseId ? activeProject.id : null
+              }
+            />
+          </section>
+
+          <AnalyticsLabPanel
+            caseId={selectedCaseId}
+            focusCompany={selectedCompany}
+            focusTicker={focusTicker}
+          />
+
+          {status?.steps?.osint?.ready ? (
+            <>
+              <ActorNetworkPanel caseId={selectedCaseId} />
+              <PolicyIndustryPanel caseId={selectedCaseId} />
+              <VisualizationsDashboard caseId={selectedCaseId} hideScopeBar key={selectedCaseId} />
+            </>
+          ) : null}
         </div>
       )}
     </div>

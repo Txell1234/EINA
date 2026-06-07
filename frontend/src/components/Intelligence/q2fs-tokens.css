@@ -1,0 +1,17 @@
+/* Shared Q2FS / Intelligence panel tokens */
+@import '../../styles/variables.css';
+
+.q2fs-workspace,
+.inquiry-dashboard,
+.prospective-inquiry-panel,
+.inquiry-compare,
+.cca-heatmap {
+  --q2fs-radius: 8px;
+  --q2fs-gap: var(--spacing-md, 1rem);
+  --q2fs-border: var(--border-color, #e2e8f0);
+  --q2fs-surface: var(--color-gray-50, #f8fafc);
+  --q2fs-accent: var(--color-primary, #1e3a5f);
+  --q2fs-accent-soft: rgba(30, 58, 95, 0.08);
+  --q2fs-warn: #ffb74d;
+  --q2fs-danger: #c62828;
+}

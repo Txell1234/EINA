@@ -58,3 +58,12 @@ groups:
         annotations:
           summary: "Low Q2FS step cache hit rate"
           description: "Consider enabling Redis semantic cache for repeated inquiries."
+
+      - alert: Q2FSInquiryJobQueueBacklog
+        expr: q2fs_inquiry_jobs_queue_depth > 25
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Inquiry rerun job queue backlog"
+          description: "More than 25 inquiry rerun jobs queued — scale worker or review scheduler interval."

@@ -9,6 +9,7 @@ _THEME_COMPANY_PROFILES: dict[str, list[dict[str, Any]]] = {
         {
             "name": "Mitsubishi Heavy Industries",
             "aliases": ["MHI", "Mitsubishi Heavy"],
+            "ticker": "7011.T",
             "country": "JP",
             "region": "domestic",
             "roles": ["prime_contractor", "integrator"],
@@ -26,6 +27,7 @@ _THEME_COMPANY_PROFILES: dict[str, list[dict[str, Any]]] = {
         {
             "name": "Kawasaki Heavy Industries",
             "aliases": ["KHI", "Kawasaki Heavy"],
+            "ticker": "7012.T",
             "country": "JP",
             "region": "domestic",
             "roles": ["prime_contractor"],
@@ -35,11 +37,18 @@ _THEME_COMPANY_PROFILES: dict[str, list[dict[str, Any]]] = {
                 "el rearmament amplia comandes de renovació de flota submarina."
             ),
             "policy_link": "Expansió capacitat submarina Indo-Pacífic",
-            "contractor_relationships": [],
+            "contractor_relationships": [
+                {"partner": "Mitsubishi Heavy Industries", "type": "naval_peer/integrator", "region": "domestic"},
+                {"partner": "IHI Corporation", "type": "component_supply", "region": "domestic"},
+                {"partner": "Mitsubishi Electric", "type": "systems/C4ISR", "region": "domestic"},
+                {"partner": "Boeing", "type": "competitor/partner", "region": "overseas"},
+                {"partner": "Lockheed Martin", "type": "allied_programs", "region": "overseas"},
+            ],
         },
         {
             "name": "IHI Corporation",
             "aliases": ["IHI"],
+            "ticker": "7013.T",
             "country": "JP",
             "region": "domestic",
             "roles": ["supplier", "integrator"],
@@ -51,6 +60,7 @@ _THEME_COMPANY_PROFILES: dict[str, list[dict[str, Any]]] = {
         {
             "name": "Mitsubishi Electric",
             "aliases": ["MELCO defense"],
+            "ticker": "6503.T",
             "country": "JP",
             "region": "domestic",
             "roles": ["supplier", "integrator"],
@@ -62,6 +72,7 @@ _THEME_COMPANY_PROFILES: dict[str, list[dict[str, Any]]] = {
         {
             "name": "NEC",
             "aliases": ["NEC Corporation"],
+            "ticker": "6701.T",
             "country": "JP",
             "region": "domestic",
             "roles": ["supplier"],
@@ -73,6 +84,7 @@ _THEME_COMPANY_PROFILES: dict[str, list[dict[str, Any]]] = {
         {
             "name": "Lockheed Martin",
             "aliases": ["Lockheed"],
+            "ticker": "LMT",
             "country": "US",
             "region": "overseas",
             "roles": ["prime_contractor", "offset_partner"],
@@ -89,6 +101,7 @@ _THEME_COMPANY_PROFILES: dict[str, list[dict[str, Any]]] = {
         {
             "name": "RTX",
             "aliases": ["Raytheon", "RTX Corporation"],
+            "ticker": "RTX",
             "country": "US",
             "region": "overseas",
             "roles": ["prime_contractor", "supplier"],
@@ -100,6 +113,7 @@ _THEME_COMPANY_PROFILES: dict[str, list[dict[str, Any]]] = {
         {
             "name": "Boeing",
             "aliases": ["Boeing Defense"],
+            "ticker": "BA",
             "country": "US",
             "region": "overseas",
             "roles": ["prime_contractor"],
@@ -111,6 +125,7 @@ _THEME_COMPANY_PROFILES: dict[str, list[dict[str, Any]]] = {
         {
             "name": "BAE Systems",
             "aliases": ["BAE"],
+            "ticker": "BA.L",
             "country": "GB",
             "region": "overseas",
             "roles": ["subcontractor", "offset_partner"],
@@ -122,6 +137,7 @@ _THEME_COMPANY_PROFILES: dict[str, list[dict[str, Any]]] = {
         {
             "name": "Northrop Grumman",
             "aliases": ["Northrop"],
+            "ticker": "NOC",
             "country": "US",
             "region": "overseas",
             "roles": ["supplier"],
@@ -135,6 +151,7 @@ _THEME_COMPANY_PROFILES: dict[str, list[dict[str, Any]]] = {
         {
             "name": "General Dynamics",
             "aliases": ["GD", "General Dynamics Land Systems"],
+            "ticker": "GD",
             "country": "US",
             "region": "overseas",
             "roles": ["prime_contractor"],
@@ -146,6 +163,7 @@ _THEME_COMPANY_PROFILES: dict[str, list[dict[str, Any]]] = {
         {
             "name": "Thales",
             "aliases": [],
+            "ticker": "HO.PA",
             "country": "FR",
             "region": "overseas",
             "roles": ["supplier", "integrator"],
@@ -159,6 +177,7 @@ _THEME_COMPANY_PROFILES: dict[str, list[dict[str, Any]]] = {
         {
             "name": "Hyundai Heavy Industries",
             "aliases": ["HHI"],
+            "ticker": "329180.KS",
             "country": "KR",
             "region": "overseas",
             "roles": ["prime_contractor"],
@@ -172,6 +191,7 @@ _THEME_COMPANY_PROFILES: dict[str, list[dict[str, Any]]] = {
         {
             "name": "Tokyo Electron",
             "aliases": ["TEL"],
+            "ticker": "8035.T",
             "country": "JP",
             "region": "domestic",
             "roles": ["supplier"],
@@ -230,6 +250,22 @@ def all_reference_names() -> dict[str, dict[str, Any]]:
             for alias in p.get("aliases") or []:
                 index[alias.lower()] = p
     return index
+
+
+def ticker_for_company(name: str) -> str | None:
+    """Suggested market ticker from reference profiles (if known)."""
+    from services.actor_impact_utils import canonical_actor
+
+    key = canonical_actor(name).lower()
+    if not key:
+        return None
+    index = all_reference_names()
+    for prof_key, prof in index.items():
+        if prof_key == key or key in prof_key or prof_key in key:
+            ticker = prof.get("ticker")
+            if ticker:
+                return str(ticker)
+    return None
 
 
 def looks_like_company(name: str) -> bool:

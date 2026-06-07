@@ -1,0 +1,106 @@
+.template-gallery {
+  padding: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
+}
+
+.template-gallery h3 {
+  margin: 0 0 6px;
+  color: var(--color-primary);
+}
+
+.template-gallery__lead {
+  margin: 0 0 var(--spacing-md);
+  font-size: var(--font-size-sm);
+  color: var(--color-gray-600);
+}
+
+.template-gallery__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--spacing-md);
+}
+
+.template-card {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  padding: 0;
+  border: 2px solid var(--color-gray-200);
+  border-radius: var(--radius-lg);
+  background: #fff;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.template-card:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 4px 16px rgba(30, 58, 95, 0.12);
+}
+
+.template-card--selected {
+  border-color: var(--color-accent, #ff6b35);
+  box-shadow: 0 4px 20px rgba(255, 107, 53, 0.2);
+}
+
+.template-card__preview {
+  padding: 16px;
+  min-height: 120px;
+}
+
+.template-card__badge {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.template-card__mock-title {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.template-card__mock-bar {
+  height: 6px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 3px;
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+
+.template-card__mock-fill {
+  height: 100%;
+  border-radius: 3px;
+}
+
+.template-card__mock-kpis {
+  display: flex;
+  gap: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0.9;
+}
+
+.template-card__meta {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--font-size-xs);
+  color: var(--color-gray-600);
+}
+
+.template-card__meta strong {
+  color: var(--color-primary);
+  font-size: var(--font-size-sm);
+}
+
+.template-card__preview-link {
+  padding: 0 14px 12px;
+  font-size: var(--font-size-xs);
+  color: var(--color-accent, #ff6b35);
+  font-weight: 600;
+}

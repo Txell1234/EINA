@@ -179,10 +179,13 @@
 }
 
 .prospective-narrative {
-  white-space: pre-wrap;
   font-size: var(--font-size-sm);
   line-height: 1.5;
   color: var(--color-gray-800);
+}
+
+.prospective-narrative.formatted-narrative {
+  white-space: normal;
 }
 
 .project-list {

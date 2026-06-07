@@ -17,10 +17,20 @@ from typing import Any, Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from services.export_backends import ExportBackendError, render_pdf_from_html
+from services.export_backends import ExportBackendError, probe_pdf_renderers, probe_weasyprint, render_pdf_from_html
 from services.report_content import build_executive_summary, build_variable_profiles
 from services.report_enrichment import enrich_project_bundle
 from services.report_i18n import get_report_strings, normalize_lang
+from services.report_layout import build_cover_page, build_eiu_outlook_html, build_actor_map_html
+from services.report_outlook import build_outlook_sections
+from services.report_actor_map import build_actor_map_sections
+from services.report_markdown import (
+    _add_markdown_runs,
+    append_report_text_docx,
+    format_report_line_html,
+    format_report_text_html,
+)
+from services.report_templates import get_report_css, normalize_report_variant, normalize_template
 
 from models.prospective import (
     MACTORObjective,
@@ -145,11 +155,41 @@ async def _load_project_bundle(db: AsyncSession, project_id: int) -> Optional[di
     )
 
 
-def _prepare_export_bundle(bundle: dict[str, Any], lang: str | None = None) -> dict[str, Any]:
+async def _attach_briefing_report_summary(
+    bundle: dict[str, Any],
+    *,
+    lang: str | None = None,
+) -> dict[str, Any]:
+    from services.briefing_summary_service import summarize_briefing_for_report
+
+    case = bundle.get("case")
+    if not case or not getattr(case, "description", None):
+        bundle["case_briefing_report"] = None
+        return bundle
+    bundle["case_briefing_report"] = await summarize_briefing_for_report(
+        case.description,
+        lang=lang or bundle.get("lang"),
+    )
+    return bundle
+
+
+def _prepare_export_bundle(
+    bundle: dict[str, Any],
+    lang: str | None = None,
+    *,
+    template: str | None = None,
+    report_variant: str | None = None,
+) -> dict[str, Any]:
     bundle["lang"] = normalize_lang(lang)
+    bundle["export_template"] = normalize_template(template or bundle.get("export_template"))
+    if report_variant:
+        bundle["report_variant"] = report_variant
+    bundle["report_variant"] = normalize_report_variant(bundle.get("report_variant"))
     bundle["strings"] = get_report_strings(bundle["lang"])
     bundle["variable_profiles"] = build_variable_profiles(bundle)
     bundle["executive_summary"] = build_executive_summary(bundle)
+    bundle["outlook_sections"] = build_outlook_sections(bundle)
+    bundle["actor_map"] = build_actor_map_sections(bundle)
     return bundle
 
 
@@ -240,10 +280,19 @@ def _append_case_briefing_html(parts: list[str], bundle: dict[str, Any]) -> None
     case = bundle.get("case")
     if not case:
         return
+    report = bundle.get("case_briefing_report") or {}
+    text = (report.get("text") or case.description or "").strip()
     parts.append("<h1>Briefing del cas OSINT</h1>")
     parts.append(f"<p><strong>Nom:</strong> {_escape(case.name)}</p>")
-    if case.description:
-        parts.append(f"<p><strong>Descripció completa:</strong></p><p>{_escape(case.description)}</p>")
+    if text:
+        parts.append(f"<p><strong>Briefing (informe):</strong></p><p>{_escape(text)}</p>")
+        if report.get("truncated"):
+            parts.append(
+                "<p class='muted'>Resum per a l'informe "
+                f"(màx. {report.get('max_words', 300)} paraules). "
+                "L'anàlisi s'ha executat sobre el briefing complet "
+                f"({report.get('original_word_count', '—')} paraules).</p>"
+            )
     prompt = bundle.get("case_prompt")
     if prompt and prompt.ai_analysis:
         parts.append("<h2>Pla de recerca (IA)</h2>")
@@ -873,11 +922,19 @@ def _append_case_briefing_docx(doc: Any, bundle: dict[str, Any]) -> None:
     case = bundle.get("case")
     if not case:
         return
+    report = bundle.get("case_briefing_report") or {}
+    text = (report.get("text") or case.description or "").strip()
     doc.add_heading("Briefing del cas OSINT", level=1)
     doc.add_paragraph(f"Nom: {case.name}")
-    if case.description:
-        doc.add_paragraph("Descripció completa:")
-        doc.add_paragraph(case.description)
+    if text:
+        doc.add_paragraph("Briefing (informe):")
+        doc.add_paragraph(text)
+        if report.get("truncated"):
+            doc.add_paragraph(
+                f"Resum per a l'informe (màx. {report.get('max_words', 300)} paraules). "
+                f"L'anàlisi s'ha executat sobre el briefing complet "
+                f"({report.get('original_word_count', '—')} paraules)."
+            )
     prompt = bundle.get("case_prompt")
     if prompt and prompt.ai_analysis:
         doc.add_heading("Pla de recerca (IA)", level=2)
@@ -1201,6 +1258,48 @@ def _escape(s: Optional[str]) -> str:
 
 
 def _html_report(bundle: dict[str, Any]) -> str:
+    if normalize_report_variant(bundle.get("report_variant")) == "analytical":
+        return _html_report_analytical(bundle)
+    return _html_report_full(bundle)
+
+
+def _html_report_analytical(bundle: dict[str, Any]) -> str:
+    """EIU-style Godet brief: outlook sections + executive summary + claims (no raw matrices)."""
+    project: ProspectiveProject = bundle["project"]
+    tpl = normalize_template(bundle.get("export_template"))
+    css = get_report_css(tpl, report_type="prospective")
+    s = bundle["strings"]
+    outlook = bundle.get("outlook_sections") or build_outlook_sections(bundle)
+    actor_map = bundle.get("actor_map") or build_actor_map_sections(bundle)
+    parts: list[str] = [
+        f"<style>{css}</style>",
+        build_cover_page(
+            tpl,
+            title=_escape(s.report_title),
+            subtitle=_escape(outlook.get("theme_subtitle") or project.title or ""),
+            meta=_escape(
+                f"{s.report_variant_analytical} · {s.project_id} {project.id} · "
+                f"{s.generated} {_utc_now_iso()}"
+            ),
+        ),
+    ]
+    if actor_map.get("has_data"):
+        parts.append(build_actor_map_html(actor_map, template=tpl, strings=s))
+    parts.append(build_eiu_outlook_html(outlook, template=tpl, strings=s))
+    _append_executive_summary_html(parts, bundle)
+    _append_actor_impact_html(parts, bundle)
+    _append_investment_html(parts, bundle)
+    _append_decision_annex_html(parts, bundle)
+    parts.append(
+        f"<footer class='report-footer tpl-{tpl}'>"
+        f"<div class='footer-brand'>EINA · Godet</div>"
+        f"<p class='muted'>{_escape(s.report_variant_analytical)} · {_escape(s.generated)} {_utc_now_iso()}</p>"
+        f"</footer>"
+    )
+    return "<html><meta charset='utf-8'><body>" + "".join(parts) + "</body></html>"
+
+
+def _html_report_full(bundle: dict[str, Any]) -> str:
     project: ProspectiveProject = bundle["project"]
     vars_list: list = bundle["variables"]
     actors_list: list = bundle["actors"]
@@ -1213,32 +1312,33 @@ def _html_report(bundle: dict[str, Any]) -> str:
     objective_codes = bundle["objective_codes"]
     postures_matrix = bundle["postures_matrix"]
 
-    css = """
-    @page { size: A4; margin: 18mm 16mm; }
-    body { font-family: "DejaVu Sans", Helvetica, Arial, sans-serif; font-size: 10pt; color: #222; }
-    h1 { color: #1e3a5f; font-size: 18pt; margin-top: 0; border-bottom: 2px solid #ff6b35; padding-bottom: 6px; }
-    h2 { color: #1e3a5f; font-size: 12pt; margin-top: 16px; }
-    .muted { color: #555; font-size: 9pt; }
+    tpl = normalize_template(bundle.get("export_template"))
+    css = get_report_css(tpl, report_type="prospective") + """
     table.grid { border-collapse: collapse; width: 100%; margin: 8px 0 12px 0; }
-    table.grid th, table.grid td { border: 1px solid #ccc; padding: 4px 6px; text-align: left; vertical-align: top; }
-    table.grid th { background: #f3f6f9; font-weight: 600; }
+    table.grid th, table.grid td { padding: 4px 6px; text-align: left; vertical-align: top; }
     pre.json { white-space: pre-wrap; font-size: 8.5pt; background: #f8f9fa; padding: 8px; border-radius: 4px; }
-    .cover-title { font-size: 26pt; color: #1e3a5f; margin-bottom: 4px; }
-    .cover-sub { font-size: 14pt; color: #333; margin-bottom: 18px; }
     """
 
     s = bundle["strings"]
     parts: list[str] = []
     parts.append(f"<style>{css}</style>")
-    parts.append(f'<div class="cover-title">{_escape(s.report_title)}</div>')
-    parts.append(f"<div class='cover-sub'>{_escape(project.title)}</div>")
     parts.append(
-        f"<p class='muted'>{_escape(s.report_subtitle)}</p>"
-        f"<p class='muted'>{_escape(s.project_id)} {project.id} · "
-        f"{_escape(s.generated)} {_escape(_utc_now_iso())}</p>"
+        build_cover_page(
+            tpl,
+            title=_escape(s.report_title),
+            subtitle=_escape(project.title or ""),
+            meta=_escape(
+                f"{s.report_subtitle} · {s.project_id} {project.id} · "
+                f"{s.generated} {_utc_now_iso()}"
+            ),
+        )
     )
 
     _append_executive_summary_html(parts, bundle)
+
+    actor_map = bundle.get("actor_map") or build_actor_map_sections(bundle)
+    if actor_map.get("has_data"):
+        parts.append(build_actor_map_html(actor_map, template=tpl, strings=s))
 
     parts.append(f"<h1>{_escape(s.project_section)}</h1>")
     parts.append(f"<p><strong>{_escape(s.hypothesis)}</strong></p>")
@@ -1388,11 +1488,10 @@ def _html_report(bundle: dict[str, Any]) -> str:
             )
             poss_rationale = getattr(s, "possibility_rationale", None) or ""
             if poss_rationale:
-                parts.append(f"<p><strong>Possibilitat</strong> {_escape(poss_rationale)}</p>")
+                parts.append(f"<p>{format_report_line_html(poss_rationale)}</p>")
             if s.morphological_config:
                 parts.append(f"<p><strong>Configuració</strong> {_escape(s.morphological_config)}</p>")
-            nar = _escape(s.narrative or "").replace("\n", "<br/>")
-            parts.append(f"<div>{nar}</div>")
+            parts.append(f'<div class="report-narrative">{format_report_text_html(s.narrative or "")}</div>')
     else:
         parts.append("<p class='muted'>Sense narratives d'escenari generades.</p>")
 
@@ -1441,6 +1540,67 @@ def _add_doc_cover(doc: Any, bundle: dict[str, Any]) -> None:
 
 
 def _populate_doc_body(doc: Any, bundle: dict[str, Any]) -> None:
+    if normalize_report_variant(bundle.get("report_variant")) == "analytical":
+        _populate_doc_body_analytical(doc, bundle)
+        return
+    _populate_doc_body_full(doc, bundle)
+
+
+def _populate_doc_body_analytical(doc: Any, bundle: dict[str, Any]) -> None:
+    _, _, _, _, PRIMARY_RGB = _load_docx()
+    s = bundle["strings"]
+    outlook = bundle.get("outlook_sections") or build_outlook_sections(bundle)
+    actor_map = bundle.get("actor_map") or build_actor_map_sections(bundle)
+
+    _append_executive_summary_docx(doc, bundle)
+
+    if actor_map.get("has_data"):
+        h = doc.add_heading(s.actor_map_title, level=1)
+        h.runs[0].font.color.rgb = PRIMARY_RGB
+        doc.add_paragraph(s.actor_map_lead)
+        if actor_map.get("case_focus"):
+            doc.add_paragraph(f"{s.actor_map_case_focus}: {actor_map['case_focus']}")
+        for co in actor_map.get("callouts") or []:
+            doc.add_heading(co.get("actor_name") or "—", level=2)
+            if co.get("meta"):
+                doc.add_paragraph(str(co["meta"]))
+            for bullet in co.get("bullets") or []:
+                doc.add_paragraph(str(bullet), style="List Bullet")
+            if not co.get("region_id"):
+                doc.add_paragraph(s.actor_map_no_geo)
+
+    h = doc.add_heading(s.outlook_what_to_watch, level=1)
+    h.runs[0].font.color.rgb = PRIMARY_RGB
+    for item in outlook.get("what_to_watch") or []:
+        doc.add_paragraph(str(item), style="List Bullet")
+
+    doc.add_heading(s.outlook_key_risks, level=1)
+    for para in outlook.get("key_risks") or []:
+        doc.add_paragraph(str(para))
+
+    doc.add_heading(s.outlook_key_opportunities, level=1)
+    for para in outlook.get("key_opportunities") or []:
+        doc.add_paragraph(str(para))
+
+    if outlook.get("scenarios"):
+        doc.add_heading(s.outlook_scenarios, level=1)
+        rows = [
+            [
+                sc.get("name", ""),
+                sc.get("likelihood_label", ""),
+                sc.get("possibility", ""),
+                str(sc.get("excerpt", ""))[:200],
+            ]
+            for sc in outlook["scenarios"]
+        ]
+        _doc_table(doc, ["Escenari", "Probabilitat", "Possibilitat", "Extracte"], rows)
+
+    _append_actor_impact_docx(doc, bundle)
+    _append_investment_docx(doc, bundle)
+    _append_decision_annex_docx(doc, bundle)
+
+
+def _populate_doc_body_full(doc: Any, bundle: dict[str, Any]) -> None:
     project: ProspectiveProject = bundle["project"]
     vars_list: list = bundle["variables"]
     actors_list: list = bundle["actors"]
@@ -1599,10 +1759,12 @@ def _populate_doc_body(doc: Any, bundle: dict[str, Any]) -> None:
             )
             poss_rationale = getattr(s, "possibility_rationale", None) or ""
             if poss_rationale:
-                doc.add_paragraph(f"Possibilitat: {poss_rationale}")
+                p = doc.add_paragraph()
+                p.add_run("Possibilitat: ")
+                _add_markdown_runs(p, poss_rationale)
             if s.morphological_config:
                 doc.add_paragraph(str(s.morphological_config))
-            doc.add_paragraph(s.narrative or "")
+            append_report_text_docx(doc, s.narrative or "")
     else:
         doc.add_paragraph("Sense escenaris generats.")
 
@@ -1620,6 +1782,8 @@ async def export_html(
     *,
     lang: str = "ca",
     include_decision_annex: bool = False,
+    template: str = "eina",
+    report_variant: str = "full",
     output_dir: str | Path | None = None,
     filename: str | None = None,
 ) -> dict[str, Any]:
@@ -1627,7 +1791,8 @@ async def export_html(
     bundle = await _load_project_bundle(db, project_id)
     if not bundle:
         raise ValueError(f"Prospective project {project_id} not found")
-    bundle = _prepare_export_bundle(bundle, lang)
+    bundle = _prepare_export_bundle(bundle, lang, template=template, report_variant=report_variant)
+    bundle = await _attach_briefing_report_summary(bundle, lang=lang)
     bundle = await _attach_decision_annex(db, bundle, include_decision_annex=include_decision_annex)
 
     directory = _ensure_reports_dir(output_dir)
@@ -1660,16 +1825,27 @@ async def export_pdf(
     *,
     lang: str = "ca",
     include_decision_annex: bool = False,
+    template: str = "eina",
+    report_variant: str = "full",
     output_dir: str | Path | None = None,
     filename: str | None = None,
 ) -> dict[str, Any]:
     """
-    Export prospective project bundle to PDF. Returns metadata including absolute file_path.
+    Export prospective project bundle to PDF. Uses WeasyPrint or Playwright fallback.
     """
+    pdf_backends = probe_pdf_renderers()
+    if not pdf_backends.get("available"):
+        weasy = pdf_backends.get("weasyprint") or {}
+        pw = pdf_backends.get("playwright") or {}
+        msg = weasy.get("message") or pw.get("message") or "Cap motor PDF disponible"
+        hint = f"{weasy.get('install_hint', '')} · {pw.get('install_hint', '')}".strip(" ·")
+        raise ExportBackendError("pdf", msg, hint=hint or None)
+
     bundle = await _load_project_bundle(db, project_id)
     if not bundle:
         raise ValueError(f"Prospective project {project_id} not found")
-    bundle = _prepare_export_bundle(bundle, lang)
+    bundle = _prepare_export_bundle(bundle, lang, template=template, report_variant=report_variant)
+    bundle = await _attach_briefing_report_summary(bundle, lang=lang)
     bundle = await _attach_decision_annex(db, bundle, include_decision_annex=include_decision_annex)
 
     directory = _ensure_reports_dir(output_dir)
@@ -1693,6 +1869,8 @@ async def export_docx(
     *,
     lang: str = "ca",
     include_decision_annex: bool = False,
+    template: str = "eina",
+    report_variant: str = "full",
     output_dir: str | Path | None = None,
     filename: str | None = None,
 ) -> dict[str, Any]:
@@ -1702,7 +1880,8 @@ async def export_docx(
     bundle = await _load_project_bundle(db, project_id)
     if not bundle:
         raise ValueError(f"Prospective project {project_id} not found")
-    bundle = _prepare_export_bundle(bundle, lang)
+    bundle = _prepare_export_bundle(bundle, lang, template=template, report_variant=report_variant)
+    bundle = await _attach_briefing_report_summary(bundle, lang=lang)
     bundle = await _attach_decision_annex(db, bundle, include_decision_annex=include_decision_annex)
 
     directory = _ensure_reports_dir(output_dir)

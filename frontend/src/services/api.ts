@@ -11,8 +11,14 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 30000, // 30 segundos timeout global (aumentado para operaciones largas)
+  timeout: 30000, // 30 segundos timeout global (export usa timeout per petició)
 })
+
+/** Exportació d'informes: enriquiment + render pot superar 30s. */
+const EXPORT_REQUEST_TIMEOUT_MS = 300_000
+
+/** Workspace + crossover financer: pot incloure Policy×Indústria i SMIC. */
+const FINANCIAL_REQUEST_TIMEOUT_MS = 120_000
 
 /** Append JWT for EventSource/SSE (cannot set Authorization header). */
 export function sseUrl(path: string): string {
@@ -22,22 +28,36 @@ export function sseUrl(path: string): string {
   return `${path}${sep}access_token=${encodeURIComponent(token)}`
 }
 
+function isOptionalProspectiveRequest(url: string): boolean {
+  return (
+    url.includes('/api/prospective/monitors/summary') ||
+    url.includes('/cca-suggestions')
+  )
+}
+
 // Interceptor per mostrar errors de connexió
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    const requestUrl = error.config?.url ?? ''
+    const isAuthRoute =
+      requestUrl.includes('/api/auth/login') || requestUrl.includes('/api/auth/register')
+    const optionalProspective = isOptionalProspectiveRequest(requestUrl)
+    const silentOptional =
+      optionalProspective &&
+      error.response &&
+      [401, 404].includes(error.response.status)
+
     if (error.code === 'ECONNABORTED') {
-      console.error('⏱️ Timeout: El servidor no respon a temps')
+      if (!optionalProspective) {
+        console.error('⏱️ Timeout: El servidor no respon a temps')
+      }
     } else if (error.code === 'ERR_NETWORK' || error.message.includes('Network Error')) {
       console.error('🔌 Error de connexió: No es pot connectar al servidor backend')
       console.error('   Assegura\'t que el backend està executant-se a http://localhost:8000')
     } else if (error.response) {
-      const requestUrl = error.config?.url ?? ''
-      const isAuthRoute =
-        requestUrl.includes('/api/auth/login') || requestUrl.includes('/api/auth/register')
-
       // JWT expired or invalid → clear session and redirect (not on login/register failures)
-      if (error.response?.status === 401 && !isAuthRoute) {
+      if (error.response?.status === 401 && !isAuthRoute && !optionalProspective) {
         const currentPath = window.location.pathname
         if (currentPath !== '/login' && currentPath !== '/register') {
           notifySessionExpired()
@@ -48,10 +68,10 @@ api.interceptors.response.use(
           }, 100)
         }
       }
-      if (!isAuthRoute) {
+      if (!isAuthRoute && !silentOptional) {
         console.error(`❌ Error del servidor: ${error.response.status} - ${error.response.statusText}`)
       }
-    } else {
+    } else if (!silentOptional) {
       console.error('❌ Error desconegut:', error.message)
     }
     return Promise.reject(error)
@@ -186,29 +206,64 @@ export const casesService = {
     const response = await api.get(`/api/cases/${id}/scope-profile`)
     return response.data as import('../types/analysisScope').CaseScopeProfile
   },
+  getCaseWorkspace: async (caseId: number, projectId?: number) => {
+    const params = projectId ? { project_id: projectId } : undefined
+    const response = await api.get(`/api/cases/${caseId}/workspace`, {
+      params,
+      timeout: FINANCIAL_REQUEST_TIMEOUT_MS,
+    })
+    return response.data
+  },
   listFinancialReports: async (caseId: number) => {
-    const response = await api.get(`/api/cases/${caseId}/financial-reports`)
+    const response = await api.get(`/api/cases/${caseId}/financial-reports`, {
+      timeout: FINANCIAL_REQUEST_TIMEOUT_MS,
+    })
     return response.data
   },
   uploadFinancialReport: async (
     caseId: number,
-    body: { text: string; source?: string; title?: string; source_url?: string; enrich_llm?: boolean },
+    body: {
+      text: string
+      source?: string
+      title?: string
+      source_url?: string
+      enrich_llm?: boolean
+      reference_entity?: string
+    },
   ) => {
-    const response = await api.post(`/api/cases/${caseId}/financial-reports`, body)
+    const response = await api.post(`/api/cases/${caseId}/financial-reports`, body, {
+      timeout: FINANCIAL_REQUEST_TIMEOUT_MS,
+    })
+    return response.data
+  },
+  previewFinancialReport: async (
+    caseId: number,
+    body: {
+      text: string
+      source?: string
+      title?: string
+      focus_company?: string
+    },
+  ) => {
+    const response = await api.post(`/api/cases/${caseId}/financial-reports/preview`, body, {
+      timeout: FINANCIAL_REQUEST_TIMEOUT_MS,
+    })
     return response.data
   },
   uploadFinancialReportFile: async (
     caseId: number,
     file: File,
-    opts: { source?: string; title?: string; enrich_llm?: boolean } = {},
+    opts: { source?: string; title?: string; enrich_llm?: boolean; reference_entity?: string } = {},
   ) => {
     const form = new FormData()
     form.append('file', file)
     form.append('source', opts.source ?? 'custom')
     form.append('title', opts.title ?? '')
+    form.append('reference_entity', opts.reference_entity ?? '')
     form.append('enrich_llm', String(opts.enrich_llm ?? false))
     const response = await api.post(`/api/cases/${caseId}/financial-reports/upload`, form, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: FINANCIAL_REQUEST_TIMEOUT_MS,
     })
     return response.data
   },
@@ -220,9 +275,14 @@ export const casesService = {
       source?: string
       external_weight?: number
       enrich_llm?: boolean
+      interpret_narrative?: 'auto' | 'off' | 'on'
+      focus_company?: string
+      project_id?: number
     },
   ) => {
-    const response = await api.post(`/api/cases/${caseId}/financial-crossover`, body)
+    const response = await api.post(`/api/cases/${caseId}/financial-crossover`, body, {
+      timeout: FINANCIAL_REQUEST_TIMEOUT_MS,
+    })
     return response.data
   },
 }
@@ -874,14 +934,63 @@ export const intelligenceService = {
     })
     return response.data
   },
+  runAnalyticsLab: async (
+    caseId: number,
+    body: {
+      ticker?: string
+      focus_company?: string
+      confidence_scope?: 'auto' | 'case' | 'entity'
+      experiments?: string[]
+      monte_carlo_samples?: number
+    },
+  ) => {
+    const response = await api.post(`/api/intelligence/${caseId}/analytics-lab/run`, body, {
+      timeout: 180_000,
+    })
+    return response.data
+  },
+  getAnalyticsLabLatest: async (
+    caseId: number,
+    params?: { focus_company?: string; confidence_scope?: string },
+  ) => {
+    const response = await api.get(`/api/intelligence/${caseId}/analytics-lab/latest`, {
+      params: params ?? {},
+    })
+    return response.data
+  },
+  getGeopoliticalConfidence: async (caseId: number, focusCompany?: string) => {
+    const response = await api.get(`/api/intelligence/${caseId}/geopolitical-confidence`, {
+      params: focusCompany ? { focus_company: focusCompany } : {},
+    })
+    return response.data
+  },
+  getGeopoliticalSynthesis: async (caseId: number, focusCompany?: string) => {
+    const response = await api.get(`/api/intelligence/${caseId}/geopolitical-synthesis`, {
+      params: focusCompany ? { focus_company: focusCompany } : {},
+    })
+    return response.data
+  },
 }
 
 export const prospectiveInquiryService = {
-  dashboard: async (params?: { status?: string; caseId?: number; scheduledOnly?: boolean; limit?: number }) => {
+  dashboard: async (params?: {
+    status?: string
+    caseId?: number
+    q?: string
+    mode?: 'full' | 'lite'
+    scheduledOnly?: boolean
+    minConfidence?: number
+    llmOnly?: boolean
+    limit?: number
+  }) => {
     const qs = new URLSearchParams()
     if (params?.status) qs.set('status', params.status)
     if (params?.caseId) qs.set('case_id', String(params.caseId))
+    if (params?.q) qs.set('q', params.q)
+    if (params?.mode) qs.set('mode', params.mode)
     if (params?.scheduledOnly) qs.set('scheduled_only', 'true')
+    if (params?.minConfidence != null) qs.set('min_confidence', String(params.minConfidence))
+    if (params?.llmOnly) qs.set('llm_only', 'true')
     if (params?.limit) qs.set('limit', String(params.limit))
     const q = qs.toString()
     const response = await api.get(`/api/prospective/inquiries/dashboard${q ? `?${q}` : ''}`)
@@ -892,7 +1001,25 @@ export const prospectiveInquiryService = {
       ids,
       force_refresh: forceRefresh,
     })
-    return response.data
+    return response.data as {
+      processed: number
+      ok_count: number
+      failed_count: number
+      results: Array<{ inquiry_id: number; ok: boolean; error?: string }>
+    }
+  },
+  batchSchedule: async (ids: number[], enabled: boolean, intervalHours = 24) => {
+    const response = await api.patch('/api/prospective/inquiries/batch-schedule', {
+      ids,
+      enabled,
+      interval_hours: intervalHours,
+    })
+    return response.data as {
+      processed: number
+      ok_count: number
+      failed_count: number
+      results: Array<{ inquiry_id: number; ok: boolean; error?: string }>
+    }
   },
   parsePreview: async (question: string, caseId?: number) => {
     const response = await api.post('/api/prospective/inquiries/parse-preview', {
@@ -918,6 +1045,34 @@ export const prospectiveInquiryService = {
     const a = document.createElement('a')
     a.href = url
     a.download = `inquiries_batch_${Date.now()}.zip`
+    a.click()
+    URL.revokeObjectURL(url)
+  },
+  exportExecutive: async (params: {
+    ids?: number[]
+    caseId?: number
+    lang?: 'ca' | 'es' | 'en'
+    output?: 'html' | 'pdf'
+  }) => {
+    const qs = new URLSearchParams()
+    if (params.ids?.length) qs.set('ids', params.ids.join(','))
+    if (params.caseId) qs.set('case_id', String(params.caseId))
+    qs.set('lang', params.lang ?? 'ca')
+    qs.set('output', params.output ?? 'html')
+    const token = localStorage.getItem('token')
+    const base = API_BASE_URL.replace(/\/$/, '')
+    const res = await fetch(`${base}/api/prospective/inquiries/export/executive?${qs.toString()}`, {
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    })
+    if (!res.ok) throw new Error(`Executive export failed: ${res.status}`)
+    const blob = await res.blob()
+    const ext = params.output === 'pdf' ? 'pdf' : 'html'
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `executive_inquiries_${Date.now()}.${ext}`
     a.click()
     URL.revokeObjectURL(url)
   },
@@ -1051,13 +1206,66 @@ export const prospectiveInquiryService = {
     const response = await api.get(`/api/prospective/inquiries/${inquiryId}/morph-bootstrap`)
     return response.data
   },
-  exportHtmlUrl: (inquiryId: number) => {
-    const base = API_BASE_URL.replace(/\/$/, '')
-    return `${base}/api/prospective/inquiries/${inquiryId}/export/html`
+  listExportTemplates: async () => {
+    const response = await api.get('/api/prospective/inquiries/export/templates')
+    return response.data as { templates: Array<{ id: string; label: string; label_ca: string }> }
   },
-  exportPdfUrl: (inquiryId: number) => {
+  reportLibrary: async (opts?: {
+    caseId?: number
+    savedOnly?: boolean
+    includeArchived?: boolean
+    limit?: number
+  }) => {
+    const qs = new URLSearchParams()
+    if (opts?.caseId) qs.set('case_id', String(opts.caseId))
+    if (opts?.savedOnly === false) qs.set('saved_only', 'false')
+    if (opts?.includeArchived) qs.set('include_archived', 'true')
+    if (opts?.limit) qs.set('limit', String(opts.limit))
+    const q = qs.toString()
+    const response = await api.get(
+      `/api/prospective/inquiries/reports/library${q ? `?${q}` : ''}`,
+    )
+    return response.data
+  },
+  createBatch: async (body: {
+    case_id: number
+    questions: string[]
+    mode?: 'full' | 'lite'
+  }) => {
+    const response = await api.post('/api/prospective/inquiries/create/batch', body)
+    return response.data as { created: Array<{ inquiry_id: number; status: string }>; count: number }
+  },
+  updateReportMeta: async (
+    inquiryId: number,
+    meta: {
+      is_saved?: boolean
+      keep_forever?: boolean
+      archived?: boolean
+      report_title?: string
+      export_template?: string
+      notes?: string
+    },
+  ) => {
+    const response = await api.patch(`/api/prospective/inquiries/${inquiryId}/report-meta`, meta)
+    return response.data
+  },
+  exportHtmlUrl: (inquiryId: number, template = 'eina', lang?: string) => {
+    const qs = new URLSearchParams({ template })
+    if (lang) qs.set('lang', lang)
     const base = API_BASE_URL.replace(/\/$/, '')
-    return `${base}/api/prospective/inquiries/${inquiryId}/export/pdf`
+    return sseUrl(`${base}/api/prospective/inquiries/${inquiryId}/export/html?${qs.toString()}`)
+  },
+  exportPdfUrl: (inquiryId: number, template = 'eina', lang?: string) => {
+    const qs = new URLSearchParams({ template })
+    if (lang) qs.set('lang', lang)
+    const base = API_BASE_URL.replace(/\/$/, '')
+    return sseUrl(`${base}/api/prospective/inquiries/${inquiryId}/export/pdf?${qs.toString()}`)
+  },
+  exportDocxUrl: (inquiryId: number, template = 'eina', lang?: string) => {
+    const qs = new URLSearchParams({ template })
+    if (lang) qs.set('lang', lang)
+    const base = API_BASE_URL.replace(/\/$/, '')
+    return sseUrl(`${base}/api/prospective/inquiries/${inquiryId}/export/docx?${qs.toString()}`)
   },
   ccaHeatmap: async (inquiryId: number) => {
     const response = await api.get(`/api/prospective/inquiries/${inquiryId}/cca-heatmap`)
@@ -1362,6 +1570,21 @@ export const reputationService = {
 
 export default api
 
+export type HealthStatus = {
+  services?: {
+    export?: {
+      weasyprint?: { available?: boolean; message?: string; install_hint?: string }
+    }
+  }
+}
+
+export const healthService = {
+  getStatus: async (): Promise<HealthStatus> => {
+    const response = await api.get('/health', { timeout: 10_000 })
+    return response.data as HealthStatus
+  },
+}
+
 export type ExportReadiness = {
   export_ready: boolean
   can_export_with_warning?: boolean
@@ -1378,6 +1601,31 @@ export type ExportReadiness = {
       source_url?: string
     }>
   }
+}
+
+export async function parseExportError(err: unknown): Promise<string> {
+  const axiosErr = err as {
+    code?: string
+    message?: string
+    response?: { status?: number; data?: Blob | { detail?: string } }
+  }
+  if (axiosErr.code === 'ECONNABORTED') {
+    return 'La generació de l\'informe ha superat el temps d\'espera. Torna-ho a provar o usa HTML/DOCX.'
+  }
+  const data = axiosErr.response?.data
+  if (data instanceof Blob) {
+    try {
+      const text = await data.text()
+      const parsed = JSON.parse(text) as { detail?: string }
+      if (typeof parsed.detail === 'string') return parsed.detail
+    } catch {
+      /* ignore */
+    }
+  } else if (data && typeof data === 'object' && 'detail' in data) {
+    const detail = (data as { detail?: string }).detail
+    if (typeof detail === 'string') return detail
+  }
+  return 'No s\'ha pogut exportar l\'informe.'
 }
 
 export async function confirmExportIfNeeded(readiness: ExportReadiness): Promise<boolean> {
@@ -1581,8 +1829,14 @@ export const prospectiveService = {
   },
   getCcaSuggestions: async (projectId: number, inquiryId?: number) => {
     const qs = inquiryId ? `?inquiry_id=${inquiryId}` : ''
-    const response = await api.get(`/api/prospective/projects/${projectId}/cca-suggestions${qs}`)
-    return response.data
+    try {
+      const response = await api.get(`/api/prospective/projects/${projectId}/cca-suggestions${qs}`)
+      return response.data
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number } })?.response?.status
+      if (status === 404) return null
+      throw err
+    }
   },
   previewCcaSuggestions: async (
     projectId: number,
@@ -1596,11 +1850,17 @@ export const prospectiveService = {
       selected?: boolean
     }>,
   ) => {
-    const response = await api.post(
-      `/api/prospective/projects/${projectId}/cca-suggestions/preview`,
-      { rules },
-    )
-    return response.data
+    try {
+      const response = await api.post(
+        `/api/prospective/projects/${projectId}/cca-suggestions/preview`,
+        { rules },
+      )
+      return response.data
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number } })?.response?.status
+      if (status === 404) return null
+      throw err
+    }
   },
   applyCcaSuggestions: async (
     projectId: number,
@@ -1688,6 +1948,8 @@ export const prospectiveService = {
     projectId: number,
     lang = 'ca',
     includeDecisionAnnex = false,
+    template = 'eina',
+    reportVariant: 'full' | 'analytical' = 'full',
   ): Promise<void> => {
     const readiness = await prospectiveService.getExportReadiness(projectId)
     const ok = await confirmExportIfNeeded(readiness)
@@ -1695,8 +1957,14 @@ export const prospectiveService = {
     const response = await api.get(
       `/api/prospective/projects/${projectId}/export/pdf`,
       {
-        params: { lang, include_decision_annex: includeDecisionAnnex },
+        params: {
+          lang,
+          include_decision_annex: includeDecisionAnnex,
+          template,
+          report_variant: reportVariant,
+        },
         responseType: 'blob',
+        timeout: EXPORT_REQUEST_TIMEOUT_MS,
       },
     )
     const url = URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }))
@@ -1713,6 +1981,8 @@ export const prospectiveService = {
     projectId: number,
     lang = 'ca',
     includeDecisionAnnex = false,
+    template = 'eina',
+    reportVariant: 'full' | 'analytical' = 'full',
   ): Promise<void> => {
     const readiness = await prospectiveService.getExportReadiness(projectId)
     const ok = await confirmExportIfNeeded(readiness)
@@ -1720,8 +1990,14 @@ export const prospectiveService = {
     const response = await api.get(
       `/api/prospective/projects/${projectId}/export/docx`,
       {
-        params: { lang, include_decision_annex: includeDecisionAnnex },
+        params: {
+          lang,
+          include_decision_annex: includeDecisionAnnex,
+          template,
+          report_variant: reportVariant,
+        },
         responseType: 'blob',
+        timeout: EXPORT_REQUEST_TIMEOUT_MS,
       },
     )
     const url = URL.createObjectURL(
@@ -1742,6 +2018,8 @@ export const prospectiveService = {
     projectId: number,
     lang = 'ca',
     includeDecisionAnnex = false,
+    template = 'eina',
+    reportVariant: 'full' | 'analytical' = 'full',
   ): Promise<void> => {
     const readiness = await prospectiveService.getExportReadiness(projectId)
     const ok = await confirmExportIfNeeded(readiness)
@@ -1749,8 +2027,14 @@ export const prospectiveService = {
     const response = await api.get(
       `/api/prospective/projects/${projectId}/export/html`,
       {
-        params: { lang, include_decision_annex: includeDecisionAnnex },
+        params: {
+          lang,
+          include_decision_annex: includeDecisionAnnex,
+          template,
+          report_variant: reportVariant,
+        },
         responseType: 'blob',
+        timeout: EXPORT_REQUEST_TIMEOUT_MS,
       },
     )
     const url = URL.createObjectURL(new Blob([response.data], { type: 'text/html;charset=utf-8' }))

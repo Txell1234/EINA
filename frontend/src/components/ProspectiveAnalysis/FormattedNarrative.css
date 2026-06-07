@@ -1,0 +1,28 @@
+.formatted-narrative {
+  font-size: var(--font-size-sm);
+  line-height: 1.62;
+  color: var(--color-gray-800);
+}
+
+.formatted-narrative .report-prose {
+  margin: 0 0 0.75rem;
+}
+
+.formatted-narrative .report-prose strong {
+  font-weight: 700;
+  color: var(--color-primary);
+  letter-spacing: 0.01em;
+}
+
+.formatted-narrative .report-list {
+  margin: 0.35rem 0 0.85rem 1.25rem;
+  padding-left: 0.35rem;
+}
+
+.formatted-narrative .report-list li {
+  margin-bottom: 0.35rem;
+}
+
+.formatted-narrative .report-list--numbered {
+  list-style-type: decimal;
+}

@@ -12,7 +12,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.dependencies import get_current_user
 from models.user import User
-from services.inquiry_export_service import build_inquiry_report_html, export_inquiry_pdf_bytes
+from services.inquiry_export_service import (
+    build_inquiry_report_html,
+    export_inquiry_docx_bytes,
+    export_inquiry_pdf_bytes,
+    prepare_inquiry_for_export,
+)
 from services.inquiry_orchestrator_service import InquiryOrchestratorService
 
 router = APIRouter(prefix="/api/prospective/inquiries", tags=["Prospective Inquiry Q2FS"])
@@ -49,11 +54,92 @@ class BatchRerunIn(BaseModel):
     force_refresh: bool = True
 
 
+class BatchScheduleIn(BaseModel):
+    ids: list[int] = Field(..., min_length=1, max_length=50)
+    enabled: bool
+    interval_hours: int = Field(24, ge=1, le=168)
+
+
+class BatchCreateIn(BaseModel):
+    case_id: int
+    questions: list[str] = Field(..., min_length=1, max_length=10)
+    mode: Literal["full", "lite"] = "full"
+
+
+class ReportMetaIn(BaseModel):
+    is_saved: bool | None = None
+    keep_forever: bool | None = None
+    archived: bool | None = None
+    report_title: str | None = Field(None, max_length=200)
+    export_template: str | None = None
+    notes: str | None = Field(None, max_length=500)
+
+
+@router.get("/export/templates")
+async def list_export_templates(current_user: User = Depends(get_current_user)):
+    _ = current_user
+    from services.report_templates import list_templates
+
+    return {"templates": list_templates()}
+
+
+@router.get("/reports/library")
+async def inquiry_report_library(
+    case_id: int | None = Query(None),
+    saved_only: bool = Query(True),
+    include_archived: bool = Query(False),
+    limit: int = Query(100, ge=1, le=200),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _ = current_user
+    from services.inquiry_report_meta_service import list_report_library
+
+    return await list_report_library(
+        db,
+        case_id=case_id,
+        saved_only=saved_only,
+        include_archived=include_archived,
+        limit=limit,
+    )
+
+
+@router.post("/create/batch")
+async def create_inquiries_batch(
+    body: BatchCreateIn,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    svc = InquiryOrchestratorService(db)
+    created: list[dict[str, int | str]] = []
+    for q in body.questions:
+        question = q.strip()
+        if len(question) < 15:
+            continue
+        try:
+            row = await svc.create_inquiry(
+                body.case_id,
+                question,
+                mode=body.mode,
+                user_id=current_user.id,
+            )
+            created.append({"inquiry_id": row.id, "status": row.status, "question": question[:80]})
+        except ValueError:
+            continue
+    if not created:
+        raise HTTPException(status_code=400, detail="Cap pregunta vàlida (mínim 15 caràcters)")
+    return {"created": created, "count": len(created)}
+
+
 @router.get("/dashboard")
 async def inquiry_dashboard(
     status: str | None = Query(None),
     case_id: int | None = Query(None),
+    q: str | None = Query(None, description="Search question text"),
+    mode: Literal["full", "lite"] | None = Query(None),
     scheduled_only: bool = Query(False),
+    min_confidence: float | None = Query(None, ge=0.0, le=1.0),
+    llm_only: bool = Query(False),
     limit: int = Query(100, ge=1, le=200),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -64,7 +150,11 @@ async def inquiry_dashboard(
     return await InquiryDashboardService(db).list_dashboard(
         status=status,
         case_id=case_id,
+        search=q,
+        mode=mode,
         scheduled_only=scheduled_only,
+        min_confidence=min_confidence,
+        llm_only=llm_only,
         limit=limit,
     )
 
@@ -114,6 +204,25 @@ async def rerun_inquiries_batch(
         raise HTTPException(status_code=400, detail=str(exc))
 
 
+@router.patch("/batch-schedule")
+async def batch_schedule_inquiries(
+    body: BatchScheduleIn,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _ = current_user
+    from services.inquiry_dashboard_service import InquiryDashboardService
+
+    try:
+        return await InquiryDashboardService(db).batch_schedule(
+            body.ids,
+            enabled=body.enabled,
+            interval_hours=body.interval_hours,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
 @router.get("/export/batch")
 async def export_inquiries_batch(
     ids: str = Query(..., description="IDs separats per coma"),
@@ -134,6 +243,64 @@ async def export_inquiries_batch(
         content=payload,
         media_type="application/zip",
         headers={"Content-Disposition": "attachment; filename=inquiries_batch.zip"},
+    )
+
+
+@router.get("/export/executive")
+async def export_executive_multi_inquiry(
+    ids: str | None = Query(None, description="IDs separats per coma"),
+    case_id: int | None = Query(None),
+    lang: str = Query("ca"),
+    output: Literal["html", "pdf"] = Query("html"),
+    template: str | None = Query(None),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _ = current_user
+    from services.inquiry_executive_report_service import build_executive_report_html
+
+    inquiry_ids = None
+    if ids:
+        inquiry_ids = [int(x.strip()) for x in ids.split(",") if x.strip().isdigit()]
+    if not inquiry_ids and case_id is None:
+        raise HTTPException(status_code=400, detail="Cal case_id o ids")
+
+    try:
+        html_str = await build_executive_report_html(
+            db,
+            inquiry_ids=inquiry_ids,
+            case_id=case_id,
+            lang=lang,
+            template=template,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    if output == "pdf":
+        from services.export_backends import ExportBackendError, render_pdf_from_html
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+            tmp_path = Path(tmp.name)
+        try:
+            render_pdf_from_html(html_str, tmp_path)
+            pdf_bytes = tmp_path.read_bytes()
+        except ExportBackendError as exc:
+            raise HTTPException(status_code=503, detail=str(exc))
+        finally:
+            tmp_path.unlink(missing_ok=True)
+        stamp = case_id or "selection"
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename=executive_inquiries_{stamp}.pdf"},
+        )
+
+    stamp = case_id or "selection"
+    return HTMLResponse(
+        content=html_str,
+        headers={"Content-Disposition": f"inline; filename=executive_inquiries_{stamp}.html"},
     )
 
 
@@ -324,10 +491,36 @@ async def get_morph_bootstrap(
     return result
 
 
+@router.patch("/{inquiry_id}/report-meta")
+async def patch_inquiry_report_meta(
+    inquiry_id: int,
+    body: ReportMetaIn,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _ = current_user
+    from services.inquiry_report_meta_service import update_report_meta
+
+    result = await update_report_meta(
+        db,
+        inquiry_id,
+        is_saved=body.is_saved,
+        keep_forever=body.keep_forever,
+        archived=body.archived,
+        report_title=body.report_title,
+        export_template=body.export_template,
+        notes=body.notes,
+    )
+    if not result.get("found"):
+        raise HTTPException(status_code=404, detail=result.get("error", "Inquiry no trobada"))
+    return result
+
+
 @router.get("/{inquiry_id}/export/html")
 async def export_inquiry_html(
     inquiry_id: int,
     lang: str | None = Query(None, description="ca | es | en"),
+    template: str = Query("eina", description="eina | intelligence | economist | graphics"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -335,7 +528,8 @@ async def export_inquiry_html(
     detail = await InquiryOrchestratorService(db).get_detail(inquiry_id)
     if not detail.get("found"):
         raise HTTPException(status_code=404, detail="Inquiry no trobada")
-    html = build_inquiry_report_html(detail, lang=lang)
+    detail = await prepare_inquiry_for_export(db, detail, lang=lang)
+    html = build_inquiry_report_html(detail, lang=lang, template=template)
     return HTMLResponse(content=html)
 
 
@@ -343,6 +537,7 @@ async def export_inquiry_html(
 async def export_inquiry_pdf(
     inquiry_id: int,
     lang: str | None = Query(None, description="ca | es | en"),
+    template: str = Query("eina", description="eina | intelligence | economist | graphics"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -350,16 +545,41 @@ async def export_inquiry_pdf(
     detail = await InquiryOrchestratorService(db).get_detail(inquiry_id)
     if not detail.get("found"):
         raise HTTPException(status_code=404, detail="Inquiry no trobada")
-    pdf_bytes, meta = export_inquiry_pdf_bytes(detail, lang=lang)
+    detail = await prepare_inquiry_for_export(db, detail, lang=lang)
+    pdf_bytes, meta = export_inquiry_pdf_bytes(detail, lang=lang, template=template)
     if pdf_bytes is None:
         raise HTTPException(
             status_code=503,
-            detail=f"PDF no disponible: {meta}. Usa export/html o instal·la WeasyPrint.",
+            detail=f"PDF no disponible: {meta}. Instal·la WeasyPrint (Linux/Docker) o Playwright (Windows: pip install playwright && python -m playwright install chromium).",
         )
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename=inquiry_{inquiry_id}.pdf"},
+    )
+
+
+@router.get("/{inquiry_id}/export/docx")
+async def export_inquiry_docx(
+    inquiry_id: int,
+    lang: str | None = Query(None, description="ca | es | en"),
+    template: str = Query("eina", description="eina | intelligence | economist | graphics"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _ = current_user
+    detail = await InquiryOrchestratorService(db).get_detail(inquiry_id)
+    if not detail.get("found"):
+        raise HTTPException(status_code=404, detail="Inquiry no trobada")
+    detail = await prepare_inquiry_for_export(db, detail, lang=lang)
+    try:
+        docx_bytes = export_inquiry_docx_bytes(detail, lang=lang, template=template)
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"DOCX no disponible: {exc}") from exc
+    return Response(
+        content=docx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f"attachment; filename=inquiry_{inquiry_id}.docx"},
     )
 
 

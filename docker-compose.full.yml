@@ -33,11 +33,37 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://eina:eina_staging@postgres:5432/eina}
       REDIS_URL: redis://redis:6379/0
       Q2FS_STEP_CACHE_BACKEND: redis
+      INQUIRY_JOB_QUEUE_BACKEND: redis
+      INQUIRY_WORKER_MODE: standalone
       OTEL_ENABLED: "true"
       OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
       OTEL_TRACES_SAMPLER_RATE: "0.25"
       STRUCTURED_LOGGING: "true"
       INQUIRY_SCHEDULER_ENABLED: "true"
+
+  worker:
+    build: ./backend
+    container_name: eina-inquiry-worker
+    restart: unless-stopped
+    env_file: ./backend/.env
+    command: ["python", "-m", "scripts.inquiry_worker"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://eina:eina_staging@postgres:5432/eina}
+      REDIS_URL: redis://redis:6379/0
+      Q2FS_STEP_CACHE_BACKEND: redis
+      INQUIRY_JOB_QUEUE_BACKEND: redis
+      INQUIRY_WORKER_MODE: standalone
+      INQUIRY_SCHEDULER_ENABLED: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+        required: false
+      redis:
+        condition: service_started
+        required: false
+      backend:
+        condition: service_healthy
+    profiles: ["full"]
 
   prometheus:
     depends_on:

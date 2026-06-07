@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     ALERT_MONITOR_INTERVAL_HOURS: int = 6
     INQUIRY_SCHEDULER_INTERVAL_HOURS: int = 6
     INQUIRY_SCHEDULER_ENABLED: bool = True
+    # Inquiry job queue (auto | redis | memory | inline)
+    INQUIRY_JOB_QUEUE_BACKEND: str = "auto"
+    INQUIRY_WORKER_MODE: str = "embedded"  # embedded | standalone
+    INQUIRY_WORKER_BATCH_SIZE: int = 5
+    INQUIRY_WORKER_DEQUEUE_TIMEOUT_SECONDS: float = 2.0
 
     # Q2FS parse trigger (hybrid LLM + rule-based)
     Q2FS_PARSE_USE_LLM: bool = True

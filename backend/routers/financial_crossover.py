@@ -1,7 +1,7 @@
 """Financial external report upload and crossover with EINA conclusions."""
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field
@@ -22,6 +22,14 @@ class FinancialReportTextIn(BaseModel):
     title: str = Field(default="", max_length=200)
     source_url: str = Field(default="", max_length=500)
     enrich_llm: bool = False
+    reference_entity: str | None = Field(None, max_length=200)
+
+
+class FinancialReportPreviewIn(BaseModel):
+    text: str = Field(..., min_length=50)
+    source: str = Field(default="custom", max_length=64)
+    title: str = Field(default="", max_length=200)
+    focus_company: str | None = Field(None, max_length=200)
 
 
 class FinancialCrossoverIn(BaseModel):
@@ -30,6 +38,9 @@ class FinancialCrossoverIn(BaseModel):
     source: str = "custom"
     external_weight: float = Field(default=0.35, ge=0.0, le=1.0)
     enrich_llm: bool = False
+    interpret_narrative: Literal["auto", "off", "on"] = "auto"
+    focus_company: str | None = Field(None, max_length=200)
+    project_id: int | None = None
 
 
 @router.get("/{case_id}/financial-reports")
@@ -58,8 +69,28 @@ async def upload_financial_report_text(
         source_url=body.source_url,
         user_id=current_user.id,
         enrich_llm=body.enrich_llm,
+        reference_entity=body.reference_entity,
     )
     return result
+
+
+@router.post("/{case_id}/financial-reports/preview")
+async def preview_financial_report(
+    case_id: int,
+    body: FinancialReportPreviewIn,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Rule-based parse preview before save — detects company, ticker and whether LLM narrative may help."""
+    _ = case_id
+    _ = current_user
+    _ = db
+    return FinancialCrossoverService(db).preview_text(
+        body.text,
+        source=body.source,
+        title=body.title,
+        focus_company=body.focus_company,
+    )
 
 
 @router.post("/{case_id}/financial-reports/upload")
@@ -68,6 +99,7 @@ async def upload_financial_report_file(
     file: UploadFile = File(...),
     source: Annotated[str, Form()] = "custom",
     title: Annotated[str, Form()] = "",
+    reference_entity: Annotated[str, Form()] = "",
     enrich_llm: Annotated[bool, Form()] = False,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -92,6 +124,7 @@ async def upload_financial_report_file(
         filename=file.filename or "",
         user_id=current_user.id,
         enrich_llm=enrich_llm,
+        reference_entity=reference_entity.strip() or None,
     )
 
 
@@ -114,6 +147,9 @@ async def run_financial_crossover(
         source=body.source,
         external_weight=body.external_weight,
         enrich_llm=body.enrich_llm,
+        interpret_narrative=body.interpret_narrative,
+        focus_company=body.focus_company,
+        project_id=body.project_id,
     )
     if not result.get("found"):
         raise HTTPException(status_code=400, detail=result.get("error", "Crossover failed"))

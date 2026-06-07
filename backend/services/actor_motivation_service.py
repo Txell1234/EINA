@@ -86,7 +86,7 @@ def build_actor_motivation(
             continue
 
         monitor = monitors.get(match.monitor_id)
-        indicator = (monitor.indicator_text if monitor else "") or ""
+        indicator = (monitor.indicator if monitor else "") or ""
         scenario_name = ""
         if match.scenario_id and match.scenario_id in scenarios_by_id:
             scenario_name = scenarios_by_id[match.scenario_id].name or ""

@@ -62,10 +62,16 @@ export default function ReputationDashboard({ caseId: caseIdProp }: ReputationDa
     enabled: selectedEntityId !== null,
   })
 
+  const selectedEntityName =
+    typeof selectedEntityId === 'string'
+      ? selectedEntityId
+      : (profiles as ReputationProfile[] | undefined)?.find((p) => p.id === selectedEntityId)
+          ?.entity_name
+
   const { data: stakeholders, isLoading: stakeholdersLoading } = useQuery({
-    queryKey: ['stakeholders', effectiveCaseId],
-    queryFn: () => reputationService.getStakeholders(effectiveCaseId),
-    enabled: effectiveCaseId !== undefined,
+    queryKey: ['stakeholders', effectiveCaseId, selectedEntityName],
+    queryFn: () => reputationService.getStakeholders(effectiveCaseId, selectedEntityName),
+    enabled: effectiveCaseId !== undefined && Boolean(selectedEntityName),
   })
 
   const analyzeMutation = useMutation({
@@ -204,7 +210,7 @@ export default function ReputationDashboard({ caseId: caseIdProp }: ReputationDa
               const selected = String(selectedEntityId) === actor.name
               return (
                 <button
-                  key={actor.code}
+                  key={`${actor.code}-${actor.name}`}
                   type="button"
                   style={{
                     padding: '4px 12px',

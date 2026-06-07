@@ -14,6 +14,15 @@ logger = logging.getLogger(__name__)
 ALERT_MONITOR_COLUMNS: dict[str, str] = {
     "unread_count": "INTEGER DEFAULT 0",
     "case_id": "INTEGER",
+    "lookback_days": "INTEGER",
+    "horizon_label": "VARCHAR",
+    "min_match_score": "REAL",
+    "min_keywords_matched": "INTEGER",
+}
+
+EXTRACTED_STATEMENT_COLUMNS: dict[str, str] = {
+    "institution_subtype": "VARCHAR",
+    "signal_type": "VARCHAR",
 }
 
 PROSPECTIVE_SCENARIO_COLUMNS: dict[str, str] = {
@@ -34,21 +43,34 @@ def _sqlite_columns(conn: Connection, table: str) -> set[str]:
     return {row[1] for row in rows}
 
 
-def apply_sqlite_schema_patches(conn: Connection) -> list[str]:
-    """Add missing alert_monitors columns. Returns list of applied patches."""
+def _patch_table_columns(
+    conn: Connection,
+    table: str,
+    columns: dict[str, str],
+) -> list[str]:
     applied: list[str] = []
     inspector = inspect(conn)
-    if not inspector.has_table("alert_monitors"):
+    if not inspector.has_table(table):
         return applied
 
-    existing = _sqlite_columns(conn, "alert_monitors")
-    for col, ddl in ALERT_MONITOR_COLUMNS.items():
+    existing = _sqlite_columns(conn, table)
+    for col, ddl in columns.items():
         if col in existing:
             continue
-        conn.execute(text(f"ALTER TABLE alert_monitors ADD COLUMN {col} {ddl}"))
-        applied.append(f"alert_monitors.{col}")
-        logger.info("Schema patch: added alert_monitors.%s", col)
+        conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}"))
+        applied.append(f"{table}.{col}")
+        logger.info("Schema patch: added %s.%s", table, col)
 
+    return applied
+
+
+def apply_sqlite_schema_patches(conn: Connection) -> list[str]:
+    """Add missing columns on legacy SQLite DBs. Returns list of applied patches."""
+    applied: list[str] = []
+    applied.extend(_patch_table_columns(conn, "alert_monitors", ALERT_MONITOR_COLUMNS))
+    applied.extend(
+        _patch_table_columns(conn, "extracted_statements", EXTRACTED_STATEMENT_COLUMNS)
+    )
     return applied
 
 

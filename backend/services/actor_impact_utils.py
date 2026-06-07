@@ -172,9 +172,24 @@ def prob_label_to_pct(label: str | None) -> int:
     return 35
 
 
+def coerce_evidence_text(value: Any) -> str:
+    """Normalize evidence URL/excerpt fields (may be dict refs from JSON columns)."""
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, dict):
+        for key in ("url", "source_url", "href", "link"):
+            nested = value.get(key)
+            if isinstance(nested, str) and nested.strip():
+                return nested.strip()
+        return ""
+    return str(value).strip()
+
+
 def evidence_is_cited(ev: dict[str, Any]) -> bool:
-    url = (ev.get("source_url") or "").strip()
-    excerpt = (ev.get("excerpt") or "").strip()
+    url = coerce_evidence_text(ev.get("source_url"))
+    excerpt = coerce_evidence_text(ev.get("excerpt"))
     grounding = ev.get("grounding_score")
     if url.startswith("http"):
         return True
@@ -189,7 +204,7 @@ def filter_cited_evidence(evidence: list[dict[str, Any]]) -> list[dict[str, Any]
     for ev in evidence:
         if not evidence_is_cited(ev):
             continue
-        url = (ev.get("source_url") or "").strip()
+        url = coerce_evidence_text(ev.get("source_url"))
         if url and url in seen_urls:
             continue
         if url:

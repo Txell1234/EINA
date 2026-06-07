@@ -19,8 +19,21 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
-  margin-bottom: 0.5rem;
+  margin-top: 0.35rem;
   color: var(--color-primary, #1565c0);
+  font-size: 0.75rem;
+}
+
+.inquiry-compare__chart {
+  margin-bottom: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  background: var(--q2fs-surface, #f8fafc);
+  border: 1px solid var(--q2fs-border, #e2e8f0);
+  border-radius: var(--q2fs-radius, 6px);
+}
+
+.inquiry-compare__table-wrap {
+  overflow-x: auto;
 }
 
 .inquiry-compare__empty {
