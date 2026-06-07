@@ -32,6 +32,12 @@ export function mapGeoBundleToSummary(data: Record<string, unknown> | null | und
     investment_confidence_pct: (data.investment_posture as { confidence_pct?: number } | undefined)?.confidence_pct,
     investment_posture_source: (data.investment_posture as { source?: string } | undefined)?.source,
     investment_rationale: (data.investment_posture as { rationale?: string } | undefined)?.rationale,
+    entity_investment_recommendation: (data.entity_investment_posture as { recommendation?: string } | undefined)
+      ?.recommendation,
+    entity_investment_confidence_pct: (data.entity_investment_posture as { confidence_pct?: number } | undefined)
+      ?.confidence_pct,
+    entity_investment_posture_source: (data.entity_investment_posture as { source?: string } | undefined)?.source,
+    entity_investment_rationale: (data.entity_investment_posture as { rationale?: string } | undefined)?.rationale,
     osint_signals: (data.actor_impact_snapshot as { osint_signals?: GeopoliticalCaseSummary['osint_signals'] } | undefined)?.osint_signals,
   }
 }

@@ -758,6 +758,7 @@ export default function FinancialCrossoverPanel({
             entity={tiered?.focus_entity || fullInvestwatchReport?.company}
             externalSignal={tiered?.external_signal || fullInvestwatchReport?.recommendation}
             einaRecommendation={einaCaseSummary?.investment_recommendation}
+            entityRecommendation={einaCaseSummary?.entity_investment_recommendation}
             privateAction={tiered?.private?.[0]?.action}
             finalNumbers={finalNumbers}
             synthesisParagraphs={geoFinParagraphs}
@@ -949,6 +950,17 @@ export default function FinancialCrossoverPanel({
                   <div className="financial-crossover-panel__eina-stat">
                     <strong>Recomanació inversió (cas):</strong> {einaCaseSummary.investment_recommendation}{' '}
                     ({einaCaseSummary.investment_confidence_pct}%)
+                  </div>
+                ) : null}
+                {einaCaseSummary?.entity_investment_recommendation ? (
+                  <div className="financial-crossover-panel__eina-stat">
+                    <strong>
+                      Recomanació inversió ({einaCaseSummary.focus_company || tiered?.focus_entity || 'entitat'}):
+                    </strong>{' '}
+                    {einaCaseSummary.entity_investment_recommendation}
+                    {einaCaseSummary.entity_investment_confidence_pct != null
+                      ? ` (${einaCaseSummary.entity_investment_confidence_pct}%)`
+                      : null}
                   </div>
                 ) : null}
                 {einaCaseSummary?.scenario_count != null ? (

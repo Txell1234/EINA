@@ -58,6 +58,10 @@ export type GeopoliticalCaseSummary = {
   investment_posture_source?: string | null
   investment_posture_detail?: string | null
   investment_rationale?: string
+  entity_investment_recommendation?: string | null
+  entity_investment_confidence_pct?: number | null
+  entity_investment_posture_source?: string | null
+  entity_investment_rationale?: string | null
   osint_signals?: OsintSignals
 }
 
@@ -296,6 +300,30 @@ export function GeopoliticalConfidencePanel({ summary }: Props) {
           ) : null}
         </div>
       )}
+
+      {(summary.entity_investment_recommendation || summary.entity_investment_confidence_pct != null) &&
+      summary.focus_company ? (
+        <div className="geo-confidence-panel__posture geo-confidence-panel__posture--entity">
+          <h5>
+            Recomanació inversió entitat · <strong>{summary.focus_company}</strong>
+          </h5>
+          <p>
+            <strong>{summary.entity_investment_recommendation ?? '—'}</strong>
+            {summary.entity_investment_confidence_pct != null ? (
+              <> · confiança {summary.entity_investment_confidence_pct}%</>
+            ) : null}
+            {summary.entity_investment_posture_source ? (
+              <span className="geo-confidence-panel__posture-meta">
+                {' '}
+                · {summary.entity_investment_posture_source}
+              </span>
+            ) : null}
+          </p>
+          {summary.entity_investment_rationale ? (
+            <p className="geo-confidence-panel__posture-rationale">{summary.entity_investment_rationale}</p>
+          ) : null}
+        </div>
+      ) : null}
 
       {signals && Object.keys(signals).length > 0 ? (
         <div className="geo-confidence-panel__signals">

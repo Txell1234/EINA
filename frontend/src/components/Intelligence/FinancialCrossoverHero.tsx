@@ -17,6 +17,7 @@ type Props = {
   entity?: string | null
   externalSignal?: string | null
   einaRecommendation?: string | null
+  entityRecommendation?: string | null
   privateAction?: string | null
   finalNumbers?: FinalNumbers
   synthesisParagraphs?: string[]
@@ -41,6 +42,7 @@ export function FinancialCrossoverHero({
   entity,
   externalSignal,
   einaRecommendation,
+  entityRecommendation,
   privateAction,
   finalNumbers,
   synthesisParagraphs,
@@ -109,6 +111,12 @@ export function FinancialCrossoverHero({
             <div className="crossover-hero__kpi crossover-hero__kpi--eina">
               <span className="crossover-hero__kpi-label">EINA cas</span>
               <strong>{einaRecommendation}</strong>
+            </div>
+          ) : null}
+          {entityRecommendation ? (
+            <div className="crossover-hero__kpi crossover-hero__kpi--entity">
+              <span className="crossover-hero__kpi-label">Entitat</span>
+              <strong>{entityRecommendation}</strong>
             </div>
           ) : null}
           {privateAction ? (

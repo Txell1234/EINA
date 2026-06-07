@@ -299,6 +299,7 @@ class GeoIntelligenceService:
     def eina_case_summary_from_bundle(self, bundle: dict[str, Any]) -> dict[str, Any]:
         """Shape compatible with crossover eina_case_summary."""
         posture = bundle.get("investment_posture") or {}
+        entity_posture = bundle.get("entity_investment_posture") or {}
         case_icg = bundle.get("case_icg") or {}
         entity_icg = bundle.get("entity_icg")
         headline_icg = bundle.get("entity_confidence_index") or bundle.get("geopolitical_confidence_index")
@@ -307,6 +308,10 @@ class GeoIntelligenceService:
             "investment_confidence_pct": posture.get("confidence_pct"),
             "investment_rationale": posture.get("rationale"),
             "investment_posture_source": posture.get("source"),
+            "entity_investment_recommendation": entity_posture.get("recommendation"),
+            "entity_investment_confidence_pct": entity_posture.get("confidence_pct"),
+            "entity_investment_rationale": entity_posture.get("rationale"),
+            "entity_investment_posture_source": entity_posture.get("source"),
             "geopolitical_confidence_index": bundle.get("geopolitical_confidence_index"),
             "case_geopolitical_confidence_index": bundle.get("case_geopolitical_confidence_index")
             or case_icg.get("index"),

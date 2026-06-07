@@ -830,6 +830,7 @@ def build_geopolitical_confidence_bundle(
     posture = _resolve_investment_posture(inv_recs)
 
     entity_icg: dict[str, Any] | None = None
+    entity_posture: dict[str, Any] | None = None
     if focus_company:
         entity_icg = build_entity_icg_bundle(
             impact,
@@ -841,13 +842,30 @@ def build_geopolitical_confidence_bundle(
             sanction_entity_impacts=sis.get("entity_impacts") or [],
             scenarios=scenarios,
         )
+        from services.crossover_recommendation_service import (
+            _external_signal,
+            build_entity_investment_posture,
+        )
+
+        ext_sig = _external_signal(external_metrics or {}) if external_metrics else None
+        entity_posture = build_entity_investment_posture(
+            focus_entity=focus_company,
+            case_posture=posture,
+            entity_ice=entity_icg.get("index") if entity_icg else None,
+            case_icg=case_icg.get("index"),
+            entity_delta=entity_icg.get("delta_vs_case") if entity_icg else None,
+            external_signal=ext_sig if ext_sig != "MONITOR" else None,
+            private_action=None,
+            scenarios=scenarios,
+        )
+
+    entity_index = entity_icg.get("index") if entity_icg else None
+    entity_delta = entity_icg.get("delta_vs_case") if entity_icg else None
 
     icg = case_icg.get("index")
     components = case_icg.get("components") or []
     source = case_icg.get("confidence_source") or "missing"
     detail = case_icg.get("confidence_detail") or ""
-    entity_index = entity_icg.get("index") if entity_icg else None
-    entity_delta = entity_icg.get("delta_vs_case") if entity_icg else None
 
     return {
         "case_icg": case_icg,
@@ -877,6 +895,7 @@ def build_geopolitical_confidence_bundle(
         "sanction_scenario_adjustments": sis.get("scenario_probability_adjustments") or {},
         "sanction_trend_signals": sis.get("trend_signals") or [],
         "investment_posture": posture,
+        "entity_investment_posture": entity_posture,
         "investment_recommendation_pct": posture.get("confidence_pct"),
         "actor_impact_snapshot": {
             "summary": impact.get("summary"),

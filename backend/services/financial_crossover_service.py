@@ -1379,6 +1379,25 @@ class FinancialCrossoverService:
             alignments=alignments,
         )
 
+        from services.crossover_recommendation_service import build_entity_investment_posture
+
+        entity_posture = build_entity_investment_posture(
+            focus_entity=tiered.get("focus_entity") or tiered_entity,
+            case_posture=computed_conf.get("investment_posture") or {},
+            entity_ice=computed_conf.get("entity_confidence_index"),
+            case_icg=computed_conf.get("case_geopolitical_confidence_index")
+            or computed_conf.get("geopolitical_confidence_index"),
+            entity_delta=computed_conf.get("entity_icg_delta"),
+            external_signal=tiered.get("external_signal")
+            or metrics.get("primary_recommendation"),
+            private_action=(tiered.get("private") or [{}])[0].get("action")
+            if tiered.get("private")
+            else None,
+            scenarios=scenario_rows,
+        )
+        if entity_posture:
+            computed_conf["entity_investment_posture"] = entity_posture
+
         if suggested_actions:
             for act in suggested_actions[:3]:
                 conclusions.append(f"Acció suggerida ({act['action']}): {act['because']}")
@@ -1455,6 +1474,18 @@ class FinancialCrossoverService:
                 "investment_rationale": posture.get("rationale")
                 or ((inv_recs[0].get("rationale") or "")[:220] if inv_recs else ""),
                 "investment_posture_source": posture.get("source"),
+                "entity_investment_recommendation": (
+                    entity_posture or computed_conf.get("entity_investment_posture") or {}
+                ).get("recommendation"),
+                "entity_investment_confidence_pct": (
+                    entity_posture or computed_conf.get("entity_investment_posture") or {}
+                ).get("confidence_pct"),
+                "entity_investment_rationale": (
+                    entity_posture or computed_conf.get("entity_investment_posture") or {}
+                ).get("rationale"),
+                "entity_investment_posture_source": (
+                    entity_posture or computed_conf.get("entity_investment_posture") or {}
+                ).get("source"),
                 "eina_confidence_pct": computed_conf.get("entity_confidence_index")
                 or computed_conf.get("geopolitical_confidence_index")
                 or computed_conf.get("confidence_pct")

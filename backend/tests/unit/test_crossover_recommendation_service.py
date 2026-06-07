@@ -119,3 +119,42 @@ def test_tiered_empty_without_entity():
     out = build_tiered_recommendations(metrics, {}, entity_name=None)
     assert not out["private"]
     assert "Sense entitat" in out["summary"]
+
+
+@pytest.mark.unit
+def test_entity_investment_posture_external_priority():
+    from services.crossover_recommendation_service import build_entity_investment_posture
+
+    out = build_entity_investment_posture(
+        focus_entity="Maersk",
+        case_posture={"recommendation": "HOLD", "confidence_pct": 55.0, "source": "investment_recommendation"},
+        entity_ice=62.0,
+        case_icg=58.0,
+        entity_delta=4.0,
+        external_signal="BUY",
+        private_action="ACCUMULATE",
+        scenarios=[],
+    )
+    assert out is not None
+    assert out["recommendation"] == "BUY"
+    assert out["source"] == "external_report"
+    assert out["confidence_pct"] is not None
+
+
+@pytest.mark.unit
+def test_entity_investment_posture_divergence_downgrades_buy():
+    from services.crossover_recommendation_service import build_entity_investment_posture
+
+    out = build_entity_investment_posture(
+        focus_entity="Kawasaki Heavy Industries",
+        case_posture={"recommendation": "SELL", "confidence_pct": 40.0},
+        entity_ice=48.0,
+        case_icg=55.0,
+        entity_delta=-7.0,
+        external_signal="BUY",
+        private_action="ACCUMULATE",
+        scenarios=[{"name": "Tensió Crònica", "type": "tension", "probability": 35}],
+    )
+    assert out is not None
+    assert out["recommendation"] == "HOLD"
+    assert out["source"] in ("entity_divergence", "geo_entity_caution")

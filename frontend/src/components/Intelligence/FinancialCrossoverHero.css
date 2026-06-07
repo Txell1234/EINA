@@ -103,6 +103,11 @@
   border-top-width: 3px;
 }
 
+.crossover-hero__kpi--entity {
+  border-color: var(--color-primary, #1e5a8a);
+  border-top-width: 3px;
+}
+
 .crossover-hero__delta {
   font-size: 0.85em;
   font-weight: 500;

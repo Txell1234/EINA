@@ -607,3 +607,133 @@ def build_tiered_recommendations(
         "geopolitical_financial_synthesis": geo_fin,
         "summary": " ".join(parts),
     }
+
+
+_PRIVATE_ACTION_TO_REC: dict[str, str] = {
+    "ACCUMULATE": "BUY",
+    "BUY": "BUY",
+    "REVIEW_BUY": "HOLD",
+    "HOLD": "HOLD",
+    "MONITOR": "HOLD",
+    "REDUCE": "SELL",
+    "SELL": "SELL",
+    "REDUCE_OR_HOLD": "HOLD",
+    "REVIEW": "HOLD",
+    "REVIEW_POSITIVE": "HOLD",
+}
+
+
+def build_entity_investment_posture(
+    *,
+    focus_entity: str | None,
+    case_posture: dict[str, Any],
+    entity_ice: float | None = None,
+    case_icg: float | None = None,
+    entity_delta: float | None = None,
+    external_signal: str | None = None,
+    private_action: str | None = None,
+    scenarios: list[dict[str, Any]] | None = None,
+) -> dict[str, Any] | None:
+    """
+    Entity-specific investment posture blending external report, tiered private action,
+    case posture, and ICE — separate from case-level investment_posture.
+    """
+    if not focus_entity:
+        return None
+
+    ext = (external_signal or "").upper()
+    if ext not in ("BUY", "HOLD", "SELL"):
+        ext = ""
+    private_rec = _PRIVATE_ACTION_TO_REC.get((private_action or "").upper(), "")
+    case_rec = (case_posture.get("recommendation") or "").upper()
+    if case_rec not in ("BUY", "HOLD", "SELL"):
+        case_rec = ""
+
+    if ext:
+        entity_rec = ext
+        source = "external_report"
+    elif private_rec:
+        entity_rec = private_rec
+        source = "tiered_private"
+    elif case_rec:
+        entity_rec = case_rec
+        source = "case_fallback"
+    else:
+        entity_rec = "HOLD"
+        source = "missing"
+
+    tense = [
+        s
+        for s in (scenarios or [])
+        if (s.get("type") or "").lower() in ("inferno", "tension", "infern", "tensio")
+    ]
+    rationale_parts: list[str] = [f"Postura entitat «{focus_entity}»."]
+
+    if ext and case_rec and ext != case_rec:
+        if ext == "BUY" and case_rec == "SELL":
+            entity_rec = "HOLD"
+            source = "entity_divergence"
+            rationale_parts.append(
+                f"Divergència: informe {ext} vs recomanació cas {case_rec} → revisió (HOLD)."
+            )
+        elif ext == "SELL" and case_rec == "BUY":
+            entity_rec = "HOLD"
+            source = "entity_divergence"
+            rationale_parts.append(
+                f"Divergència: informe {ext} vs recomanació cas {case_rec} → prudència (HOLD)."
+            )
+        else:
+            rationale_parts.append(f"Informe {ext}; cas {case_rec} — s'prioritza l'informe de l'entitat.")
+    elif ext:
+        rationale_parts.append(f"Senyal informe extern: {ext}.")
+    elif private_action:
+        rationale_parts.append(f"Acció privada tiered: {private_action} → {entity_rec}.")
+
+    if entity_rec == "BUY" and tense:
+        tense_names = ", ".join(s.get("name", "?") for s in tense[:2])
+        if entity_delta is not None and entity_delta < -5:
+            entity_rec = "HOLD"
+            source = "geo_entity_caution"
+            rationale_parts.append(
+                f"Escenaris de tensió ({tense_names}) i ICE {entity_delta:+.0f} pp vs cas — es redueix BUY a HOLD."
+            )
+        else:
+            rationale_parts.append(f"Escenaris de tensió actius ({tense_names}) — vigilar execució.")
+
+    if entity_ice is not None:
+        rationale_parts.append(f"ICE entitat {entity_ice:.0f}%.")
+    elif case_icg is not None:
+        rationale_parts.append(f"Sense ICE; referència ICG_cas {case_icg:.0f}%.")
+
+    base_conf = float(entity_ice) if entity_ice is not None else case_posture.get("confidence_pct")
+    if base_conf is None:
+        base_conf = float(case_icg) if case_icg is not None else 50.0
+    conf = float(base_conf)
+
+    if ext and case_rec and ext == case_rec:
+        conf += 8.0
+        rationale_parts.append("Informe i cas alineats (+confiança).")
+    elif ext and case_rec and ext != case_rec:
+        conf -= 12.0
+
+    if entity_rec == "BUY" and entity_delta is not None and entity_delta < -8:
+        conf -= 10.0
+    if entity_rec == "SELL" and entity_delta is not None and entity_delta > 8:
+        conf -= 8.0
+
+    conf = max(15.0, min(95.0, round(conf, 1)))
+
+    return {
+        "focus_entity": focus_entity,
+        "recommendation": entity_rec,
+        "confidence_pct": conf,
+        "source": source,
+        "rationale": " ".join(rationale_parts),
+        "inputs": {
+            "external_signal": ext or None,
+            "case_recommendation": case_rec or None,
+            "private_action": private_action,
+            "entity_ice": entity_ice,
+            "entity_icg_delta": entity_delta,
+        },
+    }
